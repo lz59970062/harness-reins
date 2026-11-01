@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -30,7 +31,8 @@ class NativeQueueTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.dict(os.environ, {
             "CODEX_HOME": str(self.root / "profile"), "REINS_HOME": str(self.root / "reins"),
             "REINS_TARGET_LOCK_DIR": str(self.root / "locks"),
-            "REINS_CODEX_BIN": str(self.root / "codex"),
+            # An executable that exists: Windows resolves it before the mocked run.
+            "REINS_CODEX_BIN": sys.executable,
         }, clear=True))
         self.queue = self.root / "queue"
         records.ensure_daemon_dirs(self.queue)
@@ -92,6 +94,12 @@ class NativeQueueTests(unittest.TestCase):
 
     def test_spawn_failure_is_repairable_without_claiming_publication(self):
         with mock.patch.object(native_queue.subprocess, "run", side_effect=FileNotFoundError("codex")):
+            self.assertEqual(native_queue.publish(self.payload)["returncode"], 126)
+        self.assertFalse(delivery.desktop_submission_pending(self.queue, self.request))
+        self.assertFalse((self.queue / "native-queue/native-c1.json").exists())
+
+    def test_unresolvable_executable_is_repairable_without_claiming_publication(self):
+        with mock.patch.object(native_queue.shell, "process_command", side_effect=FileNotFoundError("codex")):
             self.assertEqual(native_queue.publish(self.payload)["returncode"], 126)
         self.assertFalse(delivery.desktop_submission_pending(self.queue, self.request))
         self.assertFalse((self.queue / "native-queue/native-c1.json").exists())

@@ -64,8 +64,9 @@ def environment(request: dict[str, object], session: object = None) -> dict[str,
 def inspect_route(request: dict[str, object], *, timeout: float) -> dict[str, object]:
     try:
         validate_route(dict(request, requires=capabilities.required_for(request)))
-        result = subprocess.run(shell.process_command([str(request["callback_codex_bin"]), "queue", "--help"]),
-                                env=environment(request), stdin=subprocess.DEVNULL, capture_output=True,
+        env = environment(request)
+        result = subprocess.run(shell.process_command([str(request["callback_codex_bin"]), "queue", "--help"], env),
+                                env=env, stdin=subprocess.DEVNULL, capture_output=True,
                                 text=True, encoding="utf-8", timeout=max(1, timeout))
         if result.returncode != 0 or not all(flag in result.stdout for flag in ("--thread", "--message")):
             raise ValueError("selected Codex executable does not support native queue delivery")
@@ -96,10 +97,12 @@ def publish(payload: dict[str, object]) -> dict[str, object]:
     record = {"callback_id": ident, "thread_id": request["target"]["session"],
               "state": "submitting", "started_at": time.time()}
     records.write_request(receipt, record)
-    command = shell.process_command([str(request["callback_codex_bin"]), "queue", "--thread",
-                                     str(request["target"]["session"]), "--message", str(payload["prompt"])])
+    env = environment(request, payload.get("environment"))
     try:
-        result = subprocess.run(command, env=environment(request, payload.get("environment")), stdin=subprocess.DEVNULL,
+        # Windows resolves the executable here, so a missing Codex raises before anything is sent.
+        command = shell.process_command([str(request["callback_codex_bin"]), "queue", "--thread",
+                                         str(request["target"]["session"]), "--message", str(payload["prompt"])], env)
+        result = subprocess.run(command, env=env, stdin=subprocess.DEVNULL,
                                 capture_output=True, text=True, encoding="utf-8",
                                 timeout=min(30, max(1, float(payload["timeout"]))))
     except OSError as exc:

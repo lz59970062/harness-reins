@@ -165,6 +165,8 @@ def status(args: argparse.Namespace) -> int:
             line += " | manual receipt; automatic callback disabled"
         if request.get("delivery_state") == "blocked":
             line += " | callback blocked; saved workload result retained"
+        if request.get("delivery_state") == "queued_awaiting_ack":
+            line += " | in the Codex queue; waiting for the thread to ACK"
         if state == "running" and layout.ack_path(root, request_id).exists():
             line += " | acknowledged; resumed Codex process still active"
         error = request.get("last_error")

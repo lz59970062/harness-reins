@@ -62,10 +62,10 @@ def selection(args: argparse.Namespace) -> dict[str, str]:
     if mode == "desktop":
         route["callback_bridge_file"] = str(bridge_file(layout.codex_home()))
     if mode == "codex-queue":
-        from ..harness.codex import native_queue
+        from . import native_queue
         route.update(native_queue.route_fields())
     if mode == "app-server":
-        from ..harness.codex import native
+        from . import native
         route["callback_socket"] = native.selected_socket(getattr(args, "app_server_socket", None))
     elif getattr(args, "app_server_socket", None):
         raise ValueError("--app-server-socket requires --callback-mode app-server")
@@ -86,10 +86,10 @@ def inspect_route(request: dict[str, object], *, timeout: float = 2) -> dict[str
         return dict(report, status="manual", reason="automatic_delivery_disabled",
                     action="Inspect saved results in the bound session and ACK when received.")
     if mode == "codex-queue":
-        from ..harness.codex import native_queue
+        from . import native_queue
         return dict(report, **native_queue.inspect_route(request, timeout=timeout))
     if mode == "app-server":
-        from ..harness.codex import native
+        from . import native
         return dict(report, **native.inspect_route(request, timeout=timeout))
     if dispatch.request_agent(request) == "pi":
         from ..harness.pi import channel as pi_channel

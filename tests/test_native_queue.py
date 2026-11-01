@@ -11,8 +11,7 @@ from unittest import mock
 
 from harness_reins.commands import callbacks
 from harness_reins.core import capabilities
-from harness_reins.engine import delivery, dispatch, routes
-from harness_reins.harness.codex import native_queue
+from harness_reins.engine import delivery, dispatch, native_queue, routes
 from harness_reins.store import layout, records
 import reins_records
 
@@ -73,7 +72,7 @@ class NativeQueueTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertEqual(command[1:], ["queue", "--thread", THREAD, "--message", self.request["prompt"]])
         self.assertEqual(run.call_args.kwargs["env"]["CODEX_HOME"], self.request["callback_codex_home"])
-        self.assertTrue(delivery.desktop_submission_pending(self.queue, self.request))
+        self.assertFalse(delivery.desktop_submission_pending(self.queue, self.request))
         receipt = json.loads((self.queue / "native-queue/native-c1.json").read_text())
         self.assertEqual(receipt["message_id"], MESSAGE)
         self.assertEqual(receipt["state"], "queued")
@@ -99,13 +98,45 @@ class NativeQueueTests(unittest.TestCase):
 
     def test_unconfirmed_or_wrong_target_response_is_not_success(self):
         for result in (subprocess.CompletedProcess([], 0, "", ""),
-                       subprocess.CompletedProcess([], 1, "", "failed"),
+                       subprocess.CompletedProcess([], -9, "", ""),
                        subprocess.CompletedProcess([], 0, f"Queued message {MESSAGE} for thread deadbeef.", "")):
             with self.subTest(result=result):
                 value, _ = self.publish(result)
                 self.assertEqual(value["returncode"], 125)
                 (self.queue / "native-queue/native-c1.json").unlink()
                 delivery.release_retained_target_lease(self.queue, self.request)
+
+    def test_cli_failure_is_repairable_and_can_be_retried(self):
+        path = self.queue / "failed/native-c1.json"
+        records.write_request(path, self.request)
+        value, _ = self.publish(subprocess.CompletedProcess([], 1, "", "no rollout found for thread id"))
+        self.assertEqual(value["returncode"], 126)
+        self.assertFalse(delivery.desktop_submission_pending(self.queue, self.request))
+        self.assertFalse((self.queue / "native-queue/native-c1.json").exists())
+        args = argparse.Namespace(id="native-c1", queue_dir=str(self.queue), callback_mode=None)
+        with mock.patch.object(routes, "inspect_route", return_value={"status": "available"}):
+            self.assertEqual(callbacks.retry_callback(args), 0)
+        self.assertTrue((self.queue / "pending/native-c1.json").is_file())
+
+    def test_publish_runs_with_the_submitting_session_environment(self):
+        self.payload["environment"] = {"PATH": "/session/node/bin", "CODEX_HOME": "/somewhere/else"}
+        _, run = self.publish()
+        env = run.call_args.kwargs["env"]
+        self.assertEqual(env["PATH"], "/session/node/bin")
+        self.assertEqual(env["CODEX_HOME"], self.request["callback_codex_home"])
+
+    def test_unanswered_ack_does_not_hold_back_later_callbacks(self):
+        first = self.queue / "pending/native-c1.json"
+        records.write_request(first, self.request)
+        def send(*_):
+            self.publish()
+            return subprocess.CompletedProcess([], native_queue.PUBLISHED_RETURN_CODE), False, False
+        with mock.patch.object(delivery, "run_resume_until_exit_or_ack", side_effect=send):
+            self.assertTrue(delivery.process_one(self.queue, argparse.Namespace()))
+        later = self.queue / "pending/native-c2.json"
+        records.write_request(later, dict(self.request, id="native-c2"))
+        self.assertEqual(delivery.select_pending(self.queue, 1e12), later)
+        self.assertEqual(dispatch.load_request(first)["delivery_state"], "queued_awaiting_ack")
 
     def test_published_is_pending_until_ack_and_survives_restart_without_resend(self):
         path = self.queue / "pending/native-c1.json"

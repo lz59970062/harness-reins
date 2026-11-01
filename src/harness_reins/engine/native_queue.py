@@ -13,9 +13,10 @@ import subprocess
 import sys
 import time
 
-from ...core import capabilities
-from ...store import layout, records
-from ...system import shell
+from ..core import capabilities
+from ..store import layout, records
+from ..system import shell
+from . import resume_environment
 
 PUBLISHED_RETURN_CODE = 121
 
@@ -53,8 +54,11 @@ def validate_route(request: dict[str, object]) -> None:
         raise ValueError("codex-queue requires its native delivery capability")
 
 
-def environment(request: dict[str, object]) -> dict[str, str]:
-    return dict(os.environ, CODEX_HOME=str(request["callback_codex_home"]))
+def environment(request: dict[str, object], session: object = None) -> dict[str, str]:
+    # A service coordinator's PATH may not reach the `node` an npm Codex needs;
+    # the submitting session's environment, as a headless resume uses, does.
+    base = resume_environment.merged(os.environ, session) if isinstance(session, dict) else os.environ
+    return dict(base, CODEX_HOME=str(request["callback_codex_home"]))
 
 
 def inspect_route(request: dict[str, object], *, timeout: float) -> dict[str, object]:
@@ -74,7 +78,7 @@ def inspect_route(request: dict[str, object], *, timeout: float) -> dict[str, ob
 
 
 def publish(payload: dict[str, object]) -> dict[str, object]:
-    from ...engine import delivery
+    from . import delivery
 
     request = payload["request"]
     validate_route(request)
@@ -95,7 +99,7 @@ def publish(payload: dict[str, object]) -> dict[str, object]:
     command = shell.process_command([str(request["callback_codex_bin"]), "queue", "--thread",
                                      str(request["target"]["session"]), "--message", str(payload["prompt"])])
     try:
-        result = subprocess.run(command, env=environment(request), stdin=subprocess.DEVNULL,
+        result = subprocess.run(command, env=environment(request, payload.get("environment")), stdin=subprocess.DEVNULL,
                                 capture_output=True, text=True, encoding="utf-8",
                                 timeout=min(30, max(1, float(payload["timeout"]))))
     except OSError as exc:
@@ -112,7 +116,17 @@ def publish(payload: dict[str, object]) -> dict[str, object]:
     if result.returncode == 0 and accepted and accepted[2] == request["target"]["session"]:
         record.update(state="queued", message_id=accepted[1], queued_at=time.time())
         records.write_request(receipt, record)
+        # Codex owns the message now and keeps the order. An unanswered ACK must
+        # not hold back later callbacks for this thread; the receipt stops a replay.
+        delivery.release_retained_target_lease(root, request)
         return {"returncode": PUBLISHED_RETURN_CODE, "delivery": "codex_queue", "message_id": accepted[1]}
+    if result.returncode > 0:
+        # The CLI said it failed (no such thread, broken install): repairable with
+        # `reins retry`. Only a kill or an unreadable success leaves the outcome unknown.
+        print(f"reins: codex queue failed for {ident}: {result.stderr.strip()[-500:]}", file=sys.stderr)
+        receipt.unlink()
+        delivery.release_retained_target_lease(root, request)
+        return {"returncode": 126, "delivery": "codex_queue", "error": result.stderr[-2000:]}
     record.update(state="unknown", exit_code=result.returncode, stderr=result.stderr[-2000:])
     records.write_request(receipt, record)
     return {"returncode": 125, "delivery": "codex_queue", "manual_recovery_required": True}

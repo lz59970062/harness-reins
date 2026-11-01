@@ -9,9 +9,10 @@ an installed CLI, or an idle Agent turn does not prove that connection exists.
 
 | Selection | Behavior | Acceptance requirement |
 | --- | --- | --- |
-| `--callback-mode auto` (default) | Recognizes the current `Codex Desktop` origin marker and selects `desktop`; otherwise selects `cli` | If an integration omits the marker, select the mode explicitly. Historical session `source` is not current ownership. |
+| `--callback-mode auto` (default) | Recognizes the current `Codex Desktop` origin marker and selects `codex-queue`; otherwise selects `cli` | If an integration omits the marker, select the mode explicitly. Historical session `source` is not current ownership. |
 | `--callback-mode cli` | Uses the existing local App Server when available, otherwise the bound Agent's CLI resume | Real original-session receipt/ACK must be verified for that CLI configuration; an unrelated Core may still own the session. |
-| `--callback-mode desktop` | Requires an explicit shared Core; never falls back to an independent CLI writer | Desktop and Reins must access the same original conversation and its normal tools/approvals. |
+| `--callback-mode codex-queue` | Publishes once through the public `codex queue` command; the running owner picks it up. See [Codex Desktop](integrations/desktop.md) | The receiving chat must ACK under its own permissions. Queued is not received. |
+| `--callback-mode desktop` | Legacy. Requires an explicit shared Core; never falls back to an independent CLI writer | Desktop and Reins must access the same original conversation and its normal tools/approvals. |
 | `--callback-mode manual` | Runs the workload and saves a callback for later inspection; never automatically starts an Agent | User or original Agent reads results and ACKs receipt. A file by itself does not wake the Agent. |
 
 PI Agent callbacks always use CLI resume: PI has no shared-Core App Server, so

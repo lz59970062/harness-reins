@@ -28,7 +28,8 @@ from ..system import shell
 from . import dispatch
 from . import reminders as reminder_policy
 from . import resume_environment
-from ..harness.codex import app_server, native_queue
+from . import native_queue
+from ..harness.codex import app_server
 
 
 DEFAULT_RETRIES = 3
@@ -429,7 +430,7 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
     if not isinstance(request, dict):
         return None
     if request.get("callback_mode") == "app-server":
-        from ..harness.codex import native
+        from . import native
         return native.start_delivery(payload)
     if request.get("callback_mode") == "manual":
         raise app_server.CallbackTransportBlocked("manual callback mode does not launch an Agent")
@@ -553,7 +554,7 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
 
 def wait_for_remote_delivery(payload: dict, delivery, timeout: float) -> dict:
     """Wait for native delivery without starting or killing its owner."""
-    from ..harness.codex import native
+    from . import native
     if isinstance(delivery, native.NativeAppServerDelivery):
         return native.wait_for_delivery(payload, delivery, timeout)
     delivery_context = app_server.desktop_delivery_context(payload)

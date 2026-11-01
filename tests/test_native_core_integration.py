@@ -18,8 +18,8 @@ import threading
 import time
 import unittest
 
-from harness_reins.engine import delivery
-from harness_reins.harness.codex import app_server, native
+from harness_reins.engine import delivery, native
+from harness_reins.harness.codex import app_server
 import reins_records
 
 

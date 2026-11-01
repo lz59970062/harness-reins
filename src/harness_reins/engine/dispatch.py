@@ -212,7 +212,9 @@ def prepare_request_for_queue(root: Path, request: dict[str, object], prompt: st
     request["lifecycle_state"] = "pending"
     acknowledgement = ack_command(root, request_id)
     routed_prompt = attach_routing_text(prompt, request)
-    request["prompt"] = f"{routed_prompt}\n\n{build_acknowledgement_text(acknowledgement, agent=request_agent(request), callback_mode=request.get("callback_mode"))}"
+    acknowledgement_text = build_acknowledgement_text(acknowledgement, agent=request_agent(request),
+                                                      callback_mode=request.get("callback_mode"))
+    request["prompt"] = f"{routed_prompt}\n\n{acknowledgement_text}"
     if request.get("prompt_format") == envelope.FORMAT:
         # Keep complete evidence locally; neither retries nor rendering counters
         # need to repeat command lines and boilerplate in the model context.
@@ -321,10 +323,10 @@ def load_request(path: Path) -> dict[str, object]:
     if not isinstance(data.get("prompt"), str):
         raise ValueError("request prompt must be a string")
     if data.get("callback_mode") == "codex-queue":
-        from ..harness.codex import native_queue
+        from . import native_queue
         native_queue.validate_route(data)
     if data.get("callback_mode") == "app-server":
-        from ..harness.codex import native
+        from . import native
         native.validate_route(data)
     if set(data["requires"]) & {capabilities.PI_STEER, capabilities.PI_FOLLOW_UP}:
         if request_agent(data) != "pi":

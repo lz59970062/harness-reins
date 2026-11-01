@@ -8,10 +8,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from ... import __version__
-from ...core import capabilities
-from ...store import layout
-from . import app_server
+from .. import __version__
+from ..core import capabilities
+from ..harness.codex import app_server
+from ..store import layout
 
 
 def selected_socket(raw: object) -> str:
@@ -95,7 +95,7 @@ class NativeAppServerDelivery(app_server.DesktopAppServerDelivery):
 
 
 def start_delivery(payload: dict[str, object]) -> NativeAppServerDelivery:
-    from ...engine import delivery as engine
+    from . import delivery as engine
 
     request = payload["request"]
     try:
@@ -154,7 +154,7 @@ def start_delivery(payload: dict[str, object]) -> NativeAppServerDelivery:
 
 
 def wait_for_delivery(payload: dict, delivery: NativeAppServerDelivery, timeout: float) -> dict:
-    from ...engine import delivery as engine
+    from . import delivery as engine
 
     context = app_server.desktop_delivery_context(payload)
     ack = Path(str(payload["ack_path"]))

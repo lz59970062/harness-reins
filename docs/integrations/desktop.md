@@ -8,11 +8,15 @@
 reins run --callback-mode codex-queue --task "一分钟回调" -- python -c "import time; time.sleep(60); print('ready')"
 ```
 
-接受入队后等待接收聊天执行 ACK；未 ACK 不能记为成功。发送意图和原生消息 ID 持久保存，超时或断线不自动重发。聊天忙时由 Codex 原生队列安排后续处理；保持接收聊天在应用中打开。Reins 不轮询聊天状态或让模型定时领取结果。
+接受入队后等待接收聊天执行 ACK；未 ACK 不能记为成功，也不会自动重发。聊天忙时由 Codex 原生队列排到当前轮次之后；保持接收聊天在应用中打开。Reins 不轮询聊天状态或让模型定时领取结果。某个回调迟迟没有 ACK，也不会挡住同一聊天后面的回调；`reins status` 会列出它。
 
-这项接口属于通用 Codex CLI，非 macOS 专属。本机 macOS Desktop 已通过独立进程延迟 60 秒投递并自动启动新轮次的验证；Linux/Windows 未做真实桌面验收。服务器 CLI 的 `auto` 仍选择原来的 `cli`，无需迁移。
+ACK 在原聊天的权限下执行。如果聊天的沙箱不能写 Reins 队列目录（默认 `~/.reins`），需要批准这条命令或把该目录加入可写范围，否则 ACK 会失败。
+
+已在 macOS Desktop 和 Linux 上的真实 Codex 验证。Windows Desktop 尚未验证。服务器 CLI 的 `auto` 仍选择原来的 `cli`，无需迁移。
 
 macOS 默认优先使用应用内置 Codex；可通过 `REINS_CODEX_BIN` 明确指定支持 `queue` 的版本。可执行文件和 `CODEX_HOME` 在提交时固定，避免后台服务切换目标配置。
+
+`codex queue` 明确报错（例如找不到聊天）时回调进入 failed，修好后用 `reins retry --id ID` 重发。命令被杀或输出无法确认时结果未知，不允许重发；检查原聊天后用 `reins ack` 或 `reins cancel` 收尾。
 
 升级时须同时更新 Reins 协调进程；旧进程不认识 `deliver.codex-queue` 能力，会保留记录而不投递。
 
@@ -46,9 +50,7 @@ ACK 和取消在进入等待及收到完成/断线/超时后检查；没有模�
 | Windows | RPC 本身跨平台；此版本未实现该原生模式的 Windows 传输与身份验证 |
 | 普通启动的 Desktop | 只有正式可访问、承载目标聊天的入口才可使用；不自动探测或接管私有连接 |
 
-2026-11-01 的 macOS 实测：应用内 `send_message_to_thread` 可投递；普通外部 MCP
-客户端被应用以 `missing-code-signing-identity` 拒绝。默认 daemon 与 Desktop 的
-stdio Core 是两个服务。**本功能不解决这条 Desktop 授权边界，也未证明普通 Desktop 的完整回调。**
+普通启动的 Desktop 不走这条路由，请用上面的原生队列回调。
 
 隔离集成测试使用真实 Codex 0.166.0、临时配置及本地模拟模型，验证空闲/活跃轮次的工具结果
 输入和完成事件，不访问真实账号或云模型：
@@ -60,9 +62,9 @@ PYTHONPATH=src:tests REINS_TEST_NATIVE_CODEX_BIN=/absolute/path/to/codex \
 
 协议参考：[Codex App Server](https://learn.chatgpt.com/docs/app-server)。
 
-## 可选共享 Core 启动器
+## 旧版共享 Core 启动器
 
-Codex Desktop 接入使用 `0.7.1` 预览版的共享 Core 启动器。Desktop 和 Reins 通过同一个 Core 访问会话，任务结束后把回调送回桌面应用。
+新任务不需要这一节，请用上面的原生队列回调。以下内容只为仍在使用 `--callback-mode desktop` 的记录保留：Desktop 和 Reins 通过同一个 Core 访问会话，任务结束后把回调送回桌面应用。
 
 ## 生成启动器
 

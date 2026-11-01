@@ -121,10 +121,10 @@ def load_managed_task(path: Path) -> dict[str, object]:
     if task.get("callback_mode") not in ("cli", "codex-queue", "desktop", "app-server", "manual"):
         raise ValueError("task requires an explicit callback mode")
     if task.get("callback_mode") == "codex-queue":
-        from ..harness.codex import native_queue
+        from . import native_queue
         native_queue.validate_route(task)
     if task.get("callback_mode") == "app-server":
-        from ..harness.codex import native
+        from . import native
         native.validate_route(task)
     if set(task["requires"]) & {capabilities.PI_STEER, capabilities.PI_FOLLOW_UP}:
         if dispatch.request_agent(task) != "pi":

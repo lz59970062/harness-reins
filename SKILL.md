@@ -50,9 +50,11 @@ Registration maintains only the following index; preserve the surrounding instru
 ### Callback modes (0.7.1 preview)
 
 `--callback-mode auto` recognizes the current Codex Desktop origin marker and
-selects `desktop`; other origins select `cli`. Use an explicit mode if the host
+selects `codex-queue`; other origins select `cli`. Use an explicit mode if the host
 omits that marker. A historical session source is not its current owner.
-`desktop` requires a verified shared Core and never silently falls back to a
+`codex-queue` publishes once using the public Codex CLI queue and waits for the receiving thread to ACK. No custom Desktop launcher or idle-status polling is needed. Keep the receiving chat open. A queued command is not proof of receipt; retain uncertain submissions without replay. The binary and Codex profile are frozen at submission.
+
+The optional legacy `desktop` requires a verified shared Core and never silently falls back to a
 second CLI writer. An unavailable Desktop connection refuses a new `run` or
 `agent` before task admission. `done` still preserves already completed work.
 Do not force CLI mode to conceal a Desktop ownership conflict.

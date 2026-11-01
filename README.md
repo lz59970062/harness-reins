@@ -179,12 +179,10 @@ To use the screen compatibility backend: `sudo apt install screen` (or `dnf inst
 <details>
 <summary><b>Codex Desktop callbacks</b></summary>
 
-Callback modes are explicit (`cli`, `desktop`, `manual`, `auto`), and `reins setup` generates a Desktop
-launcher on Mac and Windows. Setup never starts or interrupts Desktop. When you're ready, quit
-Desktop and open `Start Reins Desktop.command` (Mac) / `Start Reins Desktop.cmd` (Windows), or run
-`reins desktop launch`. Read [callback modes](docs/callback-modes.md), [Mac Desktop setup](docs/macos-desktop-bridge.md)
-and [Windows Desktop setup](docs/windows-desktop-bridge.md) for the current limits; the Windows Desktop
-package-context bridge is still experimental.
+Start Desktop normally: `auto` delivers callbacks through the native `codex queue` command, with no
+launcher and no restart. Callback modes are explicit (`cli`, `codex-queue`, `desktop`, `manual`, `auto`).
+Read [Codex Desktop](docs/integrations/desktop.md) and [callback modes](docs/callback-modes.md) for
+the details and current limits.
 
 </details>
 

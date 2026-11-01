@@ -880,6 +880,33 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#default-native-queue-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Default native queue callbacks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#native-app-server-tool-output-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Native App Server tool-output callbacks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#legacy-shared-core-launcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      Legacy shared Core launcher
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#generate-a-launcher" class="md-nav__link">
     <span class="md-ellipsis">
       Generate a launcher
@@ -1176,6 +1203,33 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#default-native-queue-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Default native queue callbacks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#native-app-server-tool-output-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Native App Server tool-output callbacks
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#legacy-shared-core-launcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      Legacy shared Core launcher
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#generate-a-launcher" class="md-nav__link">
     <span class="md-ellipsis">
       Generate a launcher
@@ -1227,27 +1281,67 @@
 
 
 <h1 id="codex-desktop">Codex Desktop<a class="headerlink" href="#codex-desktop" title="Permanent link">&para;</a></h1>
-<p>Codex Desktop integration uses the shared Core launcher in the <code>0.7.1</code> preview. Desktop and Reins access sessions through the same Core, which delivers callbacks into the desktop app when tasks finish.</p>
+<h2 id="default-native-queue-callbacks">Default native queue callbacks<a class="headerlink" href="#default-native-queue-callbacks" title="Permanent link">&para;</a></h2>
+<p>Start Desktop normally. <code>auto</code> selects <code>codex-queue</code> for Codex Desktop and invokes the public <code>codex queue --thread UUID --message TEXT</code> once after task completion. It needs no custom launcher, private MCP access, extra model, or <code>--resume</code> against another owner.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--callback-mode<span class="w"> </span>codex-queue<span class="w"> </span>--task<span class="w"> </span><span class="s2">"one minute callback"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import time; time.sleep(60); print('ready')"</span>
+</code></pre></div>
+<p>A successful command means queued, not received. The receiving conversation must ACK, and nothing is sent twice automatically. Codex holds the message until a busy conversation finishes its turn; keep the receiving chat open. Reins does not poll conversation state or schedule model wakeups to collect results. A callback still waiting for its ACK does not hold back later callbacks for the same chat; <code>reins status</code> lists it.</p>
+<p>The ACK runs under the chat's own permissions. If its sandbox cannot write the Reins queue directory (<code>~/.reins</code> by default), approve the command or add that directory to the writable roots, otherwise the ACK fails.</p>
+<p>If <code>codex queue</code> reports an error (no such thread, for example), the callback moves to failed; fix the cause and run <code>reins retry --id ID</code>. If the command was killed or its output cannot be confirmed, the outcome is unknown and retry is refused; inspect the chat, then <code>reins ack</code> or <code>reins cancel</code>.</p>
+<p>Verified with macOS Desktop and with real Codex on Linux. Windows Desktop has not been verified. Server CLI auto-routing still uses the existing CLI resume transport. macOS prefers the bundled Codex, while an explicit <code>REINS_CODEX_BIN</code> wins. The binary and profile paths are frozen at submission. Update the coordinator with Reins; older coordinators retain records requiring the new <code>deliver.codex-queue</code> capability instead of misrouting them.</p>
+<h2 id="native-app-server-tool-output-callbacks">Native App Server tool-output callbacks<a class="headerlink" href="#native-app-server-tool-output-callbacks" title="Permanent link">&para;</a></h2>
+<p>The opt-in <code>app-server</code> route uses an existing server that already owns the bound
+thread. It does not launch Desktop or access the application's private MCP pipe.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>reins<span class="w"> </span>doctor<span class="w"> </span>--agent<span class="w"> </span>codex<span class="w"> </span>--session<span class="w"> </span>THREAD_ID<span class="w"> </span>--callback-mode<span class="w"> </span>app-server<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--app-server-socket<span class="w"> </span>/absolute/path/to/owner.sock
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>reins<span class="w"> </span>run<span class="w"> </span>--agent<span class="w"> </span>codex<span class="w"> </span>--session<span class="w"> </span>THREAD_ID<span class="w"> </span>--callback-mode<span class="w"> </span>app-server<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--app-server-socket<span class="w"> </span>/absolute/path/to/owner.sock<span class="w"> </span>--task<span class="w"> </span><span class="s2">"native callback"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>job.py
+</code></pre></div>
+<p>Submission freezes the resolved socket path. Delivery verifies the same-user
+Unix peer and checks that the target thread is loaded before subscribing to it.
+It never resumes an absent thread on another Core and never falls back to CLI.
+Callbacks use <code>turn/start.toolOutput</code>, preserving the existing thread's permissions
+and configuration. Idle threads start processing; active threads receive queued
+tool output without waiting for idle. The original thread needs permission to run
+the callback's ACK command; this route does not override its sandbox or approvals.</p>
+<p>The client waits for pushed <code>turn/completed</code> events without polling thread state.
+ACK/cancel files are checked before waiting and after completion, disconnection or
+timeout. Completion alone is not success: the model must ACK. Submission intent is
+persisted before sending, and an uncertain outcome prevents automatic replay or
+transport fallback. An older Core rejecting <code>toolOutput</code> blocks the callback until
+repair; it is not silently sent as user input.</p>
+<p>The RPC is platform independent. This implementation supports same-user Unix
+sockets on macOS/Linux; the native Windows transport is not implemented. Existing
+server and local CLI workflows keep <code>codex exec resume</code> and need none of this setup.</p>
+<p>A normally started Desktop does not use this route; use the native queue callbacks above.</p>
+<p>An opt-in test uses real Codex 0.166.0 with a temporary profile and local stub model
+(no account or remote model) to verify idle/active tool-output delivery and events:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">PYTHONPATH</span><span class="o">=</span>src:tests<span class="w"> </span><span class="nv">REINS_TEST_NATIVE_CODEX_BIN</span><span class="o">=</span>/absolute/path/to/codex<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>unittest<span class="w"> </span>test_native_core_integration<span class="w"> </span>-v
+</code></pre></div>
+<p>Protocol: <a href="https://learn.chatgpt.com/docs/app-server">Codex App Server</a>.</p>
+<h2 id="legacy-shared-core-launcher">Legacy shared Core launcher<a class="headerlink" href="#legacy-shared-core-launcher" title="Permanent link">&para;</a></h2>
+<p>New tasks do not need this section; use the native queue callbacks above. It remains for records still on <code>--callback-mode desktop</code>: Desktop and Reins access sessions through the same Core, which delivers callbacks into the desktop app when tasks finish.</p>
 <h2 id="generate-a-launcher">Generate a launcher<a class="headerlink" href="#generate-a-launcher" title="Permanent link">&para;</a></h2>
 <p>Install the <a href="../../installation/#install-the-preview">preview</a> on macOS or Windows, then run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>reins<span class="w"> </span>setup<span class="w"> </span>--force<span class="w"> </span>--enable<span class="w"> </span>--now
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>reins<span class="w"> </span>desktop<span class="w"> </span>status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>setup<span class="w"> </span>--force<span class="w"> </span>--enable<span class="w"> </span>--now
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>reins<span class="w"> </span>desktop<span class="w"> </span>status
 </code></pre></div>
 <p>macOS generates <code>Start Reins Desktop.command</code>. Windows generates <code>Start Reins Desktop.cmd</code> and a PowerShell script. The default location is the <code>harness-reins</code> folder inside your Codex configuration directory.</p>
 <h2 id="start-desktop">Start Desktop<a class="headerlink" href="#start-desktop" title="Permanent link">&para;</a></h2>
 <p>Save your work and quit Desktop. Double-click the generated launcher, or run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>launch
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>launch
 </code></pre></div>
 <p>Submit a small task from that Desktop session:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--callback-mode<span class="w"> </span>desktop<span class="w"> </span>--cwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span><span class="w"> </span>--task<span class="w"> </span><span class="s2">"Desktop callback example"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"print('Desktop callback ready')"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--callback-mode<span class="w"> </span>desktop<span class="w"> </span>--cwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span><span class="w"> </span>--task<span class="w"> </span><span class="s2">"Desktop callback example"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"print('Desktop callback ready')"</span>
 </code></pre></div>
 <p>Ask the Agent to read the result and run the included ACK command to check the integration. In a PowerShell tool environment, use <code>--cwd "$($PWD.Path)"</code> in place of <code>--cwd "$PWD"</code>.</p>
 <h2 id="choose-an-app-path">Choose an app path<a class="headerlink" href="#choose-an-app-path" title="Permanent link">&para;</a></h2>
 <p>On macOS with multiple app installations, select one explicitly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>prepare<span class="w"> </span>--app<span class="w"> </span>/Applications/Codex.app<span class="w"> </span>--force
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>prepare<span class="w"> </span>--app<span class="w"> </span>/Applications/Codex.app<span class="w"> </span>--force
 </code></pre></div>
 <p>Windows uses direct launch by default. The experimental Store package-context option is configured with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">reins</span> <span class="n">setup</span> <span class="p">-</span><span class="n">-desktop-launch-mode</span> <span class="n">package-context</span> <span class="p">-</span><span class="n">-force</span> <span class="p">-</span><span class="n">-enable</span> <span class="p">-</span><span class="n">-now</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">reins</span> <span class="n">setup</span> <span class="p">-</span><span class="n">-desktop-launch-mode</span> <span class="n">package-context</span> <span class="p">-</span><span class="n">-force</span> <span class="p">-</span><span class="n">-enable</span> <span class="p">-</span><span class="n">-now</span>
 </code></pre></div>
 <p>See the <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/macos-desktop-bridge.md">macOS Desktop</a> and <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/windows-desktop-bridge.md">Windows Desktop</a> notes for platform setup and validation records. After an app upgrade, run the small example again to check callbacks.</p>
 

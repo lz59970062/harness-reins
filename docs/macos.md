@@ -1,11 +1,5 @@
 # macOS
 
-For the 0.7.1 preview's Desktop automatic callback configuration, see
-[Mac Desktop shared Core](macos-desktop-bridge.md). OS task execution and
-[callback modes](callback-modes.md) have separate readiness and acceptance.
-Use branch `codex/macos-desktop-callback` for this preview. Stable
-`v0.7.0` does not include its automatic launcher setup.
-
 Reins supports macOS through the system launchd manager. The coordinator runs as a
 user LaunchAgent, and each task has its own one-shot launchd job. The default
 native backend does not need Homebrew screen or systemd.
@@ -37,51 +31,12 @@ Run from the original Agent conversation's shell so its session can be detected,
 or pass `--agent codex|claude|pi --session <original-session-id>`. Setup installs the
 skill and creates the daemon; it does not authenticate an Agent CLI for you.
 
-## Install the 0.7.1 preview branch
+## Codex Desktop
 
-Clone the preview branch, install into your chosen virtual environment and run
-the standard setup step:
-
-```bash
-git clone --branch codex/macos-desktop-callback https://github.com/lz59970062/harness-reins.git
-cd harness-reins
-python3 -m venv .venv
-.venv/bin/python -m pip install .
-.venv/bin/reins setup --force --enable --now
-source .venv/bin/activate
-```
-
-On Mac, this setup also generates `Start Reins Desktop.command` and a private Core
-wrapper under `${CODEX_HOME:-~/.codex}/harness-reins`. The launcher is bound to
-this installation's Python runtime. Its absolute paths are calculated locally;
-no username or checkout location is hardcoded in the distributed source. Generate
-it on each machine, and rerun setup after moving or replacing the environment.
-Plain pip installation has no user-configuration hook, so the setup command is
-required for a complete installation.
-
-Setup discovers valid `Codex.app` and `ChatGPT.app` bundles in `/Applications`
-and `~/Applications`, preserving an existing app or custom wrapper selection.
-If several valid apps are found, choose one with
-`reins setup --desktop-app /path/to/Codex.app --force --enable --now`.
-Use `--no-desktop-launcher` to skip generation. Desktop does not need to be
-installed for CLI setup or launcher generation; after installing it, open the
-launcher or run `reins desktop prepare` to complete discovery.
-
-The preview's Git installation helper combines pip and setup using one Python:
-
-```text
-REINS_PYTHON=/absolute/path/to/python bash scripts/install_from_git.sh <github-https-url> [subdirectory] -- [setup flags]
-```
-
-It runs `setup --force --enable --now`; extra setup flags follow `--`, for example
-`--desktop-app /path/to/Codex.app`. Select `codex/macos-desktop-callback` in the
-Git URL with `@codex/macos-desktop-callback`. The stable `v0.7.0` commands above
-continue to install the stable release without this new generator.
-
-Generation does not start or restart Desktop. Activating the shared Core remains
-an explicit launch after finishing active Desktop work. See the
-[Desktop guide](macos-desktop-bridge.md) for that step, custom configuration,
-the Unix socket path-length limit and pending acceptance checks.
+Open Desktop normally. `auto` delivers callbacks through the native `codex queue`
+command, with no launcher and no restart. See [Codex Desktop](integrations/desktop.md),
+which also covers upgrading from the old launcher, and
+[callback modes](callback-modes.md).
 
 ## Inspect and repair
 

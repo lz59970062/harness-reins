@@ -1,5 +1,7 @@
 # LTC：Mac 完成后的 Windows 开发交接
 
+> 历史记录。这里提到的 Desktop 启动器和桥接已经停用；当前做法见 [Codex Desktop](integrations/desktop.md)。
+
 交接日期：2026-09-26。面向在 Windows 机器上继续开发的 Agent / 维护者。
 
 后续状态：Windows 原生实现、实验桥接原会话回调及 ACK 已完成，跨平台 CI 已通过，

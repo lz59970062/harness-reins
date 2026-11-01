@@ -2,18 +2,10 @@
 
 ## 0.7.1 preview: explicit callback modes
 
-The working preview separates callback capability from OS task ownership.
-See [callback modes](callback-modes.md), the
-[Mac Desktop launcher](macos-desktop-bridge.md) and the
-[Windows Desktop launcher](windows-desktop-bridge.md).
-`desktop.py` dispatches the common setup/prepare/launch/status lifecycle to
-`harness/codex/desktop/macos.py` or `harness/codex/desktop/windows.py`. Standard setup generates local
-launchers for both platforms. Windows locates the native wrapper in the current
-distribution's install records and uses `harness/codex/desktop/windows_assets` from the wheel;
-the examples directory is only a compatibility entry point. Generation and
-activation are separate, and Windows package-context startup remains explicit.
+Callback capability is separate from OS task ownership. See
+[callback modes](callback-modes.md) and [Codex Desktop](integrations/desktop.md).
 New managed task records are version 3 and explicit callback records version 2;
-older coordinators reject them so they cannot silently ignore manual/desktop
+older coordinators reject them so they cannot silently ignore their callback
 intent. Existing versions remain readable. The 0.7.0 material below is the
 released baseline; the preview's live Mac Desktop acceptance is still pending.
 
@@ -210,18 +202,7 @@ draining it first; each profile owns one coordinator/runtime record.
 Windows callbacks use the bound Agent CLI session. Native executables and recognized
 npm/forwarding batch shims are resolved without a shell; unknown batch scripts fail
 explicitly. Generated ACK/goal commands are literal PowerShell argument arrays.
-The optional Windows Desktop bridge is an experimental explicit transport.
-Desktop launches `harness/codex/desktop/core.py` through an explicit CLI override. It relays
-Desktop's stdio protocol and preserves the environment and configuration that
-Desktop supplies for its tools and approvals. `harness/codex/desktop/bridge.py` owns one App
-Server and a gateway that verifies connected Windows peers before adding a
-private upstream Bearer token. Desktop and Reins must use that same server.
-`harness/codex/desktop/connection.py` validates metadata/profile,
-and `system/windows_tcp.py` authenticates the connected reverse TCP tuple,
-PID, SID and creation identity. No unauthenticated upstream is exposed; browser
-Origin headers are rejected. See [bridge setup and limits](windows-desktop-bridge.md).
-Real Windows Desktop original-session delivery and ACK passed with the explicit
-package-context bridge on 2026-09-27; the default CLI active-writer limitation remains. A durable submission
+A durable submission
 intent precedes `turn/start`, so response loss or a parent timeout preserves the
 cross-queue lease instead of authorizing another delivery.
 

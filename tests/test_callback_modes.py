@@ -57,17 +57,14 @@ class CallbackModeTests(unittest.TestCase):
         self.assertEqual(child["PATH"], "keep")
         self.assertEqual(original["CODEX_INTERNAL_ORIGINATOR_OVERRIDE"], "Codex Desktop")
 
-    def test_windows_desktop_default_matches_existing_launcher(self):
-        with mock.patch.object(transport.sys, "platform", "win32"):
-            self.assertEqual(transport.bridge_file(self.root), self.root / "harness-reins/desktop-bridge.json")
-
-    def test_unconfigured_desktop_refuses_before_workload_admission(self):
+    def test_retired_desktop_refuses_before_workload_admission(self):
         args = argparse.Namespace(agent="codex", callback_mode="desktop", session="original", last=False)
         with mock.patch.object(managed_tasks, "select_execution_backend") as backend, mock.patch.object(layout, "managed_task_dir") as directory:
             self.assertEqual(dispatch.submit_managed_run(args), 125)
         backend.assert_not_called()
         directory.assert_not_called()
         self.assertEqual(args._callback_capability["status"], "blocked")
+        self.assertIn("codex-queue", args._callback_capability["action"])
 
     def test_probe_only_reads_and_follows_pagination(self):
         client = mock.Mock()

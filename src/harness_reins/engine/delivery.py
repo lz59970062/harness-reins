@@ -16,7 +16,6 @@ from ..core import capabilities, records
 from .. import __version__
 from ..harness.claude import session as claude_session
 from ..harness.pi import channel as pi_channel
-from ..harness.codex.desktop.connection import BridgeEndpoint, UnixBridgeEndpoint
 from ..harness import get_agent
 from ..harness.base import DEFAULT_CLAUDE_PERMISSION_MODE
 from ..harness.claude.adapter import CLAUDE_BIN_ENV, CLAUDE_PERMISSION_MODE_ENV
@@ -436,18 +435,13 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
         raise app_server.CallbackTransportBlocked("manual callback mode does not launch an Agent")
     if dispatch.request_agent(request) != "codex":
         return None  # The Desktop App Server delivery path is Codex-only.
-    try:
-        socket_path = app_server.desktop_app_server_socket(request)
-    except (OSError, ValueError) as exc:
-        if request.get("callback_mode") == "desktop":
-            raise app_server.CallbackTransportBlocked("configured Desktop bridge is unavailable; inspect and retry this callback only") from exc
-        raise
+    socket_path = app_server.desktop_app_server_socket(request)
     target = request.get("target")
     sandbox_policy = app_server.desktop_sandbox_policy(request)
-    explicit_desktop = request.get("callback_mode") == "desktop" or isinstance(socket_path, (BridgeEndpoint, UnixBridgeEndpoint))
+    explicit_desktop = request.get("callback_mode") == "desktop"
     if socket_path is None or sandbox_policy is None or not isinstance(target, dict) or not isinstance(target.get("session"), str):
         if explicit_desktop:
-            raise app_server.CallbackTransportBlocked("Desktop callbacks require a bound session, shared Core and workspace-write callback policy")
+            raise app_server.CallbackTransportBlocked("Desktop callbacks require a bound session, an App Server socket and workspace-write callback policy")
         return None
     connection = app_server.AppServerConnection(socket_path, min(15.0, max(1.0, float(payload["timeout"]))))
     delivery_context = app_server.desktop_delivery_context(payload)
@@ -525,14 +519,14 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
                     )
                     return app_server.DesktopAppServerDelivery(None, target["session"], None)
             if explicit_desktop:
-                raise app_server.CallbackTransportBlocked("explicit Desktop bridge rejected the callback; CLI fallback disabled") from exc
+                raise app_server.CallbackTransportBlocked("explicit Desktop route rejected the callback; CLI fallback disabled") from exc
             print(
                 f"reins: desktop App Server rejected turn/start: {exc}; falling back to CLI",
                 file=sys.stderr,
             )
         else:
             if explicit_desktop:
-                raise app_server.CallbackTransportBlocked("explicit Desktop bridge could not resume the bound session; CLI fallback disabled") from exc
+                raise app_server.CallbackTransportBlocked("explicit Desktop route could not resume the bound session; CLI fallback disabled") from exc
             print(f"reins: desktop App Server delivery unavailable: {exc}; falling back to CLI", file=sys.stderr)
         return None
     except (OSError, ValueError, TypeError, app_server.AppServerProtocolError) as exc:
@@ -544,7 +538,7 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
             )
             return app_server.DesktopAppServerDelivery(None, target["session"], None)
         if explicit_desktop:
-            raise app_server.CallbackTransportBlocked("explicit Desktop bridge is unavailable; CLI fallback disabled") from exc
+            raise app_server.CallbackTransportBlocked("explicit Desktop route is unavailable; CLI fallback disabled") from exc
         print(f"reins: desktop App Server delivery unavailable: {exc}; falling back to CLI", file=sys.stderr)
         return None
     finally:
@@ -1001,7 +995,10 @@ def process_one(root: Path, args: argparse.Namespace) -> bool:
             )
         if result.returncode == 126 and not acked:
             request["delivery_state"] = "blocked"
-            request["last_error"] = "callback transport blocked; repair the original session connection, then use reins retry --id " + request_id
+            if request.get("callback_mode") == "desktop":
+                request["last_error"] = "callback transport blocked; move it to the native queue with " + app_server.desktop_route_repair(request)
+            else:
+                request["last_error"] = "callback transport blocked; repair the original session connection, then use reins retry --id " + request_id
         if result.returncode == 125 and not acked and pi_resume_reached_session(request, request_id):
             # The resumed Pi turn saw the callback but ended without an ACK. It is
             # in the session, so order is kept and nothing needs replaying: later

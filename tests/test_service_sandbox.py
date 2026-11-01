@@ -215,8 +215,6 @@ class ServiceSandboxProbeTests(unittest.TestCase):
                 mock.patch.object(services.skill_install, "install_skill", return_value=0), \
                 mock.patch.object(services.reminder_policy, "ensure_callback_hook_file"), \
                 mock.patch.object(services, "report_claude_agent_readiness"), \
-                mock.patch("harness_reins.harness.codex.desktop.launcher.validate_setup"), \
-                mock.patch("harness_reins.harness.codex.desktop.launcher.install_for_setup"), \
                 mock.patch.object(services, "install_systemd", return_value=0) as install, \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(services.setup(args), 0)

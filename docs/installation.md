@@ -51,7 +51,7 @@ reins setup --backend screen --service standalone --now
 
 ## 安装预览版
 
-`0.7.1` 预览版包含 Claude 实时回调、Pi 接入和 Desktop 启动器。使用一个新的目录安装当前 `main`：
+`0.7.1` 预览版包含 Claude 实时回调和 Pi 接入。使用一个新的目录安装当前 `main`：
 
 ```bash
 git clone https://github.com/lz59970062/harness-reins.git reins-preview

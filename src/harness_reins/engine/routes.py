@@ -6,39 +6,19 @@ not a guarantee that the owner, connection or authentication will stay alive.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from pathlib import Path
 import sys
 
 from .. import __version__
 
+# `desktop` stays parseable only to answer it with the replacement. Saved records
+# keep the mode, and may keep callback_bridge_file, until they are retried.
 MODES = ("auto", "cli", "codex-queue", "desktop", "app-server", "manual")
+OFFERED_MODES = tuple(mode for mode in MODES if mode != "desktop")
 ROUTE_FIELDS = ("callback_mode", "callback_origin", "callback_bridge_file", "callback_socket",
                 "callback_codex_bin", "callback_codex_home",
                 "pi_callback_protocol", "pi_profile_dir", "pi_channel_root", "pi_delivery")
-
-
-def configuration_path(profile: Path) -> Path:
-    return profile / "harness-reins" / "desktop.json"
-
-
-def bridge_file(profile: Path) -> Path:
-    raw = os.environ.get("REINS_DESKTOP_BRIDGE_FILE")
-    if raw:
-        return Path(raw).expanduser().absolute()
-    config = configuration_path(profile)
-    try:
-        record = json.loads(config.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        if sys.platform == "win32":
-            return profile / "harness-reins" / "desktop-bridge.json"
-        return profile / "harness-reins" / "desktop" / "bridge.json"
-    if (not isinstance(record, dict) or record.get("version") != 1
-            or record.get("codex_home") != str(profile.resolve())
-            or not isinstance(record.get("metadata"), str) or not Path(record["metadata"]).is_absolute()):
-        raise ValueError("Desktop configuration is invalid for this profile")
-    return Path(record["metadata"])
 
 
 def selection(args: argparse.Namespace) -> dict[str, str]:
@@ -52,15 +32,15 @@ def selection(args: argparse.Namespace) -> dict[str, str]:
     mode = getattr(args, "callback_mode", "auto") or "auto"
     if mode not in MODES:
         raise ValueError("unsupported callback mode")
+    if mode == "desktop":
+        raise ValueError("--callback-mode desktop is retired; use codex-queue, which works on a normally started Codex Desktop")
     origin = os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "").strip().casefold()
     desktop = origin == "codex desktop"
     if mode == "auto":
         mode = "codex-queue" if dispatch.resolve_agent(args) == "codex" and desktop else "cli"
     if mode in ("desktop", "app-server", "codex-queue") and dispatch.resolve_agent(args) != "codex":
-        raise ValueError("Desktop/App Server callback modes support Codex only")
+        raise ValueError("Queue/App Server callback modes support Codex only")
     route = {"callback_mode": mode, "callback_origin": "desktop" if desktop else "other"}
-    if mode == "desktop":
-        route["callback_bridge_file"] = str(bridge_file(layout.codex_home()))
     if mode == "codex-queue":
         from . import native_queue
         route.update(native_queue.route_fields())
@@ -101,7 +81,7 @@ def inspect_route(request: dict[str, object], *, timeout: float = 2) -> dict[str
         endpoint = app_server.desktop_app_server_socket(request)
         if endpoint is None:
             if mode == "desktop":
-                raise ValueError("Desktop bridge not selected")
+                raise ValueError("Desktop App Server not selected")
             return dict(report, transport="cli_resume", reason="session_delivery_not_probed")
         connection = app_server.AppServerConnection(endpoint, timeout)
         connection.connect()
@@ -123,11 +103,12 @@ def inspect_route(request: dict[str, object], *, timeout: float = 2) -> dict[str
                 break
         return dict(report, status="blocked" if mode == "desktop" else "unverified",
                     transport="app_server", reason="bound_session_not_loaded",
-                    action="Open the original session through the configured shared Core; an idle or absent listing is not permission to take another Core's writer.")
+                    action=(f"Run {app_server.desktop_route_repair(request)}; an idle or absent listing is not permission to take another Core's writer."
+                            if mode == "desktop" else "Open the original session through the Core this socket reaches; an idle or absent listing is not permission to take another Core's writer."))
     except (OSError, ValueError, RuntimeError, TypeError):
         return dict(report, status="blocked" if mode == "desktop" else "unverified",
-                    reason="desktop_bridge_unavailable" if mode == "desktop" else "cli_resume_unverified",
-                    action=("Configure/start the Desktop shared Core, then recheck outside a restricted tool sandbox; or explicitly choose manual callback mode."
+                    reason="desktop_route_unavailable" if mode == "desktop" else "cli_resume_unverified",
+                    action=(f"Run {app_server.desktop_route_repair(request)}, or choose --callback-mode manual to keep the result for reading in the session."
                             if mode == "desktop" else "CLI resume remains available, but original-session receipt is not verified; inspect ownership if delivery fails."))
     finally:
         if connection is not None:

@@ -41,7 +41,6 @@ def config_path(name: str) -> Path:
 def configuration(args: argparse.Namespace) -> dict[str, object]:
     from ..tower import environment as tower_environment
     from ..tower import main as tower
-    from ..harness.codex import app_server
     from ..store import records as queue_store
     from ..store import layout
     root = layout.queue_dir(args).resolve()
@@ -54,9 +53,8 @@ def configuration(args: argparse.Namespace) -> dict[str, object]:
     environment.update(CODEX_HOME=str(layout.codex_home().resolve()),
                        CLAUDE_CONFIG_DIR=str(layout.claude_home().resolve()),
                        PYTHONIOENCODING="utf-8")
-    for name in (layout.TARGET_LOCK_DIR_ENV, app_server.APP_SERVER_BRIDGE_FILE_ENV):
-        if name in os.environ:
-            environment[name] = os.environ[name]
+    if layout.TARGET_LOCK_DIR_ENV in os.environ:
+        environment[layout.TARGET_LOCK_DIR_ENV] = os.environ[layout.TARGET_LOCK_DIR_ENV]
     return {
         "version": 1, "run": True,
         "owner": service_owner(args.name, layout.codex_home()),

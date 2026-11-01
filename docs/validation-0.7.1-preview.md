@@ -1,5 +1,7 @@
 # 0.7.1a1 local validation — 2026-09-27
 
+> Historical record. The Desktop launcher and bridge described here are retired; for current behavior see [Codex Desktop](integrations/desktop.md).
+
 This is an unreleased preview on `codex/macos-desktop-callback`, based on the
 0.7.0 release `f2695b8`. Native execution and live callback acceptance are
 reported separately.

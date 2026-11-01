@@ -180,7 +180,7 @@ To use the screen compatibility backend: `sudo apt install screen` (or `dnf inst
 <summary><b>Codex Desktop callbacks</b></summary>
 
 Start Desktop normally: `auto` delivers callbacks through the native `codex queue` command, with no
-launcher and no restart. Callback modes are explicit (`cli`, `codex-queue`, `desktop`, `manual`, `auto`).
+launcher and no restart. Callback modes are explicit (`cli`, `codex-queue`, `app-server`, `manual`, `auto`).
 Read [Codex Desktop](docs/integrations/desktop.md) and [callback modes](docs/callback-modes.md) for
 the details and current limits.
 
@@ -392,7 +392,6 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 | Protocol v1 and package architecture (design) | [protocol](docs/design/protocol-v1.md) · [architecture](docs/design/architecture.md) |
 | Platform ownership and extension points | [docs/architecture.md](docs/architecture.md) |
 | macOS · Windows · Containers | [macOS](docs/macos.md) · [Windows](docs/windows.md) · [Containers](docs/containers.md) |
-| Desktop bridges | [Mac](docs/macos-desktop-bridge.md) · [Windows](docs/windows-desktop-bridge.md) |
 | Benchmark: what waiting costs, with and without Reins | [Benchmark](https://lz59970062.github.io/harness-reins/en/benchmark/) |
 | Validation records | [0.8.0.dev0 Linux in Docker](docs/validation-0.8.0-docker.md) |
 | Validation records (Long Task Callback era) | [0.7.0](docs/validation-0.7.0.md) · [0.7.1 preview](docs/validation-0.7.1-preview.md) · [Linux preview](docs/validation-0.7.0a1.md) · [macOS](docs/validation-macos.md) · [Windows](docs/validation-windows.md) |

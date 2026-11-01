@@ -60,7 +60,5 @@ These commands use the `0.7.1` preview:
 | `reins agent pi -- <prompt>` | Start a Pi child Agent |
 | `reins pi` | Open a Reins-managed Pi session |
 | `reins template list` | List registered templates |
-| `reins desktop status` | Inspect Desktop connection settings |
-| `reins desktop launch` | Start Desktop through the shared Core |
 
 See [Multi-stage goals](../guides/goals.md) for the goal command sequence.

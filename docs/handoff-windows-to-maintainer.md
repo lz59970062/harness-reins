@@ -1,5 +1,7 @@
 # LTC 0.7.0：Windows 完成后的开发交接
 
+> 历史记录。这里提到的 Desktop 启动器和桥接已经停用；当前做法见 [Codex Desktop](integrations/desktop.md)。
+
 交接日期：2026-09-27。后续统一在 **`codex/0.7.0-preview`** 上继续开发。
 Windows 临时分支 `codex/windows-support` 已快进合入此分支；不要再次从旧 Mac
 基线开始 Windows 适配。临时分支保留作历史引用，不作为后续开发入口。
@@ -104,7 +106,7 @@ GUI、一次 App Tools 调用及原会话 receipt/ACK 均已验证。
    Core 0.155.0-alpha.9.2；没有承诺所有版本和所有 App Tools 流程兼容。
 2. 测试的 Store 版 Desktop 默认直接启动路线仍报 Win32 error 5。
    `-PackageContext` 使用微软诊断工具的包上下文；其 token 和其他行为不保证等同正常激活。
-   先阅读 [桥接文档](windows-desktop-bridge.md)，预检成功且用户保存工作、关闭 Desktop 后再启动。
+   先阅读 桥接文档（已移除），预检成功且用户保存工作、关闭 Desktop 后再启动。
 3. 默认 CLI resume 仍可能受打开的 Desktop 会话的 active-writer 约束。
    不得删除 writer 锁、换成 `--last`、伪造 ACK 或重跑已完成的业务任务掩盖投递失败。
 4. Windows 依赖已登录的交互用户；不是注销后仍工作的系统服务。注销、重启可中断任务，

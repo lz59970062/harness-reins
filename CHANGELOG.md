@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- `reins setup` no longer generates the Codex Desktop launcher on macOS or
+  Windows, and the shared Core behind it is gone. Open Desktop normally; callbacks
+  use `codex-queue`. An old launcher now prints this advice and exits, and setup
+  names any leftover launcher files you can delete.
+- A saved `--callback-mode desktop` callback keeps its result. On macOS and
+  Windows it is held in failed with the exact command to move it: `reins retry
+  --id ID --callback-mode codex-queue`. The task is not run again. On Linux these
+  records keep delivering through the local App Server socket.
+- New work cannot select `--callback-mode desktop`; the error points to
+  `codex-queue`. `reins desktop`, `--desktop-app`, `--desktop-launch-mode` and
+  `reins-desktop-core` are removed. `--no-desktop-launcher` is accepted and ignored,
+  so existing install scripts keep working.
+
 ## 0.10.0 — 2026-11-01
 
 - Codex Desktop callbacks work on a normally started Desktop. `auto` now selects

@@ -37,7 +37,6 @@ LAYER_OF_MODULE = {
     "harness_reins.cli": "cli",
     "harness_reins.__main__": "cli",
     "harness_reins._entry": "cli",
-    "harness_reins._desktop_entry": "cli",
     # Expert agent templates; they move into engine with the expert work.
     "harness_reins.templates": "engine",
     "harness_reins.template_registration": "engine",
@@ -55,10 +54,6 @@ KNOWN_VIOLATIONS = {
     "harness_reins.harness.claude.session -> harness_reins.store.layout",
     "harness_reins.harness.claude.session -> harness_reins.store.records",
     "harness_reins.harness.codex.app_server -> harness_reins.store.layout",
-    "harness_reins.harness.codex.desktop.macos -> harness_reins.engine.routes",
-    "harness_reins.harness.codex.desktop.macos -> harness_reins.store.layout",
-    "harness_reins.harness.codex.desktop.windows -> harness_reins.engine.routes",
-    "harness_reins.harness.codex.desktop.windows -> harness_reins.store.layout",
     "harness_reins.harness.pi.channel -> harness_reins.cli",
     "harness_reins.harness.pi.channel -> harness_reins.engine.delivery",
     "harness_reins.harness.pi.channel -> harness_reins.engine.dispatch",
@@ -70,12 +65,7 @@ KNOWN_VIOLATIONS = {
     # Process identity and peer checks are OS primitives that still live in
     # the owner backends; they move to harness_reins.system.
     "harness_reins.harness.codex.app_server -> harness_reins.owners.macos",
-    "harness_reins.harness.codex.desktop.bridge -> harness_reins.owners.windows",
-    "harness_reins.harness.codex.desktop.connection -> harness_reins.owners.macos",
-    "harness_reins.harness.codex.desktop.connection -> harness_reins.owners.windows",
-    "harness_reins.harness.codex.desktop.unix -> harness_reins.owners.macos",
     "harness_reins.harness.pi.channel -> harness_reins.owners.windows",
-    "harness_reins.system.windows_tcp -> harness_reins.owners.windows",
 }
 
 

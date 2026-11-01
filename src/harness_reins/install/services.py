@@ -32,6 +32,9 @@ from ..tower import main as tower
 
 
 DEFAULT_SUPERVISOR_CONF_DIR = "/etc/supervisor/conf.d"
+# Written into CODEX_HOME by versions before the native Codex queue route.
+RETIRED_DESKTOP_LAUNCHERS = ("Start Reins Desktop.command", "desktop-core.command",
+                             "Start Reins Desktop.cmd", "Start Reins Desktop.ps1")
 
 
 def systemd_user_dir() -> Path:
@@ -576,11 +579,16 @@ def select_daemon_service(args: argparse.Namespace) -> str:
     return service
 
 
-def setup(args: argparse.Namespace) -> int:
-    from ..harness.codex.desktop import launcher as desktop_launcher
+def report_retired_desktop_launcher() -> None:
+    state = layout.codex_home() / "harness-reins"
+    stale = [path for path in (state / name for name in RETIRED_DESKTOP_LAUNCHERS) if path.is_file()]
+    if stale:
+        print("reins: the Desktop launcher is retired; open Codex Desktop normally. You can delete: "
+              + ", ".join(str(path) for path in stale), file=sys.stderr)
 
+
+def setup(args: argparse.Namespace) -> int:
     try:
-        desktop_launcher.validate_setup(args)
         service = select_daemon_service(args)
         if not getattr(args, "callback_only", False):
             managed_tasks.select_execution_backend(args)
@@ -609,11 +617,7 @@ def setup(args: argparse.Namespace) -> int:
             return 2
     reminder_policy.ensure_callback_hook_file()
     report_claude_agent_readiness(args)
-    try:
-        desktop_launcher.install_for_setup(layout.codex_home(), args)
-    except (OSError, ValueError) as exc:
-        print(f"reins: could not prepare the optional Desktop launcher: {exc}; "
-              "CLI setup can continue. Retry with reins desktop prepare.", file=sys.stderr)
+    report_retired_desktop_launcher()
 
     systemd_args = argparse.Namespace(
         name=args.name,

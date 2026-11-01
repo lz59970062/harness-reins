@@ -29,10 +29,9 @@ Issues = "https://github.com/lz59970062/harness-reins/issues"
 
 [project.scripts]
 reins = "harness_reins.cli:main"
-reins-desktop-core = "harness_reins.harness.codex.desktop.core:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-harness_reins = ["_build.txt", "assets/skills/reference/SKILL.md", "assets/skills/claude/SKILL.md", "assets/skills/codex/SKILL.md", "assets/skills/pi/SKILL.md", "assets/skills/reference/agents/openai.yaml", "templates/*.md", "owners/*.ps1", "harness/codex/desktop/windows_assets/*.ps1", "harness/codex/desktop/windows_assets/*.py", "harness/pi/extension/*.js"]
+harness_reins = ["_build.txt", "assets/skills/reference/SKILL.md", "assets/skills/claude/SKILL.md", "assets/skills/codex/SKILL.md", "assets/skills/pi/SKILL.md", "assets/skills/reference/agents/openai.yaml", "templates/*.md", "owners/*.ps1", "harness/pi/extension/*.js"]

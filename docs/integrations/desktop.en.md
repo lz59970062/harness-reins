@@ -59,49 +59,16 @@ PYTHONPATH=src:tests REINS_TEST_NATIVE_CODEX_BIN=/absolute/path/to/codex \
 
 Protocol: [Codex App Server](https://learn.chatgpt.com/docs/app-server).
 
-## Legacy shared Core launcher
+## Upgrading from the old launcher
 
-New tasks do not need this section; use the native queue callbacks above. It remains for records still on `--callback-mode desktop`: Desktop and Reins access sessions through the same Core, which delivers callbacks into the desktop app when tasks finish.
+Quit Desktop and open it the normal way. `reins setup` no longer writes `Start Reins Desktop`, and an old copy only prints this advice, so you can delete it. Callbacks need nothing else.
 
-## Generate a launcher
-
-Install the [preview](../installation.md#install-the-preview) on macOS or Windows, then run:
+A callback saved with `--callback-mode desktop` keeps its result. On macOS and Windows it stops in failed with the exact command to move it:
 
 ```bash
-reins setup --force --enable --now
-reins desktop status
+reins retry --id ID --callback-mode codex-queue
 ```
 
-macOS generates `Start Reins Desktop.command`. Windows generates `Start Reins Desktop.cmd` and a PowerShell script. The default location is the `harness-reins` folder inside your Codex configuration directory.
+The task does not run again; the same result goes to the same chat. Run it from a shell that can reach the Codex you use, because the executable and profile are frozen at that point. If the old delivery may have been sent, retry is refused: inspect the chat, then `reins ack` or `reins cancel`. On Linux these records keep delivering through the local App Server socket, and the same command moves them if that socket is gone.
 
-## Start Desktop
-
-Save your work and quit Desktop. Double-click the generated launcher, or run:
-
-```bash
-reins desktop launch
-```
-
-Submit a small task from that Desktop session:
-
-```bash
-reins run --callback-mode desktop --cwd "$PWD" --task "Desktop callback example" -- python -c "print('Desktop callback ready')"
-```
-
-Ask the Agent to read the result and run the included ACK command to check the integration. In a PowerShell tool environment, use `--cwd "$($PWD.Path)"` in place of `--cwd "$PWD"`.
-
-## Choose an app path
-
-On macOS with multiple app installations, select one explicitly:
-
-```bash
-reins desktop prepare --app /Applications/Codex.app --force
-```
-
-Windows uses direct launch by default. The experimental Store package-context option is configured with:
-
-```powershell
-reins setup --desktop-launch-mode package-context --force --enable --now
-```
-
-See the [macOS Desktop](https://github.com/lz59970062/harness-reins/blob/main/docs/macos-desktop-bridge.md) and [Windows Desktop](https://github.com/lz59970062/harness-reins/blob/main/docs/windows-desktop-bridge.md) notes for platform setup and validation records. After an app upgrade, run the small example again to check callbacks.
+`--callback-mode desktop` cannot be selected for new work; the error points to `codex-queue`.

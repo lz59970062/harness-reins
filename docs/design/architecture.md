@@ -62,7 +62,7 @@ harness_reins/
   harness/         谁来做事、怎么回到会话；每个 Harness 一个目录
     base.py          能力协议：Binder、Spawner、Resumer、Injector、SchemaOutput
     registry.py
-    codex/           adapter.py、app_server.py（从 cli.py 拆出）、desktop/
+    codex/           adapter.py、app_server.py（从 cli.py 拆出）
     claude/          adapter.py、channel.py、wait.py
     pi/              adapter.py、channel.py、extension/（JS）
     （预留）acp/     通用 ACP 客户端，只用于启动子代理
@@ -73,7 +73,7 @@ harness_reins/
     linux.py（systemd）  macos.py（launchd）  windows.py（Task Scheduler）  screen.py
 
   system/          操作系统原语，只依赖标准库
-    posix.py  windows_io.py  windows_process.py  windows_tcp.py
+    posix.py  windows_io.py  windows_process.py
 
   engine/          生命周期六步的业务逻辑
     dispatch.py      派发：校验 Worker 与 Target，建任务记录

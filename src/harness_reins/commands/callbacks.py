@@ -98,7 +98,9 @@ def retry_callback(args: argparse.Namespace) -> int:
             request["requires"] = capabilities.required_for(request)
         capability = routes.inspect_route(request)
         if capability["status"] == "blocked":
-            raise ValueError("callback route remains blocked: " + str(capability.get("reason")))
+            action = capability.get("action")
+            raise ValueError("callback route remains blocked: " + str(capability.get("reason"))
+                             + (f". {action}" if request.get("callback_mode") == "desktop" and action else ""))
         history = request.setdefault("retry_history", [])
         if not isinstance(history, list):
             raise ValueError("callback retry history is invalid")

@@ -51,7 +51,7 @@ Place Reins, the Agent, the working directory, and the session files in the same
 
 ## Install the preview
 
-The `0.7.1` preview includes Claude live callbacks, Pi integration, and the Desktop launcher. Install the current `main` branch in a new directory:
+The `0.7.1` preview includes Claude live callbacks and Pi integration. Install the current `main` branch in a new directory:
 
 ```bash
 git clone https://github.com/lz59970062/harness-reins.git reins-preview

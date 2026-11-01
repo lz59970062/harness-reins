@@ -54,38 +54,21 @@ selects `codex-queue`; other origins select `cli`. Use an explicit mode if the h
 omits that marker. A historical session source is not its current owner.
 `codex-queue` publishes once using the public Codex CLI queue and waits for the receiving thread to ACK. No custom Desktop launcher or idle-status polling is needed. Keep the receiving chat open. A queued command is not proof of receipt; retain uncertain submissions without replay. The binary and Codex profile are frozen at submission.
 
-The optional legacy `desktop` requires a verified shared Core and never silently falls back to a
-second CLI writer. An unavailable Desktop connection refuses a new `run` or
-`agent` before task admission. `done` still preserves already completed work.
-Do not force CLI mode to conceal a Desktop ownership conflict.
+Do not start Desktop through a launcher; `reins setup` no longer generates one and an
+old copy only prints this advice. `--callback-mode desktop` is retired and refused for new
+work. A saved `desktop` callback that is blocked keeps its result: move it with
+`reins retry --id ID --callback-mode codex-queue`, which does not rerun the workload.
+A blocked route refuses a new `run` or `agent` before task admission. `done` still
+preserves already completed work. Do not force CLI mode to conceal an ownership conflict.
 
 `manual` explicitly saves results/callbacks for later receipt and does not start
 an Agent automatically. Choose it only when the user accepts this limitation.
-On Mac and Windows, `reins setup` automatically generates a private double-click
-launcher bound to the installed Python and current profile: `.command` on Mac,
-`.cmd` plus `.ps1` on Windows. `setup --desktop-app PATH` selects a Mac `.app`
-or Windows `.exe`; `--no-desktop-launcher` skips generation. Missing Desktop does
-not block CLI setup. Mac discovers the app during preparation; Windows resolves
-the Store manifest and matching Core during launch/preflight. Windows helpers
-ship inside the wheel; do not depend on a checkout or its examples directory.
-Generated absolute paths belong to that machine; regenerate them after moving
-the Python installation rather than copying another user's files.
-`reins desktop prepare` is available for later configuration changes;
-`reins desktop launch --check-only` checks launch blockers, and `reins desktop launch`
-requires existing Desktop work to be saved and the app closed. Obtain permission
-before interrupting active Desktop work. Preparation and checks need no restart.
-Windows defaults to direct startup. `setup --desktop-launch-mode package-context`
-or `desktop prepare --launch-mode package-context --force` saves the explicitly
-chosen experimental Store route. Never silently fall back to this diagnostic
-context after an access-denied failure. `--check-only` uses the existing suspended
-creation/cleanup probe; it is not GUI/tool/callback acceptance. Ordinary setup
-only generates files and performs no native GUI creation probe.
 
 Read `doctor`'s separate `callback` field. `owner_reachable` is a read-only
 observation, not proof of end-to-end receipt. Sandboxed tools may need authorized
 ordinary-user execution to inspect native peers; never weaken identity checks.
-After repairing a known failed handoff, `reins retry --id ID --callback-mode desktop`
-requeues the original callback without rerunning its workload. Unknown submission
+After repairing a known failed handoff, `reins retry --id ID` (add `--callback-mode codex-queue`
+to change route) requeues the original callback without rerunning its workload. Unknown submission
 outcomes, active deliveries, ACKs and cancellations prevent ordinary retry.
 Inspect manual results in the bound session before ACK, and label that receipt
 as manual rather than a successful autonomous callback test.
@@ -216,7 +199,7 @@ without this automatic check.
 
 ```bash
 # Install screen only if using the compatibility backend.
-python3 -m pip install "git+https://github.com/lz59970062/harness-reins.git@codex/macos-desktop-callback"
+python3 -m pip install "git+https://github.com/lz59970062/harness-reins.git"
 reins setup --force --enable --now
 ```
 
@@ -261,7 +244,7 @@ the ordinary logged-in user's Task Scheduler session. `--backend auto` and
 from the release checkout in PowerShell without activating the venv:
 
 ```powershell
-git clone --branch codex/macos-desktop-callback --depth 1 https://github.com/lz59970062/harness-reins.git
+git clone --depth 1 https://github.com/lz59970062/harness-reins.git
 Set-Location harness-reins
 py -3 -m venv .venv
 & .\.venv\Scripts\python.exe -m pip install .
@@ -286,16 +269,9 @@ receipt only, not goal completion. Never replace the target with another session
 A live Windows test with Codex 0.153.4 could not resume its open Desktop session:
 the CLI reported `already has an active writer`. Ending an Agent turn does not
 guarantee that Desktop releases this owner. Preserve the failed callback and
-report this transport limitation; do not delete Codex's writer lock, forge an
-ACK, change the bound session or rerun the business work. Native workload and
+report this transport limitation or move it to `codex-queue`; do not delete Codex's
+writer lock, forge an ACK, change the bound session or rerun the business work. Native workload and
 fake-Agent delivery tests do not establish live original-session receipt.
-
-For the experimental bridge, follow the repository's `docs/windows-desktop-bridge.md`.
-It requires Desktop and Reins to use one App Server and the explicit
-`REINS_DESKTOP_BRIDGE_FILE` metadata path. Never guess a port or
-expose an unauthenticated App Server. The supplied launcher refuses a running
-Desktop; switching its connection requires closing active Desktop work first.
-After explicit bridge selection, connection failure must not fall back to CLI.
 
 New private files/directories grant only the current user and SYSTEM access.
 Do not weaken those ACLs to work around an Agent sandbox's restricted token;

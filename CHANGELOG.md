@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.10.0 — 2026-11-01
+
+- Codex Desktop callbacks work on a normally started Desktop. `auto` now selects
+  the new `codex-queue` route, which publishes once through the public
+  `codex queue --thread --message` command; the running Codex picks the message
+  up by itself, including when the chat is busy. No launcher, private MCP pipe
+  or `--resume` is involved. The shared Core launcher and `--callback-mode
+  desktop` remain only for records that already use them.
+- A queued callback stays pending until the chat ACKs and is never sent twice
+  automatically. A missing ACK does not hold back later callbacks for that chat,
+  and `reins status` shows what is waiting.
+- If `codex queue` reports an error, the callback can be repaired with `reins
+  retry`. A killed command or an unreadable response is an unknown outcome and
+  is not retried. The command runs with the submitting session's environment, so
+  a service coordinator whose PATH lacks `node` can still run an npm Codex.
+- New opt-in `--callback-mode app-server --app-server-socket PATH` sends native
+  tool output to a thread already loaded on an explicit App Server (macOS/Linux).
+- Upgrade note: restart the coordinator with `reins setup`; an older one leaves
+  `codex-queue` records untouched rather than misrouting them.
+
 ## 0.9.3 — 2026-10-30
 
 - `reins wait` and the `reins claude` channel work on Windows. Registering a

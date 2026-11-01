@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "harness-reins"
-version = "0.9.3"
+version = "0.10.0"
 description = "Harness Reins: a harness for your harnesses. Dispatch work to Codex, Claude Code or Pi and route the result back to the session that asked."
 requires-python = ">=3.9"
 readme = "README.md"

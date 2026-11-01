@@ -11,10 +11,12 @@ from typing import Iterable, Mapping
 
 CLI_RESUME = "deliver.cli-resume"        # resume the bound session through the harness CLI
 CODEX_DESKTOP = "deliver.codex-desktop"  # submit a turn to a loaded Codex Desktop thread
+CODEX_TOOL_OUTPUT = "deliver.codex-tool-output"  # native App Server, no CLI fallback
+CODEX_QUEUE = "deliver.codex-queue"       # native message queue; receipt still requires ACK
 PI_STEER = "deliver.pi-steer"            # Pi extension steers into the running session
 PI_FOLLOW_UP = "deliver.pi-follow-up"    # Pi extension queues a follow-up message
 
-KNOWN = frozenset({CLI_RESUME, CODEX_DESKTOP, PI_STEER, PI_FOLLOW_UP})
+KNOWN = frozenset({CLI_RESUME, CODEX_DESKTOP, CODEX_TOOL_OUTPUT, CODEX_QUEUE, PI_STEER, PI_FOLLOW_UP})
 
 
 def required_for(route: Mapping[str, object]) -> list[str]:
@@ -25,6 +27,10 @@ def required_for(route: Mapping[str, object]) -> list[str]:
         needed.add(CLI_RESUME)
     elif mode == "desktop":
         needed.add(CODEX_DESKTOP)
+    elif mode == "app-server":
+        needed.add(CODEX_TOOL_OUTPUT)
+    elif mode == "codex-queue":
+        needed.add(CODEX_QUEUE)
     if route.get("pi_callback_protocol"):
         needed.add(PI_STEER if route.get("pi_delivery") == "steer" else PI_FOLLOW_UP)
     return sorted(needed)

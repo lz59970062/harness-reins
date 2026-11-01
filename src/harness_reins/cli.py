@@ -88,7 +88,8 @@ from .commands import work as work_commands
 
 def add_common_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--callback-mode", choices=routes.MODES, default="auto",
-                        help="Callback route: auto detects Codex Desktop; cli uses existing CLI/shared service; desktop requires its bridge; manual saves for later receipt")
+                        help="Callback route: auto uses codex-queue for Desktop; cli uses existing CLI/shared service; codex-queue sends through the native CLI queue; desktop requires its bridge; app-server sends native tool output to an explicit socket; manual saves for later receipt")
+    parser.add_argument("--app-server-socket", help="Native Unix socket of the server owning the bound thread (requires --callback-mode app-server)")
     parser.add_argument("--backend", choices=("auto", "systemd", "launchd", "windows-task", "screen"),
                         default=os.environ.get("REINS_EXECUTION_BACKEND", "auto"),
                         help="Task owner: systemd on Linux, launchd on macOS, windows-task on Windows; screen is the POSIX fallback")
@@ -209,6 +210,7 @@ def main() -> int:
     doctor_parser.add_argument("--agent", choices=AGENT_NAMES, help="Callback Agent (default: detect current Agent)")
     doctor_parser.add_argument("--agent-worker", choices=CHILD_AGENT_NAMES, help="Child Agent for --operation agent")
     doctor_parser.add_argument("--callback-mode", choices=routes.MODES, default="auto")
+    doctor_parser.add_argument("--app-server-socket", help="Explicit native App Server Unix socket")
     doctor_parser.add_argument("--session", help="Original Agent session to preserve during repair")
 
     prompt_policy_parser = sub.add_parser("prompt-policy", help="Show or set callback reminder intervals")
@@ -219,6 +221,7 @@ def main() -> int:
     retry_parser.add_argument("--id", required=True)
     retry_parser.add_argument("--queue-dir")
     retry_parser.add_argument("--callback-mode", choices=routes.MODES)
+    retry_parser.add_argument("--app-server-socket", help="Explicit native App Server Unix socket")
 
     desktop_parser = sub.add_parser("desktop", help="Prepare, inspect or launch the opt-in Mac/Windows Desktop shared Core")
     desktop_actions = desktop_parser.add_subparsers(dest="desktop_action", required=True)

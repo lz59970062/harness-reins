@@ -13,8 +13,9 @@ import sys
 
 from .. import __version__
 
-MODES = ("auto", "cli", "desktop", "manual")
-ROUTE_FIELDS = ("callback_mode", "callback_origin", "callback_bridge_file",
+MODES = ("auto", "cli", "codex-queue", "desktop", "app-server", "manual")
+ROUTE_FIELDS = ("callback_mode", "callback_origin", "callback_bridge_file", "callback_socket",
+                "callback_codex_bin", "callback_codex_home",
                 "pi_callback_protocol", "pi_profile_dir", "pi_channel_root", "pi_delivery")
 
 
@@ -54,12 +55,20 @@ def selection(args: argparse.Namespace) -> dict[str, str]:
     origin = os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "").strip().casefold()
     desktop = origin == "codex desktop"
     if mode == "auto":
-        mode = "desktop" if dispatch.resolve_agent(args) == "codex" and desktop else "cli"
-    if mode == "desktop" and dispatch.resolve_agent(args) != "codex":
-        raise ValueError("Desktop callback mode currently supports Codex only")
+        mode = "codex-queue" if dispatch.resolve_agent(args) == "codex" and desktop else "cli"
+    if mode in ("desktop", "app-server", "codex-queue") and dispatch.resolve_agent(args) != "codex":
+        raise ValueError("Desktop/App Server callback modes support Codex only")
     route = {"callback_mode": mode, "callback_origin": "desktop" if desktop else "other"}
     if mode == "desktop":
         route["callback_bridge_file"] = str(bridge_file(layout.codex_home()))
+    if mode == "codex-queue":
+        from ..harness.codex import native_queue
+        route.update(native_queue.route_fields())
+    if mode == "app-server":
+        from ..harness.codex import native
+        route["callback_socket"] = native.selected_socket(getattr(args, "app_server_socket", None))
+    elif getattr(args, "app_server_socket", None):
+        raise ValueError("--app-server-socket requires --callback-mode app-server")
     if dispatch.resolve_agent(args) == "pi":
         from ..harness.pi import channel as pi_channel
         route.update(pi_channel.route_fields())
@@ -76,6 +85,12 @@ def inspect_route(request: dict[str, object], *, timeout: float = 2) -> dict[str
     if mode == "manual":
         return dict(report, status="manual", reason="automatic_delivery_disabled",
                     action="Inspect saved results in the bound session and ACK when received.")
+    if mode == "codex-queue":
+        from ..harness.codex import native_queue
+        return dict(report, **native_queue.inspect_route(request, timeout=timeout))
+    if mode == "app-server":
+        from ..harness.codex import native
+        return dict(report, **native.inspect_route(request, timeout=timeout))
     if dispatch.request_agent(request) == "pi":
         from ..harness.pi import channel as pi_channel
         return dict(report, **pi_channel.inspect_route(request))

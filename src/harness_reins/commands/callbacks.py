@@ -84,8 +84,12 @@ def retry_callback(args: argparse.Namespace) -> int:
         target_lock = delivery_engine.acquire_target_lock(request, blocking=False)
         if target_lock is None or delivery_engine.retained_target_lease_is_held(request):
             raise ValueError("the bound session has an active or unresolved delivery")
+        if getattr(args, "app_server_socket", None) and args.callback_mode != "app-server":
+            raise ValueError("--app-server-socket requires --callback-mode app-server")
         if args.callback_mode:
-            options = argparse.Namespace(callback_mode=args.callback_mode, agent=dispatch.request_agent(request))
+            options = argparse.Namespace(callback_mode=args.callback_mode, agent=dispatch.request_agent(request),
+                                         app_server_socket=(getattr(args, "app_server_socket", None) or request.get("callback_socket"))
+                                         if args.callback_mode == "app-server" else None)
             pi_route = {key: request[key] for key in pi_channel.ROUTE_FIELDS if key in request}
             for key in routes.ROUTE_FIELDS:
                 request.pop(key, None)

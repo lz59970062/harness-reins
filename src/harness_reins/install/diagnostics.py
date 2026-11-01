@@ -456,6 +456,8 @@ def inspect(args: argparse.Namespace) -> dict[str, object]:
                              "--agent", callback_agent, "--operation", operation)
     if getattr(args, "callback_mode", "auto") != "auto":
         recheck.extend(["--callback-mode", args.callback_mode])
+    if getattr(args, "app_server_socket", None):
+        recheck.extend(["--app-server-socket", args.app_server_socket])
     if target is not None:
         recheck.extend(["--session", target["session"]])
     if operation == "agent" and child_agent:

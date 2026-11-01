@@ -62,7 +62,7 @@ def build_prompt(
 
     lines.extend(["", STANDARD_CALLBACK_GUIDANCE])
     if acknowledgement:
-        lines.extend(["", build_acknowledgement_text(acknowledgement, agent=resolve_agent(args))])
+        lines.extend(["", build_acknowledgement_text(acknowledgement, agent=resolve_agent(args), callback_mode=getattr(args, "callback_mode", None))])
     return "\n".join(lines)
 
 
@@ -212,7 +212,7 @@ def prepare_request_for_queue(root: Path, request: dict[str, object], prompt: st
     request["lifecycle_state"] = "pending"
     acknowledgement = ack_command(root, request_id)
     routed_prompt = attach_routing_text(prompt, request)
-    request["prompt"] = f"{routed_prompt}\n\n{build_acknowledgement_text(acknowledgement, agent=request_agent(request))}"
+    request["prompt"] = f"{routed_prompt}\n\n{build_acknowledgement_text(acknowledgement, agent=request_agent(request), callback_mode=request.get("callback_mode"))}"
     if request.get("prompt_format") == envelope.FORMAT:
         # Keep complete evidence locally; neither retries nor rendering counters
         # need to repeat command lines and boilerplate in the model context.
@@ -312,7 +312,7 @@ def load_request(path: Path) -> dict[str, object]:
     missing = capabilities.unsupported(data.get("requires"))
     if missing:
         raise ValueError("callback requires unsupported capabilities: " + ", ".join(missing))
-    if data.get("callback_mode") not in ("cli", "desktop", "manual"):
+    if data.get("callback_mode") not in ("cli", "codex-queue", "desktop", "app-server", "manual"):
         raise ValueError("callback requires an explicit mode")
     if not isinstance(data.get("id"), str) or data["id"] != path.stem:
         raise ValueError("request id must match its filename")
@@ -320,6 +320,12 @@ def load_request(path: Path) -> dict[str, object]:
         raise ValueError("request cwd must be a string")
     if not isinstance(data.get("prompt"), str):
         raise ValueError("request prompt must be a string")
+    if data.get("callback_mode") == "codex-queue":
+        from ..harness.codex import native_queue
+        native_queue.validate_route(data)
+    if data.get("callback_mode") == "app-server":
+        from ..harness.codex import native
+        native.validate_route(data)
     if set(data["requires"]) & {capabilities.PI_STEER, capabilities.PI_FOLLOW_UP}:
         if request_agent(data) != "pi":
             raise ValueError("only Pi callbacks can require Pi delivery")
@@ -328,8 +334,10 @@ def load_request(path: Path) -> dict[str, object]:
     return data
 
 
-def build_acknowledgement_text(command: str, agent: str = "codex") -> str:
-    if agent == "claude":
+def build_acknowledgement_text(command: str, agent: str = "codex", callback_mode: str | None = None) -> str:
+    if agent == "codex" and callback_mode == "codex-queue":
+        delivery_note = "This callback arrived through the native Codex queue; the original thread keeps its existing permissions."
+    elif agent == "claude":
         delivery_note = (
             "This resume runs Claude Code headless with automatic permission handling "
             "and grants the callback queue directory as an additional working directory."
@@ -352,7 +360,8 @@ def build_acknowledgement_text(command: str, agent: str = "codex") -> str:
             command,
             delivery_note,
             ("Once a Pi callback is published, an uncertain outcome requires manual inspection; automatic replay is suppressed."
-             if agent == "pi" else "The wakeup daemon will retry this callback until the acknowledgement marker exists or retries are exhausted."),
+             if agent == "pi" else "This native queue message is published once and waits for your ACK; do not submit it again."
+             if callback_mode == "codex-queue" else "The wakeup daemon will retry this callback until the acknowledgement marker exists or retries are exhausted."),
         ]
     )
 

@@ -28,7 +28,7 @@ from ..system import shell
 from . import dispatch
 from . import reminders as reminder_policy
 from . import resume_environment
-from ..harness.codex import app_server
+from ..harness.codex import app_server, native_queue
 
 
 DEFAULT_RETRIES = 3
@@ -358,6 +358,8 @@ def select_pending(root: Path, now: float) -> Path | None:
         if isinstance(request, dict) and capabilities.unsupported(request.get("requires")) and records.is_callback(request):
             continue  # needs a newer tower; leave it untouched rather than deliver it halfway
         if isinstance(request, dict) and (request.get("callback_mode") == "manual"
+                                         or (request.get("delivery_state") == "queued_awaiting_ack"
+                                             and not layout.ack_path(root, path.stem).exists())
                                          or target_has_live_resume(root, request)
                                          or claude_session.live_watcher_is_held(request)):
             continue
@@ -426,6 +428,9 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
     request = payload.get("request")
     if not isinstance(request, dict):
         return None
+    if request.get("callback_mode") == "app-server":
+        from ..harness.codex import native
+        return native.start_delivery(payload)
     if request.get("callback_mode") == "manual":
         raise app_server.CallbackTransportBlocked("manual callback mode does not launch an Agent")
     if dispatch.request_agent(request) != "codex":
@@ -548,6 +553,9 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
 
 def wait_for_remote_delivery(payload: dict, delivery, timeout: float) -> dict:
     """Wait for native delivery without starting or killing its owner."""
+    from ..harness.codex import native
+    if isinstance(delivery, native.NativeAppServerDelivery):
+        return native.wait_for_delivery(payload, delivery, timeout)
     delivery_context = app_server.desktop_delivery_context(payload)
     delivery_name = "pi_live_session" if isinstance(delivery, pi_channel.PiDelivery) else "desktop_app_server"
     deadline = time.monotonic() + timeout
@@ -642,6 +650,9 @@ def delivery_worker_main() -> int:
             result = {"returncode": 0, "skipped": "already_acknowledged"}
         elif Path(str(payload["canceled_path"])).exists():
             result = {"returncode": 0, "skipped": "canceled"}
+        elif payload.get("request", {}).get("callback_mode") == "codex-queue":
+            payload["prompt"] = prompt
+            result = native_queue.publish(payload)
         elif (desktop_delivery := start_desktop_app_server_turn(payload)) is not None:
             result = wait_for_remote_delivery(payload, desktop_delivery, timeout)
         else:
@@ -882,7 +893,7 @@ def run_resume_until_exit_or_ack(
             if returncode is not None:
                 child_returncode = finish_delivery_worker(process)
                 acked = layout.ack_path(root, request_id).exists()
-                if (not acked and child_returncode != pi_channel.PUBLISHED_RETURN_CODE
+                if (not acked and child_returncode not in (pi_channel.PUBLISHED_RETURN_CODE, native_queue.PUBLISHED_RETURN_CODE)
                         and not queue_store.is_canceled(root, request_id) and desktop_submission_pending(root, request)):
                     child_returncode = 125
                 return subprocess.CompletedProcess(command, child_returncode), acked, False
@@ -952,6 +963,15 @@ def process_one(root: Path, args: argparse.Namespace) -> bool:
             return True
         if result is None:
             return True
+        if result.returncode == native_queue.PUBLISHED_RETURN_CODE and not acked:
+            request["attempts"] = max(0, attempts - 1)
+            request["delivery_state"] = "queued_awaiting_ack"
+            request.setdefault("live_delivered_at", time.time())
+            request["last_deferred_reason"] = "Published via native codex queue; awaiting receiver ACK (no re-send)."
+            if running.exists() and not queue_store.is_canceled(root, request_id):
+                queue_store.write_request(running, request)
+                queue_store.move_request(running, root / "pending")
+            return True
         if result.returncode == pi_channel.PUBLISHED_RETURN_CODE and not acked:
             # Not a failed attempt: the retained target lease keeps later
             # callbacks for this session in order until ACK or recovery.
@@ -999,7 +1019,7 @@ def process_one(root: Path, args: argparse.Namespace) -> bool:
             else:
                 return True
         elif result.returncode == 125 and not acked:
-            delivery_name = "Pi" if dispatch.request_agent(request) == "pi" else "Desktop"
+            delivery_name = "Codex queue" if request.get("callback_mode") == "codex-queue" else "Pi" if dispatch.request_agent(request) == "pi" else "Desktop"
             request["last_error"] = delivery_name + " callback outcome is unknown; automatic retry suppressed to prevent duplicate delivery"
             request["retain_target_lease"] = True
             destination_dir = root / "failed"

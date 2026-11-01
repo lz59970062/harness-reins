@@ -44,8 +44,8 @@ class CallbackModeTests(unittest.TestCase):
         self.assertEqual(transport.selection(args)["callback_mode"], "cli")
         with mock.patch.dict(os.environ, {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}):
             selected = transport.selection(args)
-            self.assertEqual(selected["callback_mode"], "desktop")
-            self.assertTrue(Path(selected["callback_bridge_file"]).is_absolute())
+            self.assertEqual(selected["callback_mode"], "codex-queue")
+            self.assertTrue(Path(selected["callback_codex_bin"]).is_absolute())
             args.callback_mode = "manual"
             self.assertEqual(transport.selection(args)["callback_mode"], "manual")
 

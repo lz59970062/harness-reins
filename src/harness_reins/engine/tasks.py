@@ -118,8 +118,14 @@ def load_managed_task(path: Path) -> dict[str, object]:
     if "execution_backend" not in task:
         raise ValueError("task records require an execution backend")
     backend = task["execution_backend"]
-    if task.get("callback_mode") not in ("cli", "desktop", "manual"):
+    if task.get("callback_mode") not in ("cli", "codex-queue", "desktop", "app-server", "manual"):
         raise ValueError("task requires an explicit callback mode")
+    if task.get("callback_mode") == "codex-queue":
+        from ..harness.codex import native_queue
+        native_queue.validate_route(task)
+    if task.get("callback_mode") == "app-server":
+        from ..harness.codex import native
+        native.validate_route(task)
     if set(task["requires"]) & {capabilities.PI_STEER, capabilities.PI_FOLLOW_UP}:
         if dispatch.request_agent(task) != "pi":
             raise ValueError("only Pi parents can require Pi delivery")

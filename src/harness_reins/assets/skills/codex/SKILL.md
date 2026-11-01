@@ -8,7 +8,7 @@ description: Run long jobs (training, benchmarks, builds, test suites, deploymen
 Reins hands a long command to an independent OS task owner (systemd on Linux, launchd on macOS,
 Task Scheduler on Windows; `screen` as fallback) and queues a callback when it exits. When this
 thread is idle, Reins delivers the callback **as a new turn in this same thread**: `codex exec
-resume` for CLI sessions, the shared App Server for Codex Desktop. You do not wait for it; you end
+resume` for CLI sessions, the native `codex queue` command for normally started Codex Desktop. You do not wait for it; you end
 your turn and the result comes back to you.
 
 The full reference (all flags, platforms, Desktop modes, recovery and goals) is in

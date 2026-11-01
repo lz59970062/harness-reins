@@ -75,7 +75,7 @@ def app_server_arguments(arguments: list[str]) -> list[str] | None:
     if index >= len(arguments) or arguments[index] != "app-server":
         return None
     tail = arguments[index + 1:]
-    if any(value in ("--help", "-h", "--version", "-V", "daemon", "proxy", "generate-ts", "generate-json-schema") for value in tail):
+    if any(value in ("--help", "-h", "--version", "-V", "--print-startup-config", "daemon", "proxy", "generate-ts", "generate-json-schema") for value in tail):
         return None
     result = arguments[:index + 1]
     position = 0

@@ -1,0 +1,27 @@
+# Paths that need the maintainer's review. Enforced once "Require review from
+# Code Owners" is on for main. The last matching rule wins.
+
+# Delivery, state and records
+/src/harness_reins/engine/      @lz59970062
+/src/harness_reins/tower/       @lz59970062
+/src/harness_reins/store/       @lz59970062
+/src/harness_reins/core/        @lz59970062
+/src/harness_reins/system/      @lz59970062
+/src/harness_reins/owners/      @lz59970062
+/src/harness_reins/harness/     @lz59970062
+
+# Link: messaging, peers, ports and remote start
+/src/harness_reins/link/        @lz59970062
+
+# What runs on users' machines at install time
+/src/harness_reins/install/     @lz59970062
+/src/harness_reins/assets/      @lz59970062
+/packaging/                     @lz59970062
+/pyproject.toml                 @lz59970062
+
+# The rules themselves
+/tests/test_architecture.py     @lz59970062
+/.github/                       @lz59970062
+/docs/design/                   @lz59970062
+/CONTRIBUTING.md                @lz59970062
+/SECURITY.md                    @lz59970062

@@ -188,6 +188,8 @@ def send(queue: Path, args: argparse.Namespace, to: str, *, subject: Optional[st
             body=body, refs=refs, wake=wake, thread=parent["thread"] if parent else None,
             in_reply_to=parent["id"] if parent else None, hop=int(parent["hop"]) + 1 if parent else 0,
             ttl_days=limits["ttl_days"], now=now)
+        while link.message_path(queue, str(message["id"])).exists():  # the same millisecond and random part
+            message["id"] = rules.new_message_id(now)
         thread = link.load_thread(queue, str(message["thread"]))
         rates = link.load_rates(queue)
         _admit_limits(queue, message, thread, rates, limits, now)

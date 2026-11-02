@@ -332,8 +332,17 @@ class ConversationTests(MessageTestCase):
         self.assertEqual(self.reins({}, "inbox")[0], 2)
 
     def test_messages_to_one_session_are_selected_in_sending_order(self):
-        identifiers = [rules.new_message_id(1000.0 + index) for index in range(3)]
+        identifiers = [rules.new_message_id(1000.0 + index * 0.001) for index in range(50)]
         self.assertEqual(identifiers, sorted(identifiers))
+
+    def test_a_clash_of_ids_gets_a_new_id_instead_of_overwriting(self):
+        first = self.send(self.codex, "reviewer", "-m", "first")
+        taken = iter([first["id"], first["id"]])
+        real = rules.new_message_id
+        with mock.patch.object(rules, "new_message_id", side_effect=lambda now=None: next(taken, None) or real(now)):
+            second = self.send(self.codex, "reviewer", "-m", "second")
+        self.assertNotEqual(second["id"], first["id"])
+        self.assertIn("first", self.reins({}, "message", "show", first["id"])[1])
 
     def test_state_follows_the_callback(self):
         item = self.send(self.codex, "planner", "-m", "x")  # a session may note things for itself
@@ -582,7 +591,7 @@ class SandboxTests(MessageTestCase):
         request = self.callback(self.send(self.claude, "planner", "-m", "x", "--wake", "resume"))
         link_dir = str(layout.link_root(self.queue))
         command = delivery.resume_command(request)
-        self.assertIn(link_dir, " ".join(command))
+        self.assertIn(json.dumps(link_dir), " ".join(command))
         request = self.callback(self.send(self.codex, "reviewer", "-m", "x", "--wake", "resume"))
         command = delivery.resume_command(request)
         self.assertEqual(command[command.index("--add-dir") + 1], str(self.queue))

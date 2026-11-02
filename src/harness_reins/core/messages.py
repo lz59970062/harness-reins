@@ -54,8 +54,8 @@ class Refused(ValueError):
 
 
 def new_message_id(now: Optional[float] = None) -> str:
-    """Time first, so a target's pending messages deliver in the order they were sent."""
-    return f"m-{int(time.time() if now is None else now) & 0xffffffff:08x}{secrets.token_hex(4)}"
+    """Milliseconds first, so a target's pending messages deliver in the order they were sent."""
+    return f"m-{int((time.time() if now is None else now) * 1000) & 0xffffffffffff:012x}{secrets.token_hex(2)}"
 
 
 def new_thread_id() -> str:

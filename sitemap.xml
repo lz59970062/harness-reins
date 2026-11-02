@@ -50,6 +50,20 @@
         <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/design/architecture/"/>
     </url>
     <url>
+        <loc>https://lz59970062.github.io/harness-reins/design/link-protocol/</loc>
+        <lastmod>2026-11-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/design/link-protocol/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/design/link-protocol/"/>
+    </url>
+    <url>
+        <loc>https://lz59970062.github.io/harness-reins/design/link-threat-model/</loc>
+        <lastmod>2026-11-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/design/link-threat-model/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/design/link-threat-model/"/>
+    </url>
+    <url>
         <loc>https://lz59970062.github.io/harness-reins/design/protocol-v1/</loc>
         <lastmod>2026-11-02</lastmod>
         <changefreq>daily</changefreq>
@@ -83,6 +97,13 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/guides/goals/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/guides/goals/"/>
+    </url>
+    <url>
+        <loc>https://lz59970062.github.io/harness-reins/guides/messages/</loc>
+        <lastmod>2026-11-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/guides/messages/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/guides/messages/"/>
     </url>
     <url>
         <loc>https://lz59970062.github.io/harness-reins/guides/run/</loc>
@@ -225,6 +246,20 @@
         <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/design/architecture/"/>
     </url>
     <url>
+        <loc>https://lz59970062.github.io/harness-reins/en/design/link-protocol/</loc>
+        <lastmod>2026-11-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/design/link-protocol/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/design/link-protocol/"/>
+    </url>
+    <url>
+        <loc>https://lz59970062.github.io/harness-reins/en/design/link-threat-model/</loc>
+        <lastmod>2026-11-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/design/link-threat-model/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/design/link-threat-model/"/>
+    </url>
+    <url>
         <loc>https://lz59970062.github.io/harness-reins/en/design/protocol-v1/</loc>
         <lastmod>2026-11-02</lastmod>
         <changefreq>daily</changefreq>
@@ -258,6 +293,13 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/guides/goals/"/>
         <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/guides/goals/"/>
+    </url>
+    <url>
+        <loc>https://lz59970062.github.io/harness-reins/en/guides/messages/</loc>
+        <lastmod>2026-11-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://lz59970062.github.io/harness-reins/en/guides/messages/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://lz59970062.github.io/harness-reins/guides/messages/"/>
     </url>
     <url>
         <loc>https://lz59970062.github.io/harness-reins/en/guides/run/</loc>

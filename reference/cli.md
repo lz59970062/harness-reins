@@ -60,7 +60,5 @@ reins agent --help
 | `reins agent pi -- <任务>` | 启动 Pi 子 Agent |
 | `reins pi` | 打开 Reins 托管的 Pi 会话 |
 | `reins template list` | 查看已注册模板 |
-| `reins desktop status` | 查看 Desktop 连接配置 |
-| `reins desktop launch` | 通过共享 Core 启动 Desktop |
 
 多阶段目标的命令顺序见[目标指南](../guides/goals.md)。

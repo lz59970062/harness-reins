@@ -22,7 +22,7 @@ macOS 默认优先使用应用内置 Codex；可通过 `REINS_CODEX_BIN` 明确�
 
 ## 原生 App Server 工具结果回调
 
-`--callback-mode app-server` 是独立的显式路由，不使用 Desktop 启动器或私有 MCP 管道。
+`--callback-mode app-server` 是独立的显式路由，不启动 Desktop，也不使用私有 MCP 管道。
 它要求调用方提供**承载原聊天的现有 App Server** 的 Unix socket：
 
 ```bash
@@ -62,49 +62,16 @@ PYTHONPATH=src:tests REINS_TEST_NATIVE_CODEX_BIN=/absolute/path/to/codex \
 
 协议参考：[Codex App Server](https://learn.chatgpt.com/docs/app-server)。
 
-## 旧版共享 Core 启动器
+## 从旧启动器升级
 
-新任务不需要这一节，请用上面的原生队列回调。以下内容只为仍在使用 `--callback-mode desktop` 的记录保留：Desktop 和 Reins 通过同一个 Core 访问会话，任务结束后把回调送回桌面应用。
+退出 Desktop，再用普通方式打开。`reins setup` 不再生成 `Start Reins Desktop`；旧文件只会打印这段提示，可以删除。回调不需要其他配置。
 
-## 生成启动器
-
-在 macOS 或 Windows 上完成[预览版安装](../installation.md#安装预览版)，然后运行：
+用 `--callback-mode desktop` 保存的回调不会丢失结果。在 macOS 和 Windows 上，它会停在 failed，并给出迁移命令：
 
 ```bash
-reins setup --force --enable --now
-reins desktop status
+reins retry --id ID --callback-mode codex-queue
 ```
 
-macOS 会生成 `Start Reins Desktop.command`；Windows 会生成 `Start Reins Desktop.cmd` 和对应的 PowerShell 脚本。默认位置是用户 Codex 配置目录下的 `harness-reins` 文件夹。
+任务不会重新运行，同一份结果回到同一个聊天。请在能找到你所用 Codex 的 shell 中执行，可执行文件和配置目录在这一步固定。如果旧投递可能已经发出，重试会被拒绝；先检查原聊天，再用 `reins ack` 或 `reins cancel` 收尾。在 Linux 上，这些记录继续通过本机 App Server socket 投递；socket 不可用时同样可以用这条命令迁移。
 
-## 启动 Desktop
-
-保存当前工作并退出 Desktop，再双击生成的启动器，或运行：
-
-```bash
-reins desktop launch
-```
-
-之后从这个 Desktop 会话提交一个小任务：
-
-```bash
-reins run --callback-mode desktop --cwd "$PWD" --task "Desktop 回调示例" -- python -c "print('Desktop callback ready')"
-```
-
-让 Agent 读取结果并执行回调中的 ACK，完成一次接入检查。PowerShell 工具环境中将 `--cwd "$PWD"` 换成 `--cwd "$($PWD.Path)"`。
-
-## 调整应用路径
-
-macOS 同时安装多个应用时，可以明确选择：
-
-```bash
-reins desktop prepare --app /Applications/Codex.app --force
-```
-
-Windows 默认使用直接启动方式。Store 包上下文启动是实验选项，配置命令是：
-
-```powershell
-reins setup --desktop-launch-mode package-context --force --enable --now
-```
-
-各平台的启动步骤、运行条件和验证记录见 [macOS Desktop](https://github.com/lz59970062/harness-reins/blob/main/docs/macos-desktop-bridge.md)与 [Windows Desktop](https://github.com/lz59970062/harness-reins/blob/main/docs/windows-desktop-bridge.md)。应用升级后，再用上面的示例检查回调。
+新任务不能再选择 `--callback-mode desktop`，报错会指向 `codex-queue`。

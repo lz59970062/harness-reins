@@ -1542,7 +1542,7 @@
 <a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="p">}</span>
 </code></pre></div>
 <ul>
-<li><strong>ID：</strong> <code>m-</code> 加 16 位十六进制，前 8 位是发送时间，后 8 位随机，这样同一接收方的待投递消息按发送顺序处理。<code>id</code> 由发送方生成，只有 <code>(from.node, id)</code> 才唯一。</li>
+<li><strong>ID：</strong> <code>m-</code> 加 16 位十六进制，前 12 位是发送时间（毫秒），后 4 位随机，这样同一接收方的待投递消息按发送顺序处理。<code>id</code> 由发送方生成，只有 <code>(from.node, id)</code> 才唯一。</li>
 <li><strong>本地根：</strong> 本节点发出的消息直接用 <code>id</code> 作根。对端发来的消息不能这样，不同对端可能用同一个 <code>id</code>，甚至故意撞车，所以本地根是 <code>m-</code> + <code>sha256(from.node + ":" + id)</code> 的前 16 位十六进制。回调 ID 沿用根 + 后缀规则，例如 <code>m-4be17a90c2d3f615-c1</code>，ACK 命令是 <code>reins ack m-4be17a90c2d3f615-c1</code>。</li>
 <li><strong><code>local</code>：</strong> 落盘的记录还有一个 <code>local</code> 字段，保存接收会话、路由和回调 ID。它只属于本节点，绝不发到网络上。</li>
 <li><strong><code>from.node</code>：</strong> 接收节点用连接的已验证身份覆盖这个字段。不一致时拒绝，错误码 <code>identity_mismatch</code>。</li>

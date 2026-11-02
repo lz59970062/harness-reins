@@ -36,7 +36,7 @@ Use the report to choose the next step:
 | --- | --- |
 | The coordinator has not started | Run the `setup` command suggested in the report |
 | A Claude Code session is open | Ask Claude to run the printed `reins wait` command as a background Bash task |
-| The Codex Desktop connection needs setup | Open the app through the [Desktop launcher](integrations/desktop.md) |
+| Codex Desktop did not get a callback | Keep the chat open and check `reins status`; for saved older callbacks see [Codex Desktop](integrations/desktop.md#upgrading-from-the-old-launcher) |
 | The callback is in `failed` | Read the error record, fix the cause, and use `reins retry --id <callback-id>` in the preview version |
 
 The original submission output contains the task's log path. Open the log and artifacts to inspect the task result directly.

@@ -898,36 +898,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#旧版共享-core-启动器" class="md-nav__link">
+  <a href="#从旧启动器升级" class="md-nav__link">
     <span class="md-ellipsis">
-      旧版共享 Core 启动器
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#生成启动器" class="md-nav__link">
-    <span class="md-ellipsis">
-      生成启动器
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#启动-desktop" class="md-nav__link">
-    <span class="md-ellipsis">
-      启动 Desktop
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#调整应用路径" class="md-nav__link">
-    <span class="md-ellipsis">
-      调整应用路径
+      从旧启动器升级
     </span>
   </a>
   
@@ -1221,36 +1194,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#旧版共享-core-启动器" class="md-nav__link">
+  <a href="#从旧启动器升级" class="md-nav__link">
     <span class="md-ellipsis">
-      旧版共享 Core 启动器
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#生成启动器" class="md-nav__link">
-    <span class="md-ellipsis">
-      生成启动器
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#启动-desktop" class="md-nav__link">
-    <span class="md-ellipsis">
-      启动 Desktop
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#调整应用路径" class="md-nav__link">
-    <span class="md-ellipsis">
-      调整应用路径
+      从旧启动器升级
     </span>
   </a>
   
@@ -1292,7 +1238,7 @@
 <p><code>codex queue</code> 明确报错（例如找不到聊天）时回调进入 failed，修好后用 <code>reins retry --id ID</code> 重发。命令被杀或输出无法确认时结果未知，不允许重发；检查原聊天后用 <code>reins ack</code> 或 <code>reins cancel</code> 收尾。</p>
 <p>升级时须同时更新 Reins 协调进程；旧进程不认识 <code>deliver.codex-queue</code> 能力，会保留记录而不投递。</p>
 <h2 id="原生-app-server-工具结果回调">原生 App Server 工具结果回调<a class="headerlink" href="#原生-app-server-工具结果回调" title="Permanent link">&para;</a></h2>
-<p><code>--callback-mode app-server</code> 是独立的显式路由，不使用 Desktop 启动器或私有 MCP 管道。
+<p><code>--callback-mode app-server</code> 是独立的显式路由，不启动 Desktop，也不使用私有 MCP 管道。
 它要求调用方提供<strong>承载原聊天的现有 App Server</strong> 的 Unix socket：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>reins<span class="w"> </span>doctor<span class="w"> </span>--agent<span class="w"> </span>codex<span class="w"> </span>--session<span class="w"> </span>THREAD_ID<span class="w"> </span>--callback-mode<span class="w"> </span>app-server<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--app-server-socket<span class="w"> </span>/absolute/path/to/owner.sock
@@ -1341,30 +1287,13 @@ ACK 和取消在进入等待及收到完成/断线/超时后检查；没有模�
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>unittest<span class="w"> </span>test_native_core_integration<span class="w"> </span>-v
 </code></pre></div>
 <p>协议参考：<a href="https://learn.chatgpt.com/docs/app-server">Codex App Server</a>。</p>
-<h2 id="旧版共享-core-启动器">旧版共享 Core 启动器<a class="headerlink" href="#旧版共享-core-启动器" title="Permanent link">&para;</a></h2>
-<p>新任务不需要这一节，请用上面的原生队列回调。以下内容只为仍在使用 <code>--callback-mode desktop</code> 的记录保留：Desktop 和 Reins 通过同一个 Core 访问会话，任务结束后把回调送回桌面应用。</p>
-<h2 id="生成启动器">生成启动器<a class="headerlink" href="#生成启动器" title="Permanent link">&para;</a></h2>
-<p>在 macOS 或 Windows 上完成<a href="../../installation/#安装预览版">预览版安装</a>，然后运行：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>setup<span class="w"> </span>--force<span class="w"> </span>--enable<span class="w"> </span>--now
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>reins<span class="w"> </span>desktop<span class="w"> </span>status
+<h2 id="从旧启动器升级">从旧启动器升级<a class="headerlink" href="#从旧启动器升级" title="Permanent link">&para;</a></h2>
+<p>退出 Desktop，再用普通方式打开。<code>reins setup</code> 不再生成 <code>Start Reins Desktop</code>；旧文件只会打印这段提示，可以删除。回调不需要其他配置。</p>
+<p>用 <code>--callback-mode desktop</code> 保存的回调不会丢失结果。在 macOS 和 Windows 上，它会停在 failed，并给出迁移命令：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>retry<span class="w"> </span>--id<span class="w"> </span>ID<span class="w"> </span>--callback-mode<span class="w"> </span>codex-queue
 </code></pre></div>
-<p>macOS 会生成 <code>Start Reins Desktop.command</code>；Windows 会生成 <code>Start Reins Desktop.cmd</code> 和对应的 PowerShell 脚本。默认位置是用户 Codex 配置目录下的 <code>harness-reins</code> 文件夹。</p>
-<h2 id="启动-desktop">启动 Desktop<a class="headerlink" href="#启动-desktop" title="Permanent link">&para;</a></h2>
-<p>保存当前工作并退出 Desktop，再双击生成的启动器，或运行：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>launch
-</code></pre></div>
-<p>之后从这个 Desktop 会话提交一个小任务：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--callback-mode<span class="w"> </span>desktop<span class="w"> </span>--cwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span><span class="w"> </span>--task<span class="w"> </span><span class="s2">"Desktop 回调示例"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"print('Desktop callback ready')"</span>
-</code></pre></div>
-<p>让 Agent 读取结果并执行回调中的 ACK，完成一次接入检查。PowerShell 工具环境中将 <code>--cwd "$PWD"</code> 换成 <code>--cwd "$($PWD.Path)"</code>。</p>
-<h2 id="调整应用路径">调整应用路径<a class="headerlink" href="#调整应用路径" title="Permanent link">&para;</a></h2>
-<p>macOS 同时安装多个应用时，可以明确选择：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>prepare<span class="w"> </span>--app<span class="w"> </span>/Applications/Codex.app<span class="w"> </span>--force
-</code></pre></div>
-<p>Windows 默认使用直接启动方式。Store 包上下文启动是实验选项，配置命令是：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">reins</span> <span class="n">setup</span> <span class="p">-</span><span class="n">-desktop-launch-mode</span> <span class="n">package-context</span> <span class="p">-</span><span class="n">-force</span> <span class="p">-</span><span class="n">-enable</span> <span class="p">-</span><span class="n">-now</span>
-</code></pre></div>
-<p>各平台的启动步骤、运行条件和验证记录见 <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/macos-desktop-bridge.md">macOS Desktop</a>与 <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/windows-desktop-bridge.md">Windows Desktop</a>。应用升级后，再用上面的示例检查回调。</p>
+<p>任务不会重新运行，同一份结果回到同一个聊天。请在能找到你所用 Codex 的 shell 中执行，可执行文件和配置目录在这一步固定。如果旧投递可能已经发出，重试会被拒绝；先检查原聊天，再用 <code>reins ack</code> 或 <code>reins cancel</code> 收尾。在 Linux 上，这些记录继续通过本机 App Server socket 投递；socket 不可用时同样可以用这条命令迁移。</p>
+<p>新任务不能再选择 <code>--callback-mode desktop</code>，报错会指向 <code>codex-queue</code>。</p>
 
 
 

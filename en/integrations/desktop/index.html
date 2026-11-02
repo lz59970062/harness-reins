@@ -898,36 +898,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#legacy-shared-core-launcher" class="md-nav__link">
+  <a href="#upgrading-from-the-old-launcher" class="md-nav__link">
     <span class="md-ellipsis">
-      Legacy shared Core launcher
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generate-a-launcher" class="md-nav__link">
-    <span class="md-ellipsis">
-      Generate a launcher
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#start-desktop" class="md-nav__link">
-    <span class="md-ellipsis">
-      Start Desktop
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#choose-an-app-path" class="md-nav__link">
-    <span class="md-ellipsis">
-      Choose an app path
+      Upgrading from the old launcher
     </span>
   </a>
   
@@ -1221,36 +1194,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#legacy-shared-core-launcher" class="md-nav__link">
+  <a href="#upgrading-from-the-old-launcher" class="md-nav__link">
     <span class="md-ellipsis">
-      Legacy shared Core launcher
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generate-a-launcher" class="md-nav__link">
-    <span class="md-ellipsis">
-      Generate a launcher
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#start-desktop" class="md-nav__link">
-    <span class="md-ellipsis">
-      Start Desktop
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#choose-an-app-path" class="md-nav__link">
-    <span class="md-ellipsis">
-      Choose an app path
+      Upgrading from the old launcher
     </span>
   </a>
   
@@ -1320,30 +1266,13 @@ server and local CLI workflows keep <code>codex exec resume</code> and need none
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>unittest<span class="w"> </span>test_native_core_integration<span class="w"> </span>-v
 </code></pre></div>
 <p>Protocol: <a href="https://learn.chatgpt.com/docs/app-server">Codex App Server</a>.</p>
-<h2 id="legacy-shared-core-launcher">Legacy shared Core launcher<a class="headerlink" href="#legacy-shared-core-launcher" title="Permanent link">&para;</a></h2>
-<p>New tasks do not need this section; use the native queue callbacks above. It remains for records still on <code>--callback-mode desktop</code>: Desktop and Reins access sessions through the same Core, which delivers callbacks into the desktop app when tasks finish.</p>
-<h2 id="generate-a-launcher">Generate a launcher<a class="headerlink" href="#generate-a-launcher" title="Permanent link">&para;</a></h2>
-<p>Install the <a href="../../installation/#install-the-preview">preview</a> on macOS or Windows, then run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>setup<span class="w"> </span>--force<span class="w"> </span>--enable<span class="w"> </span>--now
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>reins<span class="w"> </span>desktop<span class="w"> </span>status
+<h2 id="upgrading-from-the-old-launcher">Upgrading from the old launcher<a class="headerlink" href="#upgrading-from-the-old-launcher" title="Permanent link">&para;</a></h2>
+<p>Quit Desktop and open it the normal way. <code>reins setup</code> no longer writes <code>Start Reins Desktop</code>, and an old copy only prints this advice, so you can delete it. Callbacks need nothing else.</p>
+<p>A callback saved with <code>--callback-mode desktop</code> keeps its result. On macOS and Windows it stops in failed with the exact command to move it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>retry<span class="w"> </span>--id<span class="w"> </span>ID<span class="w"> </span>--callback-mode<span class="w"> </span>codex-queue
 </code></pre></div>
-<p>macOS generates <code>Start Reins Desktop.command</code>. Windows generates <code>Start Reins Desktop.cmd</code> and a PowerShell script. The default location is the <code>harness-reins</code> folder inside your Codex configuration directory.</p>
-<h2 id="start-desktop">Start Desktop<a class="headerlink" href="#start-desktop" title="Permanent link">&para;</a></h2>
-<p>Save your work and quit Desktop. Double-click the generated launcher, or run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>launch
-</code></pre></div>
-<p>Submit a small task from that Desktop session:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--callback-mode<span class="w"> </span>desktop<span class="w"> </span>--cwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span><span class="w"> </span>--task<span class="w"> </span><span class="s2">"Desktop callback example"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"print('Desktop callback ready')"</span>
-</code></pre></div>
-<p>Ask the Agent to read the result and run the included ACK command to check the integration. In a PowerShell tool environment, use <code>--cwd "$($PWD.Path)"</code> in place of <code>--cwd "$PWD"</code>.</p>
-<h2 id="choose-an-app-path">Choose an app path<a class="headerlink" href="#choose-an-app-path" title="Permanent link">&para;</a></h2>
-<p>On macOS with multiple app installations, select one explicitly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>reins<span class="w"> </span>desktop<span class="w"> </span>prepare<span class="w"> </span>--app<span class="w"> </span>/Applications/Codex.app<span class="w"> </span>--force
-</code></pre></div>
-<p>Windows uses direct launch by default. The experimental Store package-context option is configured with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">reins</span> <span class="n">setup</span> <span class="p">-</span><span class="n">-desktop-launch-mode</span> <span class="n">package-context</span> <span class="p">-</span><span class="n">-force</span> <span class="p">-</span><span class="n">-enable</span> <span class="p">-</span><span class="n">-now</span>
-</code></pre></div>
-<p>See the <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/macos-desktop-bridge.md">macOS Desktop</a> and <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/windows-desktop-bridge.md">Windows Desktop</a> notes for platform setup and validation records. After an app upgrade, run the small example again to check callbacks.</p>
+<p>The task does not run again; the same result goes to the same chat. Run it from a shell that can reach the Codex you use, because the executable and profile are frozen at that point. If the old delivery may have been sent, retry is refused: inspect the chat, then <code>reins ack</code> or <code>reins cancel</code>. On Linux these records keep delivering through the local App Server socket, and the same command moves them if that socket is gone.</p>
+<p><code>--callback-mode desktop</code> cannot be selected for new work; the error points to <code>codex-queue</code>.</p>
 
 
 

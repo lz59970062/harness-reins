@@ -16,6 +16,7 @@
 - [启动子 Agent](guides/agents.md)
 - [接入已有任务](guides/external-jobs.md)
 - [接收与确认回调](guides/callbacks.md)
+- [会话之间发消息](guides/messages.md)
 - [编写任务模板](guides/templates.md)
 - [跟踪多阶段目标](guides/goals.md)
 

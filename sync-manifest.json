@@ -1,5 +1,5 @@
 {
-  "source_commit": "57cb49c9d7575e1e02f366097c13c06e3860110f",
+  "source_commit": "963b006a8a10f3da5179077f0ff742029115ddb6",
   "language": "zh",
   "pages": [
     "index.md",
@@ -12,6 +12,7 @@
     "guides/agents.md",
     "guides/external-jobs.md",
     "guides/callbacks.md",
+    "guides/messages.md",
     "guides/templates.md",
     "guides/goals.md",
     "integrations/support.md",

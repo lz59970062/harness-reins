@@ -36,7 +36,8 @@ CHANNEL_FLAGS = ("--dangerously-load-development-channels", "--channels")
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 INSTRUCTIONS = (
     'Harness Reins (reins) results arrive as <channel source="reins" callback_id="..." task_id="...">. '
-    "Each one reports a background task launched from this session finishing. Inspect the files it names, "
+    "Each one reports a background task launched from this session finishing, or, when it starts with "
+    "[reins-msg], a message from another session. Inspect the files it names, "
     "then ACK with the command it gives. This channel replaces `reins wait` in this session: "
     "do not start `reins wait` here, or the same callback arrives twice."
 )
@@ -215,7 +216,9 @@ class ChannelServer:
                     continue
                 pushed_at = self.pushed.get(callback_id)
                 if pushed_at is not None:
-                    if now - pushed_at >= self.ack_grace:
+                    # The daemon cannot take over a manual callback, so stepping aside would only
+                    # stop this channel delivering; it stays in the inbox until it is read.
+                    if now - pushed_at >= self.ack_grace and request.get("callback_mode") != "manual":
                         self.step_aside(callback_id)
                         return
                     continue

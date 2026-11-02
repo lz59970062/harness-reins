@@ -196,10 +196,15 @@ def make_request(
 
 
 def ack_command(root: Path, request_id: str) -> str:
-    """The command a session runs to acknowledge; it names the queue only when not the default."""
-    arguments = ["ack", request_id]
+    """The command a session runs to acknowledge."""
+    return session_command(root, "ack", request_id)
+
+
+def session_command(root: Path, mode: str, *arguments: str) -> str:
+    """A command a session is told to run; it names the queue only when not the default."""
+    arguments = [mode, *arguments]
     if root.expanduser().absolute() != layout.queue_dir(None).expanduser().absolute():
-        arguments = ["ack", "--queue-dir", str(root), request_id]
+        arguments = [mode, "--queue-dir", str(root), *arguments[1:]]
     launcher = install_record.launcher()
     if launcher is not None:  # the canonical Reins, whatever is first on PATH
         return shell.format_command([launcher, *arguments])
@@ -209,6 +214,7 @@ def ack_command(root: Path, request_id: str) -> str:
 def prepare_request_for_queue(root: Path, request: dict[str, object], prompt: str) -> dict[str, object]:
     request_id = str(request["id"])
     request["queue_dir"] = str(root)
+    request["link_dir"] = str(layout.link_root(root))  # a resumed session can answer or send messages
     request["lifecycle_state"] = "pending"
     acknowledgement = ack_command(root, request_id)
     routed_prompt = attach_routing_text(prompt, request)
@@ -562,6 +568,8 @@ def submit_managed_run(args: argparse.Namespace) -> int:
 
 
 def request_task(request: dict[str, object]) -> str:
+    if request.get("message_id") and isinstance(request.get("task"), str):
+        return str(request["task"])
     prompt = request.get("prompt")
     if isinstance(prompt, str):
         for line in prompt.splitlines():

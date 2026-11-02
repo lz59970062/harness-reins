@@ -42,9 +42,9 @@ class ClaudeAdapter:
         if not isinstance(permission_mode, str) or not permission_mode:
             permission_mode = environment.get(CLAUDE_PERMISSION_MODE_ENV, DEFAULT_CLAUDE_PERMISSION_MODE)
         cmd = [self.executable(environment), "-p", "--permission-mode", permission_mode]
-        queue_root = request.get("queue_dir")
-        if isinstance(queue_root, str) and queue_root:
-            cmd.extend(["--add-dir", queue_root])
+        for key in ("queue_dir", "link_dir"):
+            if isinstance(request.get(key), str) and request[key]:
+                cmd.extend(["--add-dir", request[key]])
         cmd.extend(["--resume", resume_target(request)])
         return cmd
 

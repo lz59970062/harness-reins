@@ -19,6 +19,7 @@ from ..store import records as queue_store
 from ..engine import delivery as delivery_engine
 from ..engine import resume_environment
 from ..engine import goals
+from ..engine import messages
 from ..engine import recovery
 from ..engine import tasks as managed_tasks
 from . import environment as tower_environment
@@ -142,6 +143,7 @@ def daemon(args: argparse.Namespace) -> int:
             pi_channel.reconcile_publications(root, max(1.0, float(getattr(args, "resume_timeout", delivery_engine.DEFAULT_RESUME_TIMEOUT))))
             managed_work = managed_tasks.recover_managed_tasks(root)
             recovery.recover_active(root)
+            messages.maintain(root)
             if managed_work:
                 processed += managed_work
                 if args.max_items is not None and processed >= args.max_items:

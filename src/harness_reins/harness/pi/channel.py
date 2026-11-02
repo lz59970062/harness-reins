@@ -222,6 +222,17 @@ def valid_live_lease(owner: dict) -> bool:
             and tower.daemon_process_identity(pid) == owner["lease_identity"])
 
 
+def live_mailbox_open(request: dict) -> bool:
+    """Whether the bound session is open now, so a callback reaches it without starting anything."""
+    from ...install import services
+    try:
+        _, owner = owner_record(request)
+        return (services.pid_is_running(owner["owner_pid"]) and owner.get("state") == "active"
+                and (owner.get("managed") is not True or valid_live_lease(owner)))
+    except (OSError, ValueError, KeyError):
+        return False
+
+
 def require_delivery_support(request: dict, owner: dict) -> None:
     if request.get("pi_delivery", "follow-up") == "steer":
         modes = owner.get("delivery_modes")

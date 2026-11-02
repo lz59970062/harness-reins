@@ -365,6 +365,8 @@ def inspect(args: argparse.Namespace) -> dict[str, object]:
         issues.append(dict(issue, kind="runtime", component="coordinator"))
     issues.extend(runtime_issues(root))
     issues.extend(delivery_issues(root))
+    if getattr(args, "mode", None) == "doctor":  # never appended to an agent's own command output
+        issues.extend(message_issues(root))
     # Probing starts each agent CLI, so only an explicit `reins doctor` does it.
     service_unit = installed_service_unit() if getattr(args, "mode", None) == "doctor" else None
     if service_unit is not None:
@@ -546,6 +548,18 @@ def emit_if_needed(args: argparse.Namespace) -> None:
         # A closed stderr or an unexpected report-serialization failure cannot
         # turn a successful durable submission into a retryable command failure.
         return
+
+
+def message_issues(root: Path) -> list[dict[str, object]]:
+    """Message threads stopped at a limit. Only people hear about these, so the talk cannot continue."""
+    from ..engine import messages
+
+    alerts = messages.alerts(root)
+    if not alerts:
+        return []
+    return [{"code": "message_limit_reached", "kind": "runtime", "component": "messages", "count": len(alerts),
+             "action": "Agents kept messaging each other until a limit stopped them. Inspect with reins message "
+                       "alerts, then clear with reins message alerts --clear. Starting a new thread is your call."}]
 
 
 def delivery_issues(root: Path) -> list[dict[str, object]]:

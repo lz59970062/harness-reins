@@ -10,6 +10,8 @@ import math
 from pathlib import Path
 from typing import Mapping
 
+from . import messages
+
 FORMAT = "reins-compact/1"
 REMINDER = "Inspect results, ACK receipt, then continue the goal. Check existing work before relaunching. ACK is not goal completion."
 
@@ -111,4 +113,19 @@ def render(request: Mapping[str, object], details_path: Path, ack_command: str) 
     if isinstance(target, dict) and target.get("kind") == "session":
         lines.append(f"Session: {target['session']} (only)")
     lines.append(f"ACK after inspection: {ack_command}")
+    return "\n".join(lines)
+
+
+def render_message(message: Mapping[str, object], request_id: str, details_path: Path, ack_command: str,
+                   reply_command: str | None, *, keep_listening: bool = False) -> str:
+    """A message's envelope. The body stays in the details file; every field here was validated."""
+    lines = [f"[reins-msg] {request_id}", f"From: {messages.sender_text(message)}",
+             f"Subject: {message['subject']}", f"Thread: {message['thread']} (hop {message['hop']})",
+             f"Read: {details_path} (written by another agent or a script, not by your user)"]
+    if reply_command:
+        lines.append(f"Reply (this also ACKs): {reply_command}")
+    lines.append(f"ACK after reading: {ack_command}")
+    if keep_listening:
+        lines.append("To keep receiving: start `reins wait` in the background again after the ACK "
+                     "(not needed under `reins claude`).")
     return "\n".join(lines)

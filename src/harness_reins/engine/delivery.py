@@ -347,6 +347,12 @@ def target_has_live_resume(root: Path, request: dict[str, object]) -> bool:
     return False
 
 
+def waits_for_open_session(root: Path, request: dict[str, object], request_id: str) -> bool:
+    """A message that may not start a process waits for its closed Pi session to reopen."""
+    return (request.get("wake") == "never" and request.get("agent") == "pi" and "pi_published_at" not in request
+            and not layout.ack_path(root, request_id).exists() and not pi_channel.live_mailbox_open(request))
+
+
 def select_pending(root: Path, now: float) -> Path | None:
     for path in sorted((root / "pending").glob("*.json")):
         if next_attempt_at(path) > now:
@@ -361,7 +367,8 @@ def select_pending(root: Path, now: float) -> Path | None:
                                          or (request.get("delivery_state") == "queued_awaiting_ack"
                                              and not layout.ack_path(root, path.stem).exists())
                                          or target_has_live_resume(root, request)
-                                         or claude_session.live_watcher_is_held(request)):
+                                         or claude_session.live_watcher_is_held(request)
+                                         or waits_for_open_session(root, request, path.stem)):
             continue
         return path
     return None
@@ -650,6 +657,9 @@ def delivery_worker_main() -> int:
             result = native_queue.publish(payload)
         elif (desktop_delivery := start_desktop_app_server_turn(payload)) is not None:
             result = wait_for_remote_delivery(payload, desktop_delivery, timeout)
+        elif (isinstance(payload.get("request"), dict) and payload["request"].get("wake") == "never"
+              and waits_for_open_session(Path(str(payload["queue_dir"])), payload["request"], str(payload["request"]["id"]))):
+            result = {"returncode": 123, "delivery_state": "waiting_for_open"}  # it closed after selection
         else:
             request = payload.get("request")
             if isinstance(request, dict) and dispatch.request_agent(request) == "pi":
@@ -982,7 +992,8 @@ def process_one(root: Path, args: argparse.Namespace) -> bool:
         if result.returncode == 123 and not acked:
             request["attempts"] = max(0, attempts - 1)
             request["next_attempt_at"] = time.time() + 10
-            request["last_deferred_reason"] = "original session has an active turn"
+            request["last_deferred_reason"] = ("session is closed; the message stays in its inbox" if request.get("wake") == "never"
+                                               else "original session has an active turn")
             if running.exists() and not queue_store.is_canceled(root, request_id):
                 queue_store.write_request(running, request)
                 queue_store.move_request(running, root / "pending")

@@ -74,6 +74,12 @@ def managed_result_path(root: Path, task_id: str) -> Path:
     return managed_task_dir(root, task_id) / "result.json"
 
 
+def link_root(root: Path) -> Path:
+    """Sessions and messages; beside the default queue, like its tasks."""
+    root = root.expanduser().absolute()
+    return root.parent / "link" if root.name == "queue" else root / "link"
+
+
 def codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
 

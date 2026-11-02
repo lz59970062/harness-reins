@@ -13,6 +13,7 @@ from ..store import layout
 from ..store import records as queue_store
 from ..engine import delivery as delivery_engine
 from ..engine import dispatch
+from ..engine import messages
 from ..engine import recovery
 
 
@@ -151,6 +152,10 @@ def status(args: argparse.Namespace) -> int:
     root = layout.queue_dir(args)
     states = args.state or ["pending", "running"]
     items = queued_items(root, states)
+    alerts = messages.alerts(root)
+    if alerts:
+        print(f"[reins] {len(alerts)} message thread(s) stopped at a limit; no agent was told again. "
+              "Inspect: reins message alerts")
     if not items:
         if not args.quiet_empty:
             print(f"No callbacks need attention in {root}")
@@ -164,7 +169,8 @@ def status(args: argparse.Namespace) -> int:
         request_id = str(request.get("id", path.stem))
         line = f"  - [{state}] {dispatch.request_task(request)} | {dispatch.request_target(request)} | id {request_id}"
         if request.get("callback_mode") == "manual":
-            line += " | manual receipt; automatic callback disabled"
+            line += (" | waiting in the inbox of its session" if request.get("message_id")
+                     else " | manual receipt; automatic callback disabled")
         if request.get("delivery_state") == "blocked":
             line += " | callback blocked; saved workload result retained"
         if request.get("delivery_state") == "queued_awaiting_ack":

@@ -134,6 +134,9 @@ ATC 的 systemd drop-in 和 `experts.yaml` 会带到 Reins。
 | `reins run -- <命令>` | 把一条命令交给系统托管，完成后回调 |
 | `reins agent codex\|claude\|pi -- <任务>` | 启动一个全新的子代理；它会写一份结构化报告，信封里标注为"声称，未经验证" |
 | `reins done --exit-code <N>` | 任务由 Slurm、tmux 等外部调度器托管时，只负责报告结束 |
+| `reins session register <名字>` | 给当前会话起名，让其他会话能找到它 |
+| `reins send <名字> -m <正文>` | 给另一个 Codex、Claude Code 或 Pi 会话发消息，详见[指南](docs/guides/messages.md) |
+| `reins inbox` | 查看这个会话的未读消息 |
 | `reins ack <回调ID>` | 确认已经收到并看过结果（不等于任务完成） |
 | `reins status` | 查看还需要处理的回调 |
 | `reins doctor` | 检查环境，给出可以交给 Agent 执行的修复计划 |

@@ -16,6 +16,7 @@
 - [Running child agents](guides/agents.md)
 - [External jobs](guides/external-jobs.md)
 - [Callbacks and ACK](guides/callbacks.md)
+- [Messages between sessions](guides/messages.md)
 - [Task templates](guides/templates.md)
 - [Multi-stage goals](guides/goals.md)
 

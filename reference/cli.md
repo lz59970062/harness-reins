@@ -49,6 +49,21 @@ Put submission options before `--`:
 | `reins cancel --id <callback-id>` | Cancel delivery of this callback |
 | `reins prompt-policy` | Inspect reminder intervals |
 
+## Messages between sessions
+
+| Command | Purpose |
+| --- | --- |
+| `reins session register <name>` | Name the current session |
+| `reins session list` | See the sessions, and how a message reaches each one now |
+| `reins session unregister <name>` | Remove a name |
+| `reins send <name> --subject <subject> -m <text>` | Send a message, starting a new thread |
+| `reins reply <message-id> -m <text>` | Reply, which also acknowledges the message |
+| `reins inbox` | See what is unread; `--all` includes read ones, `--sent` shows yours, `--thread <id>` a whole thread |
+| `reins message show <message-id>` | Read one message and its state |
+| `reins message alerts` | See threads stopped at a limit; `--clear` removes the alerts |
+
+`--wake resume` allows a closed session to be resumed; by default nothing is started. See [Messages between sessions](../guides/messages.md).
+
 ## Preview commands
 
 These commands use the `0.7.1` preview:

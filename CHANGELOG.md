@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1 — 2026-11-02
 
 - `reins setup` no longer generates the Codex Desktop launcher on macOS or
   Windows, and the shared Core behind it is gone. Open Desktop normally; callbacks

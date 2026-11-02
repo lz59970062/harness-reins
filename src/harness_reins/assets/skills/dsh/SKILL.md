@@ -17,6 +17,9 @@ differs from this page about callback delivery, this page applies to DeepSeek Ha
 
 ## When to use it
 
+- **One-shot `dsh --profile headless` run (`DSH_PROFILE=headless`)** → do not use Reins: the process
+  exits after this turn, so no background waiter or callback can survive. Run the command in the
+  foreground, or use `reins run` from a live desktop/CLI session instead.
 - Reliably done within 60 seconds → run it in the foreground once. No Reins.
 - About a minute or longer, uncertain duration, or might need a second check → `reins run` from the start.
 - Never keep a job alive by polling it with `sleep`/`tail`, and never start a long job with a plain

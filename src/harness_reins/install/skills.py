@@ -17,7 +17,7 @@ from .. import runtime as reins_runtime
 
 SHELL_HOOK_BEGIN = "# >>> harness-reins pending status >>>"
 SHELL_HOOK_END = "# <<< harness-reins pending status <<<"
-SKILL_TARGETS = ("codex", "claude", "pi", "both", "all")
+SKILL_TARGETS = ("codex", "claude", "pi", "dsh", "both", "all")
 
 
 def install_skill_tree(target: Path, *, include_codex_plugin: bool, force: bool, keep_existing: bool = False,
@@ -82,6 +82,9 @@ def install_skill(args: argparse.Namespace) -> int:
     if target_name in ("pi", "all"):
         status |= install_skill_tree(pi_channel.profile_dir() / "skills" / "harness-reins", include_codex_plugin=False,
                                      force=args.force, keep_existing=keep, focused="pi")
+    if target_name in ("dsh", "all"):
+        status |= install_skill_tree(layout.dsh_home() / "skills" / "harness-reins", include_codex_plugin=False,
+                                     force=args.force, keep_existing=keep, focused="dsh")
     return status
 
 

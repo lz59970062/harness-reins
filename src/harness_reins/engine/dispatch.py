@@ -84,6 +84,11 @@ def resolve_agent(args: argparse.Namespace | None = None) -> str:
     return agent
 
 
+def session_env_name(agent: str) -> str:
+    """The environment variable a live Agent exposes for its session identity."""
+    return get_agent(agent).session_id_env
+
+
 def agent_display_name(agent: str) -> str:
     return get_agent(agent).display_name if agent in AGENT_NAMES else agent
 
@@ -332,7 +337,8 @@ def load_request(path: Path) -> dict[str, object]:
         if request_agent(data) != "pi":
             raise ValueError("only Pi callbacks can require Pi delivery")
         pi_channel.validate_route(data)
-    delivery_engine.resume_command(data)
+    if not delivery_engine.is_live_delivery(data):
+        delivery_engine.resume_command(data)
     return data
 
 
@@ -348,6 +354,11 @@ def build_acknowledgement_text(command: str, agent: str = "codex", callback_mode
         delivery_note = (
             "This callback is delivered to the original PI Agent process through its native message API. "
             "Only Reins-managed sessions can recover in print mode after the entire original process exits."
+        )
+    elif agent == "dsh":
+        delivery_note = (
+            "This callback is delivered to the live DeepSeek Harness session that ran `reins wait`; "
+            "DSH has no headless resume, so only that live session can receive it."
         )
     else:
         delivery_note = (
@@ -512,14 +523,18 @@ def submit_managed_run(args: argparse.Namespace) -> int:
         queue_store.write_request(environment_path, {"version": 1, "environment": environment})
         # Only the session itself starts a waiter; a script that names a session
         # with --session expects the daemon to deliver at once.
-        live_wait = (task["agent"] == "claude" and target.get("kind") == "session"
-                     and os.environ.get(claude_session.SESSION_ENV, "").strip() == str(target.get("session"))
+        live_agent = claude_session.live_wait_agent(task["agent"])
+        live_wait = (live_agent is not None and target.get("kind") == "session"
+                     and os.environ.get(session_env_name(live_agent), "").strip() == str(target.get("session"))
                      and task["callback_mode"] != "manual"
-                     and not claude_session.channel_is_held(str(target.get("session")))
-                     and not claude_session.background_tasks_disabled(os.environ))
-        if live_wait:
+                     and not (live_agent == "claude" and claude_session.channel_is_held(str(target.get("session"))))
+                     and not (live_agent == "claude" and claude_session.background_tasks_disabled(os.environ)))
+        if live_wait and live_agent == "claude":
             # Before the task exists, so even one that ends at once waits for this session's waiter.
-            claude_session.expect_live_waiter(str(target.get("session")), claude_session.live_wait_grace(os.environ))
+            # DSH is live-only already and needs no reservation.
+            claude_session.expect_live_waiter(
+                str(target.get("session")), claude_session.live_wait_grace(os.environ), agent=live_agent
+            )
         managed_tasks.write_managed_task(root, task)
         if task["callback_mode"] != "manual" and target.get("kind") == "session":
             resume_environment.capture(root, ids.callback_id(task_id), environment)
@@ -558,6 +573,12 @@ def submit_managed_run(args: argparse.Namespace) -> int:
             if live_wait and grace > 0:
                 print(f"reins: start it now: the callback is held for this session's waiter for {grace:g}s, "
                       "then resumed headless", file=sys.stderr)
+    if task["agent"] == "dsh" and target.get("kind") == "session":
+        wait = reins_runtime.control_command("wait", "--queue-dir", str(root), "--task", task_id)
+        print(f"reins: DeepSeek Harness live callback: run as a background job (run_in_background: true): {wait}",
+              file=sys.stderr)
+        print("reins: start it now: DSH has no headless fallback, so the callback waits until this session runs "
+              "`reins wait`", file=sys.stderr)
     return 0
 
 

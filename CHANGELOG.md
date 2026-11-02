@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — DeepSeek Harness support
+
+- DSH is a native callback parent and child worker. `DSH_SESSION_ID` binds the
+  exact conversation, `reins wait` runs as a DSH background job, and its job
+  completion notification wakes the live session. DSH callbacks are live-only:
+  the desktop preset cannot be resumed by `dsh --profile headless`, and Reins
+  never opens a second writer, so an unclaimed callback stays queued until the
+  same session waits again.
+- `reins agent dsh` runs `dsh --profile headless` with the prompt on stdin and
+  captures the final answer from stdout. It strips the parent DSH markers and
+  keeps provider credentials.
+- `reins setup --with-dsh` installs the focused DSH skill under
+  `${DSH_HOME:-~/.dsh}/skills/harness-reins` and records `--dsh-bin` for the
+  coordinator. `install-skill --target dsh` and `install-skill --target all`
+  include DSH; `reins doctor --agent dsh` explains the live-only route.
+
 ## 0.10.1 — 2026-11-02
 
 - `reins setup` no longer generates the Codex Desktop launcher on macOS or

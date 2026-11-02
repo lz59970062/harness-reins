@@ -74,6 +74,10 @@ def inspect_route(request: dict[str, object], *, timeout: float = 2) -> dict[str
     if dispatch.request_agent(request) == "pi":
         from ..harness.pi import channel as pi_channel
         return dict(report, **pi_channel.inspect_route(request))
+    if dispatch.request_agent(request) == "dsh":
+        return dict(report, transport="live_wait", reason="live_session_delivery",
+                    action="Run `reins wait --task <id>` as a background job from the bound DSH session; "
+                           "DSH callbacks are never resumed headlessly.")
     if dispatch.request_agent(request) != "codex":
         return dict(report, transport="cli_resume", reason="session_delivery_not_probed")
     connection = None

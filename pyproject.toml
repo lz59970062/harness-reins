@@ -34,4 +34,4 @@ reins = "harness_reins.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-harness_reins = ["_build.txt", "assets/skills/reference/SKILL.md", "assets/skills/claude/SKILL.md", "assets/skills/codex/SKILL.md", "assets/skills/pi/SKILL.md", "assets/skills/reference/agents/openai.yaml", "templates/*.md", "owners/*.ps1", "harness/pi/extension/*.js"]
+harness_reins = ["_build.txt", "assets/skills/reference/SKILL.md", "assets/skills/claude/SKILL.md", "assets/skills/codex/SKILL.md", "assets/skills/dsh/SKILL.md", "assets/skills/pi/SKILL.md", "assets/skills/reference/agents/openai.yaml", "templates/*.md", "owners/*.ps1", "harness/pi/extension/*.js"]

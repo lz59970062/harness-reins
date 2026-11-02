@@ -97,11 +97,11 @@ def add_common_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--agent",
         choices=AGENT_NAMES,
-        help="Agent to wake (default: auto-detect from $PI_SESSION_FILE/$PI_SESSION_ID, $CLAUDECODE/$CLAUDE_CODE_SESSION_ID or $CODEX_THREAD_ID)",
+        help="Agent to wake (default: auto-detect from $PI_SESSION_FILE/$PI_SESSION_ID, $CLAUDECODE/$CLAUDE_CODE_SESSION_ID, $DSH_SESSION_ID or $CODEX_THREAD_ID)",
     )
     parser.add_argument(
         "--session",
-        help=f"Agent session id to resume (default: ${PI_SESSION_FILE_ENV}, ${CLAUDE_THREAD_ID_ENV} or ${CODEX_THREAD_ID_ENV} from the launching agent thread)",
+        help=f"Agent session id (default: ${PI_SESSION_FILE_ENV}, ${CLAUDE_THREAD_ID_ENV}, $DSH_SESSION_ID or ${CODEX_THREAD_ID_ENV} from the launching agent thread)",
     )
     parser.add_argument("--cwd", default=os.getcwd(), help="Working directory for the task and resumed agent")
     parser.add_argument("--task", default="long task", help="Human-readable task name")
@@ -313,6 +313,7 @@ def main() -> int:
         service_parser.add_argument("--codex-bin", help="Path to codex executable used by the daemon")
         service_parser.add_argument("--claude-bin", help="Path to claude executable used by the daemon")
         service_parser.add_argument("--pi-bin", help="Path to the PI Agent executable used by the daemon")
+        service_parser.add_argument("--dsh-bin", help="Path to the DeepSeek Harness dsh launcher used by the daemon")
         service_parser.add_argument("--path", help="PATH environment for the daemon service")
         add_proxy_environment_flags(service_parser)
         service_parser.add_argument("--force", action="store_true", help="Overwrite an existing service file")
@@ -322,14 +323,14 @@ def main() -> int:
         if service == "systemd":
             add_privilege_escalation_flag(service_parser)
 
-    install_parser = sub.add_parser("install-skill", help="Install the bundled skill for Codex, Claude Code and/or Pi")
+    install_parser = sub.add_parser("install-skill", help="Install the bundled skill for Codex, Claude Code, Pi and/or DeepSeek Harness")
     install_parser.add_argument("--path", help="Skills directory to install into (overrides --target)")
     install_parser.add_argument(
         "--target",
         choices=skill_install.SKILL_TARGETS,
         default="both",
         help="Agent home to install into (default: both — ${CODEX_HOME:-~/.codex}/skills and ${CLAUDE_CONFIG_DIR:-~/.claude}/skills; "
-             "pi — ${PI_CODING_AGENT_DIR:-~/.pi/agent}/skills; all — the three)",
+             "pi — ${PI_CODING_AGENT_DIR:-~/.pi/agent}/skills; dsh — ${DSH_HOME:-~/.dsh}/skills; all — the four)",
     )
     install_parser.add_argument("--force", action="store_true", help="Overwrite an existing harness-reins skill")
 
@@ -397,10 +398,11 @@ def main() -> int:
                               help="Coordinator hosting: systemd on Linux, launchd on macOS, Task Scheduler on Windows")
     setup_parser.add_argument("--skill-path", help="Skills directory to install into (overrides --skill-target)")
     setup_parser.add_argument("--with-pi-extension", action="store_true", help="Also install Pi's native live callback extension")
+    setup_parser.add_argument("--with-dsh", action="store_true", help="Also install the DeepSeek Harness skill and record its launcher")
     setup_parser.add_argument(
         "--skill-target",
         choices=skill_install.SKILL_TARGETS,
-        help="Agent home to install the skill into (default: both; all with --with-pi-extension)",
+        help="Agent home to install the skill into (default: both; all with --with-pi-extension or --with-dsh)",
     )
     setup_parser.add_argument("--name", default="harness-reins", help="Service name / LaunchAgent label")
     setup_parser.add_argument("--queue-dir", help="Wakeup queue directory")
@@ -414,6 +416,7 @@ def main() -> int:
     setup_parser.add_argument("--codex-bin", help="Path to codex executable used by the daemon")
     setup_parser.add_argument("--claude-bin", help="Path to claude executable used by the daemon")
     setup_parser.add_argument("--pi-bin", help="Path to the PI Agent executable used by the daemon")
+    setup_parser.add_argument("--dsh-bin", help="Path to the DeepSeek Harness dsh launcher used by the daemon")
     setup_parser.add_argument("--path", help="PATH environment for the daemon service")
     add_proxy_environment_flags(setup_parser)
     setup_parser.add_argument("--force", action="store_true", help="Overwrite an existing skill and service file")
@@ -427,11 +430,12 @@ def main() -> int:
 
     wait_parser = sub.add_parser(
         "wait",
-        help="Claude Code only: block until this session's callback is ready, then print it (run in the background)",
+        help="Claude Code or DeepSeek Harness: block until this session's callback is ready, then print it (run in the background)",
     )
     wait_parser.add_argument("--queue-dir", help="Wakeup queue directory")
     wait_parser.add_argument("--task", help="Only wait for this managed task's callback")
-    wait_parser.add_argument("--session", help="Claude Code session id (default: $CLAUDE_CODE_SESSION_ID)")
+    wait_parser.add_argument("--agent", choices=AGENT_NAMES, help="Live agent that owns the session (default: detect from the environment)")
+    wait_parser.add_argument("--session", help="Session id (default: $CLAUDE_CODE_SESSION_ID or $DSH_SESSION_ID)")
     wait_parser.add_argument("--timeout", type=float, help="Give up after this many seconds (exit 3)")
     wait_parser.add_argument("--poll-interval", type=float, default=1.0, help=argparse.SUPPRESS)
 

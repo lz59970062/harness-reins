@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import NamedTuple, Optional
 
 from .adapter import CLAUDE_BIN_ENV, CLAUDE_THREAD_ID_ENV as SESSION_ENV
+from ..dsh.adapter import DSH_SESSION_ID_ENV
 
 EXECPATH_ENV = "CLAUDE_CODE_EXECPATH"
 ENTRYPOINT_ENV = "CLAUDE_CODE_ENTRYPOINT"
@@ -208,14 +209,17 @@ def resume_cwd(request: Mapping[str, object], environment: Mapping[str, str]) ->
 
 # Live delivery: `reins wait` ---------------------------------------------------
 #
-# Claude Code wakes a live session when a background shell command exits. A
-# Claude session runs `reins wait` in the background; it prints the session's
-# callback when one is queued and exits, which wakes that session. While a
-# waiter is alive the daemon leaves the session's callbacks alone. Only Claude
-# callbacks are ever touched here; other agents keep the normal daemon route.
+# Claude Code and DeepSeek Harness wake a live session when a background shell
+# or harness job exits. The session runs `reins wait` in the background; it
+# prints the callback when one is queued and exits, which wakes that session.
+# While a waiter is alive the daemon leaves the session's callbacks alone. Only
+# live-wait agents are touched here; other agents keep the normal daemon route.
 
 LIVE_ACK_GRACE_SECONDS = 30 * 60.0
 LIVE_WATCHER_DIR_NAME = "live-watchers"
+# Agents that wake a live session when a background ``reins wait`` exits. DSH
+# runs one through its own job system; a DSH callback has no headless fallback.
+LIVE_WAIT_AGENTS = ("claude", "dsh")
 # A channel server (claude_channel.py) holds the same lock under this prefix.
 CHANNEL_WATCHER_PREFIX = "channel-"
 # `reins run` returns before the session starts its background `reins wait`. A
@@ -233,26 +237,41 @@ HEADLESS_NOTICE_SECONDS = 3.0
 HEADLESS_EXIT_CODE = 4
 
 
-def _session_of(request: Mapping[str, object]) -> str | None:
+def live_wait_agent(agent: object) -> str | None:
+    """The agent name when it supports live ``reins wait`` delivery."""
+    return agent if isinstance(agent, str) and agent in LIVE_WAIT_AGENTS else None
+
+
+def session_environment_name(agent: str) -> str:
+    return DSH_SESSION_ID_ENV if agent == "dsh" else SESSION_ENV
+
+
+def _target_of(request: Mapping[str, object]) -> tuple[str, str] | None:
+    agent = live_wait_agent(request.get("agent"))
     target = request.get("target")
-    if request.get("agent") != "claude" or not isinstance(target, dict) or target.get("kind") != "session":
+    if agent is None or not isinstance(target, dict) or target.get("kind") != "session":
         return None
     value = target.get("session")
-    return value if isinstance(value, str) and value else None
+    return (agent, value) if isinstance(value, str) and value else None
 
 
-def live_watcher_dir(session: str) -> Path:
+def _session_of(request: Mapping[str, object]) -> str | None:
+    target = _target_of(request)
+    return target[1] if target is not None else None
+
+
+def live_watcher_dir(session: str, *, agent: str = "claude") -> Path:
     from ...engine import dispatch
     from ...engine import delivery as delivery_engine
     from ...engine import reminders as reminder_policy
     from ...store import records as queue_store
     from ...store import layout
 
-    digest = hashlib.sha256(f"session:{session}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{agent}:{session}".encode("utf-8")).hexdigest()
     return layout.target_lock_dir() / LIVE_WATCHER_DIR_NAME / digest
 
 
-def register_live_watcher(session: str, *, prefix: str = "") -> tuple[object, Path]:
+def register_live_watcher(session: str, *, prefix: str = "", agent: str = "claude") -> tuple[object, Path]:
     """Lock a uniquely named file; the OS releases it if the waiter dies.
 
     The daemon must never observe an unlocked live file. On POSIX the lock is
@@ -266,7 +285,7 @@ def register_live_watcher(session: str, *, prefix: str = "") -> tuple[object, Pa
     from ...store import records as queue_store
     from ...store import layout
 
-    directory = live_watcher_dir(session)
+    directory = live_watcher_dir(session, agent=agent)
     directory.mkdir(parents=True, exist_ok=True)
     name = f"{prefix}{os.getpid()}-{secrets.token_hex(6)}"
     final = directory / f"{name}.lock"
@@ -307,12 +326,12 @@ def live_wait_grace(environment: Mapping[str, str]) -> float:
         return DEFAULT_LIVE_WAIT_GRACE_SECONDS
 
 
-def expect_live_waiter(session: str, grace: float) -> None:
+def expect_live_waiter(session: str, grace: float, *, agent: str = "claude") -> None:
     """Reserve this session's callbacks for a `reins wait` that starts within ``grace`` seconds."""
     if grace <= 0:
         return
     try:
-        directory = live_watcher_dir(session)
+        directory = live_watcher_dir(session, agent=agent)
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{os.getpid()}-{secrets.token_hex(6)}{EXPECTED_WAITER_SUFFIX}"
         path.write_text(repr(time.time() + grace), encoding="utf-8")
@@ -320,8 +339,8 @@ def expect_live_waiter(session: str, grace: float) -> None:
         pass  # Only the grace is lost: the daemon delivers as before.
 
 
-def _expected(session: str) -> bool:
-    directory = live_watcher_dir(session)
+def _expected(agent: str, session: str) -> bool:
+    directory = live_watcher_dir(session, agent=agent)
     if not directory.is_dir():
         return False
     now = time.time()
@@ -339,9 +358,12 @@ def _expected(session: str) -> bool:
 
 
 def live_watcher_is_held(request: Mapping[str, object]) -> bool:
-    """Daemon hook: whether a live waiter owns, or is about to own, delivery for this Claude callback."""
-    session = _session_of(request)
-    return session is not None and (_held(session, "") or _expected(session))
+    """Daemon hook: whether a live waiter owns, or is about to own, delivery for this callback."""
+    target = _target_of(request)
+    if target is None:
+        return False
+    agent, session = target
+    return _held(agent, session, "") or _expected(agent, session)
 
 
 def inside_resume_of(request: Mapping[str, object]) -> bool:
@@ -354,17 +376,17 @@ def inside_resume_of(request: Mapping[str, object]) -> bool:
 
 def channel_is_held(session: str) -> bool:
     """Whether a `reins claude` channel is delivering this session's callbacks."""
-    return _held(session, CHANNEL_WATCHER_PREFIX)
+    return _held("claude", session, CHANNEL_WATCHER_PREFIX)
 
 
-def _held(session: str, prefix: str) -> bool:
+def _held(agent: str, session: str, prefix: str) -> bool:
     from ...engine import dispatch
     from ...engine import delivery as delivery_engine
     from ...engine import reminders as reminder_policy
     from ...store import records as queue_store
     from ...store import layout
 
-    directory = live_watcher_dir(session)
+    directory = live_watcher_dir(session, agent=agent)
     if not directory.is_dir():
         return False
     held = False
@@ -427,13 +449,14 @@ def _claim(root: Path, path: Path) -> str | None:
         queue_store.release_owner_lock(delivery_lock, remove=False)
 
 
-def _matches(request: Mapping[str, object], session: str, task: str | None) -> bool:
-    return (_session_of(request) == session
+def _matches(request: Mapping[str, object], agent: str, session: str, task: str | None) -> bool:
+    target = _target_of(request)
+    return (target == (agent, session)
             and (task is None or request.get("managed_task_id") == task)
             and request.get("retain_target_lease") is not True)
 
 
-def _task_already_acknowledged(root: Path, session: str, task: str) -> bool:
+def _task_already_acknowledged(root: Path, agent: str, session: str, task: str) -> bool:
     from ...store import layout
 
     # An ACKed callback stays under running/ while the resume that ACKed it is still alive.
@@ -443,24 +466,26 @@ def _task_already_acknowledged(root: Path, session: str, task: str) -> bool:
                 request = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if (isinstance(request, dict) and _matches(request, session, task)
+            if (isinstance(request, dict) and _matches(request, agent, session, task)
                     and (state == "done" or layout.ack_path(root, path.stem).exists())):
                 return True
     return False
 
 
-def _held_by_headless_resume(root: Path, session: str, task: str | None) -> list[dict[str, object]]:
+def _held_by_headless_resume(root: Path, agent: str, session: str, task: str | None) -> list[dict[str, object]]:
     """Unacknowledged callbacks of this session that the daemon is delivering to a headless resume."""
     from ...store import records as queue_store
     from ...store import layout
 
+    if agent == "dsh":
+        return []  # DSH has no headless fallback, so nothing is ever held that way.
     held = []
     for path in sorted((root / "running").glob("*.json")):
         try:
             request = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if (isinstance(request, dict) and _matches(request, session, task)
+        if (isinstance(request, dict) and _matches(request, agent, session, task)
                 and not layout.ack_path(root, path.stem).exists()
                 and not inside_resume_of(request)
                 and queue_store.delivery_lock_is_held(root, path.stem)):
@@ -487,7 +512,7 @@ def _headless_notice(requests: list[dict[str, object]], session: str) -> str:
 
 
 def wait(args: argparse.Namespace) -> int:
-    """`reins wait`: print this Claude session's unacknowledged callback(s), waiting if none yet.
+    """`reins wait`: print this live session's unacknowledged callback(s), waiting if none yet.
 
     A callback keeps being returned until it is ACKed. If the session closes,
     the OS releases the waiter's lock and the daemon delivers as usual.
@@ -498,9 +523,20 @@ def wait(args: argparse.Namespace) -> int:
     from ...store import records as queue_store
     from ...store import layout
 
-    session = args.session or os.environ.get(SESSION_ENV, "").strip()
+    agent = getattr(args, "agent", None)
+    if agent is not None and agent not in LIVE_WAIT_AGENTS:
+        print(f"reins wait: {agent} does not deliver callbacks through a live waiter", file=sys.stderr)
+        return 2
+    if agent not in LIVE_WAIT_AGENTS:
+        # DSH injects its own marker into every shell; a Claude prompt keeps
+        # CLAUDE_CODE_SESSION_ID. Nested shells can retain a parent marker, so
+        # an explicit --agent always wins over this guess.
+        agent = ("dsh" if os.environ.get(DSH_SESSION_ID_ENV, "").strip()
+                 and not os.environ.get(SESSION_ENV, "").strip() else "claude")
+    environment_name = session_environment_name(agent)
+    session = args.session or os.environ.get(environment_name, "").strip()
     if not session:
-        print(f"reins wait is only for Claude Code sessions: {SESSION_ENV} is unset. "
+        print(f"reins wait is only for Claude Code and DeepSeek Harness sessions: {environment_name} is unset. "
               "Other agents receive callbacks from the daemon and should not run it.", file=sys.stderr)
         return 2
     root = layout.queue_dir(args).expanduser().absolute()
@@ -511,13 +547,14 @@ def wait(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"reins wait: {exc}", file=sys.stderr)
         return 2
-    if channel_is_held(session):
+    if agent == "claude" and channel_is_held(session):
         print("reins wait: this session was started with `reins claude`; its callbacks arrive through the "
               "reins channel, so no waiter is needed", file=sys.stderr)
         return 0
     deadline = time.monotonic() + args.timeout if args.timeout else None
-    watcher = register_live_watcher(session)
-    print(f"reins wait: watching Claude Code session {session}", file=sys.stderr)
+    watcher = register_live_watcher(session, agent=agent)
+    print(f"reins wait: watching {'DeepSeek Harness' if agent == 'dsh' else 'Claude Code'} session {session}",
+          file=sys.stderr)
     held_since: float | None = None
     try:
         while True:
@@ -528,7 +565,7 @@ def wait(args: argparse.Namespace) -> int:
                         request = json.loads(path.read_text(encoding="utf-8"))
                     except (OSError, ValueError):
                         continue
-                    if (isinstance(request, dict) and _matches(request, session, args.task)
+                    if (isinstance(request, dict) and _matches(request, agent, session, args.task)
                             and not layout.ack_path(root, path.stem).exists()):
                         prompt = _claim(root, path)
                         if prompt is not None:
@@ -536,12 +573,12 @@ def wait(args: argparse.Namespace) -> int:
             if prompts:
                 print("\n\n".join(prompts), flush=True)
                 return 0
-            if args.task and _task_already_acknowledged(root, session, args.task):
+            if args.task and _task_already_acknowledged(root, agent, session, args.task):
                 print(f"reins wait: task {args.task}'s callback is already acknowledged", file=sys.stderr)
                 return 0
             # A callback that went to a headless resume never comes back here
             # while that resume runs; say so instead of waiting in silence.
-            held = _held_by_headless_resume(root, session, args.task)
+            held = _held_by_headless_resume(root, agent, session, args.task)
             if not held:
                 held_since = None
             elif held_since is None:

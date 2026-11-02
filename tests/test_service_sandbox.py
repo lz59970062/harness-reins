@@ -75,7 +75,8 @@ class ServiceSandboxProbeTests(unittest.TestCase):
     def service_args(self, **updates):
         values = dict(name="harness-reins", queue_dir=None, interval=2.0, retries=3, retry_delay=30.0, retry_backoff=2.0,
                       resume_timeout=3600.0, restart_sec=5.0, exec_start="/fixture/reins", codex_bin=self.codex,
-                      claude_bin=self.claude, pi_bin=str(self.bin / "pi"), path=self.path, proxy_env_file=None,
+                      claude_bin=self.claude, pi_bin=str(self.bin / "pi"), dsh_bin=str(self.bin / "dsh"),
+                      path=self.path, proxy_env_file=None,
                       inherit_proxy=False, clear_proxy=False, force=True, enable=False, now=False, print=False,
                       allow_privilege_escalation=False)
         values.update(updates)
@@ -124,7 +125,8 @@ class ServiceSandboxProbeTests(unittest.TestCase):
         self.assertEqual(parsed["hardening"], ("NoNewPrivileges=yes",))
         self.assertFalse(parsed["allows_privilege_escalation"])
         self.assertEqual(service_sandbox.recorded_binaries(parsed["environment"]),
-                         {"codex": self.codex, "claude": self.claude, "pi": str(self.bin / "pi")})
+                         {"codex": self.codex, "claude": self.claude, "pi": str(self.bin / "pi"),
+                          "dsh": str(self.bin / "dsh")})
         self.assertEqual(parsed["environment"]["PATH"], self.path)
 
     def test_a_dropin_that_turns_hardening_off_is_honored(self):

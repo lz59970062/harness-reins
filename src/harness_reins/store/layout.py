@@ -87,6 +87,11 @@ def claude_home() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude")).expanduser()
 
 
+def dsh_home() -> Path:
+    """DeepSeek Harness's config root; its ``skills`` child is the user skill root."""
+    return Path(os.environ.get("DSH_HOME", "~/.dsh")).expanduser()
+
+
 def daemon_state_dir() -> Path:
     return reins_home()
 

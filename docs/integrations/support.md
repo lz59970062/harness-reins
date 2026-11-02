@@ -12,6 +12,7 @@ Harness 指运行 Agent 的外层程序：它管理会话、调用模型、执�
 | Claude Code CLI | `reins agent claude` | 后台 `reins wait` 实时接收；独立 CLI 可恢复会话 | 子 Agent、CLI 恢复从 0.7.0 起；实时回调为 0.7.1 预览，Linux/macOS 已验证 |
 | Claude 桌面应用的 Code 会话 | 子任务通过已登录的独立 Claude CLI 执行 | 后台 Bash 运行 `reins wait` | 0.7.1 预览；macOS 本地会话、Linux SSH 会话已验证 |
 | Pi | `reins agent pi` | 扩展向当前进程发送 steer 消息；`reins pi` 增加关闭后的会话恢复 | 0.7.1 预览；Linux、Pi 0.87.1 有验证记录，macOS/Windows 待验证 |
+| DeepSeek Harness（DSH） | `reins agent dsh` | 后台 `reins wait` 作为 DSH 作业运行，作业完成通知唤醒同一会话；DSH 不支持 headless 恢复 | 当前分支新增；macOS 桌面会话的提交、作业通知和 ACK 已验证 |
 | Codex Desktop | 子任务使用 Codex CLI | 普通启动即可，`auto` 选择原生 `codex queue` | 已在 macOS Desktop 和 Linux 上的真实 Codex 验证；Windows Desktop 待验证 |
 
 子 Agent 与接收方可以组合。例如在 Codex 中执行 `reins agent claude`，Claude 执行任务，结果回到 Codex。操作步骤见 [Codex](codex.md)、[Claude](claude.md)、[Pi](pi.md)和 [Desktop](desktop.md)。
@@ -24,9 +25,8 @@ Claude 还提供 `reins claude` channel 研究预览入口，已记录 Linux 上
 | --- | --- | --- |
 | Gemini CLI、OpenCode、Aider、Goose | 可将已配置的命令行任务放在 `reins run -- <命令>` 后执行，结果交回现有接收方 | 实现各自的子 Agent 参数、会话识别和回调传输；逐项进行端到端验证 |
 | LangGraph、AutoGen、CrewAI、自定义 Agent SDK 程序 | 将工作流保存为脚本，通过 `reins run` 执行，或在已有任务末尾调用 `reins done` | 为接收回调的会话实现适配器与唤醒通道 |
-| DSH | 仓库路线图中规划了适配器 | 完成实现与验证后加入原生接入表 |
 
-这些框架目前处于通用命令接入层，仓库原生适配器注册表包含 `codex`、`claude`、`pi`。开始接入时，先让脚本打印一行结果并正常退出，再检查日志、回调和 ACK；随后接入实际工作流。脚本示例见[典型使用场景](../guides/use-cases.md#运行自定义-agent-工作流)。
+这些框架目前处于通用命令接入层，仓库原生适配器注册表包含 `codex`、`claude`、`pi`、`dsh`。开始接入时，先让脚本打印一行结果并正常退出，再检查日志、回调和 ACK；随后接入实际工作流。脚本示例见[典型使用场景](../guides/use-cases.md#运行自定义-agent-工作流)。
 
 ## 执行环境
 
@@ -40,7 +40,7 @@ Claude 还提供 `reins claude` channel 研究预览入口，已记录 Linux 上
 
 ## 接入新的 Harness
 
-从仓库的 [`harness/base.py`](https://github.com/lz59970062/harness-reins/blob/main/src/harness_reins/harness/base.py) 和 [`harness/registry.py`](https://github.com/lz59970062/harness-reins/blob/main/src/harness_reins/harness/registry.py) 开始：
+从仓库的 [`harness/base.py`](https://github.com/lz59970062/harness-reins/blob/main/src/harness_reins/harness/base.py) 和 [`harness/registry.py`](https://github.com/lz59970062/harness-reins/blob/main/src/harness_reins/harness/registry.py) 开始；DSH 的实现可作为“仅实时投递、无 headless 恢复”的参考：
 
 1. 实现子 Agent 启动：定位程序、构造命令、传入提示词，并约定回答写入文件还是标准输出。
 2. 定义会话绑定：读取当前会话标识，保存恢复会话需要的 profile 和目录。

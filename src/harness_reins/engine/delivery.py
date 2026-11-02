@@ -15,6 +15,7 @@ from pathlib import Path
 from ..core import capabilities, records
 from .. import __version__
 from ..harness.claude import session as claude_session
+from ..harness.dsh import session as dsh_session
 from ..harness.pi import channel as pi_channel
 from ..harness import get_agent
 from ..harness.base import DEFAULT_CLAUDE_PERMISSION_MODE
@@ -70,10 +71,21 @@ def codex_command() -> str:
 
 
 def agent_environment(agent: str) -> dict[str, str]:
-    """Environment for building an agent command; Claude's binary is located on demand."""
+    """Environment for building an agent command; local CLIs are located on demand."""
     if agent == "claude":
         return claude_session.with_resolved_executable(os.environ, which=shutil.which)
+    if agent == "dsh":
+        return dsh_session.with_resolved_executable(os.environ, which=shutil.which)
     return dict(os.environ)
+
+
+def is_live_delivery(request: Mapping[str, object]) -> bool:
+    """Whether this agent receives callbacks only through a live ``reins wait``."""
+    try:
+        agent = dispatch.request_agent(dict(request))
+    except ValueError:
+        return False  # A malformed record must reach the worker's error path, not stop selection.
+    return getattr(get_agent(agent), "callback_delivery", "resume") == "live"
 
 
 def resume_command(request: dict[str, object]) -> list[str]:
@@ -82,11 +94,19 @@ def resume_command(request: dict[str, object]) -> list[str]:
 
 
 def resume_cwd(request: dict[str, object]) -> str:
-    """Claude looks sessions up by their starting directory, not the task's."""
-    if dispatch.request_agent(request) == "claude":
+    """Claude and DSH resolve a session from its starting directory, not the task's."""
+    agent = dispatch.request_agent(request)
+    session_cwd = None
+    if agent == "claude":
         session_cwd = claude_session.resume_cwd(request, os.environ)
-        if session_cwd:
-            return session_cwd
+    elif agent == "dsh":
+        target = request.get("target")
+        if isinstance(target, dict) and target.get("kind") == "session":
+            value = target.get("session")
+            if isinstance(value, str) and value:
+                session_cwd = dsh_session.session_cwd(value, os.environ)
+    if session_cwd:
+        return session_cwd
     return str(request["cwd"])
 
 
@@ -360,6 +380,7 @@ def select_pending(root: Path, now: float) -> Path | None:
         if isinstance(request, dict) and (request.get("callback_mode") == "manual"
                                          or (request.get("delivery_state") == "queued_awaiting_ack"
                                              and not layout.ack_path(root, path.stem).exists())
+                                         or is_live_delivery(request)
                                          or target_has_live_resume(root, request)
                                          or claude_session.live_watcher_is_held(request)):
             continue
@@ -645,6 +666,12 @@ def delivery_worker_main() -> int:
             result = {"returncode": 0, "skipped": "already_acknowledged"}
         elif Path(str(payload["canceled_path"])).exists():
             result = {"returncode": 0, "skipped": "canceled"}
+        elif isinstance(payload.get("request"), dict) and is_live_delivery(payload["request"]):
+            result = {
+                "returncode": 126,
+                "delivery_state": "blocked",
+                "error": "this agent receives callbacks only from a live `reins wait`; no resume was attempted",
+            }
         elif payload.get("request", {}).get("callback_mode") == "codex-queue":
             payload["prompt"] = prompt
             result = native_queue.publish(payload)

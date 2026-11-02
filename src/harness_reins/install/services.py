@@ -13,6 +13,7 @@ from ..store import install_record
 from ..harness.claude import session as claude_session
 from ..harness.pi import channel as pi_channel
 from ..harness.claude.adapter import CLAUDE_BIN_ENV
+from ..harness.dsh.adapter import DSH_BIN_ENV
 from ..harness.pi.adapter import PI_BIN_ENV
 from ..owners import SystemdUserBackend, LaunchdBackend
 from ..owners import linux as linux_platform
@@ -115,6 +116,7 @@ def systemd_service_text(args: argparse.Namespace) -> str:
     exec_start = " ".join(systemd_quote(part) for part in command)
     codex_bin = tower_environment.codex_bin_path(args)
     claude_bin = tower_environment.claude_bin_path(args)
+    dsh_bin = tower_environment.dsh_bin_path(args)
     pi_bin = tower_environment.pi_bin_path(args)
     screen_bin = managed_tasks.screen_binary() or "screen"
     path = args.path or os.environ.get("PATH", "")
@@ -142,6 +144,7 @@ def systemd_service_text(args: argparse.Namespace) -> str:
             f"Environment={systemd_quote(f'PATH={path}')}",
             f"Environment={systemd_quote(f'REINS_CODEX_BIN={codex_bin}')}",
             f"Environment={systemd_quote(f'{CLAUDE_BIN_ENV}={claude_bin}')}",
+            f"Environment={systemd_quote(f'{DSH_BIN_ENV}={dsh_bin}')}",
             f"Environment={systemd_quote(f'{PI_BIN_ENV}={pi_bin}')}",
             f"Environment={systemd_quote(f'{managed_tasks.SCREEN_BIN_ENV}={screen_bin}')}",
             f"Environment={systemd_quote(f'{app_server.DESKTOP_APP_SERVER_ENV}=1')}",
@@ -604,7 +607,9 @@ def setup(args: argparse.Namespace) -> int:
         path=args.skill_path,
         force=args.force,
         keep_existing=bool(getattr(args, "keep_skill", False)),
-        target=getattr(args, "skill_target", None) or ("all" if getattr(args, "with_pi_extension", False) else "both"),
+        target=getattr(args, "skill_target", None) or (
+            "all" if getattr(args, "with_pi_extension", False) or getattr(args, "with_dsh", False) else "both"
+        ),
     )
     skill_status = skill_install.install_skill(skill_args)
     if skill_status != 0:
@@ -633,6 +638,7 @@ def setup(args: argparse.Namespace) -> int:
         codex_bin=args.codex_bin,
         claude_bin=getattr(args, "claude_bin", None),
         pi_bin=getattr(args, "pi_bin", None),
+        dsh_bin=getattr(args, "dsh_bin", None),
         path=args.path,
         proxy_env_file=getattr(args, "proxy_env_file", None),
         inherit_proxy=bool(getattr(args, "inherit_proxy", False)),

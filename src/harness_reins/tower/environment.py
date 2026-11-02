@@ -9,6 +9,8 @@ import uuid
 from pathlib import Path
 from ..harness.claude import session as claude_session
 from ..harness.claude.adapter import CLAUDE_BIN_ENV
+from ..harness.dsh import session as dsh_session
+from ..harness.dsh.adapter import DSH_BIN_ENV
 from ..harness.pi.adapter import PI_BIN_ENV
 from ..store import layout
 from ..store import records as queue_store
@@ -42,6 +44,14 @@ def claude_bin_path(args: argparse.Namespace) -> str:
         return str(Path(claude_bin).expanduser())
     found = claude_session.discover_executable(os.environ, which=shutil.which)
     return found.path if found is not None else "claude"
+
+
+def dsh_bin_path(args: argparse.Namespace) -> str:
+    dsh_bin = getattr(args, "dsh_bin", None)
+    if dsh_bin:
+        return str(Path(dsh_bin).expanduser())
+    found = dsh_session.discover_executable(os.environ, which=shutil.which)
+    return found.path if found is not None else "dsh"
 
 
 def pi_bin_path(args: argparse.Namespace) -> str:
@@ -168,6 +178,7 @@ def daemon_environment(args: argparse.Namespace, *, include_proxy_values: bool =
         "PYTHONUNBUFFERED": "1",
         "REINS_CODEX_BIN": codex_bin_path(args),
         CLAUDE_BIN_ENV: claude_bin_path(args),
+        DSH_BIN_ENV: dsh_bin_path(args),
         PI_BIN_ENV: pi_bin_path(args),
         managed_tasks.SCREEN_BIN_ENV: managed_tasks.screen_binary() or "screen",
         app_server.DESKTOP_APP_SERVER_ENV: os.environ.get(app_server.DESKTOP_APP_SERVER_ENV, "1"),

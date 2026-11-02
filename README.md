@@ -12,7 +12,7 @@
   <a href="https://www.npmjs.com/package/harness-reins"><img src="https://img.shields.io/badge/npm-harness--reins-2a78d6" alt="npm harness-reins"></a>
   <img src="https://img.shields.io/badge/python-%E2%89%A53.9-2a78d6" alt="Python ≥ 3.9">
   <img src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-2a78d6" alt="Linux, macOS, Windows">
-  <img src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Pi-2a78d6" alt="Works with Codex, Claude Code and Pi">
+  <img src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Pi%20%C2%B7%20DSH-2a78d6" alt="Works with Codex, Claude Code, Pi and DeepSeek Harness">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-2a78d6" alt="MIT license"></a>
 </p>
 
@@ -29,7 +29,7 @@
 
 ## The problem
 
-You ask Codex or Claude Code to train a model, run a benchmark, or hand a review to a second agent.
+You ask Codex, Claude Code, Pi or DeepSeek Harness to train a model, run a benchmark, or hand a review to a second agent.
 The work takes two hours. Now what?
 
 - The agent **polls** with `sleep && tail`, burning turns, tokens and context on nothing.
@@ -115,9 +115,9 @@ job means running several harnesses side by side, some closed and some open. Non
 others exist: a Codex session can't hand a task to Claude Code and get the answer back, and a Pi agent
 can't report to either.
 
-This project fills that gap. From a Codex, Claude Code or Pi session, `reins agent codex|claude|pi`
-starts a fresh agent in any of the three as a durable job, and the result comes back to the session that
-asked for it. Codex, Claude Code and Pi are harnesses; Reins is what holds all of them, which is why
+This project fills that gap. From a Codex, Claude Code, Pi or DeepSeek Harness session,
+`reins agent codex|claude|pi|dsh` starts a fresh agent in any of the four as a durable job, and the
+result comes back to the session that asked for it. Codex, Claude Code, Pi and DeepSeek Harness are harnesses; Reins is what holds all of them, which is why
 Long Task Callback became Agent Traffic Control and then **Harness Reins**.
 
 ## Highlights
@@ -125,11 +125,12 @@ Long Task Callback became Agent Traffic Control and then **Harness Reins**.
 | Feature | What you get |
 | --- | --- |
 | **No polling** | The worker and daemon wait for you. No model turns are spent while the task runs. |
-| **Same conversation** | Callbacks are bound to the original Codex (`CODEX_THREAD_ID`) or Claude Code (`CLAUDE_CODE_SESSION_ID`) session — never a guess. |
+| **Same conversation** | Callbacks are bound to the original Codex (`CODEX_THREAD_ID`), Claude Code (`CLAUDE_CODE_SESSION_ID`), Pi (`PI_SESSION_FILE`) or DeepSeek Harness (`DSH_SESSION_ID`) session — never a guess. |
 | **Survives the agent** | Tasks run under systemd, launchd or Task Scheduler — not as a child of the agent turn or even the daemon. |
 | **Claude Code native** | In Claude Code (CLI or desktop app), a background `reins wait` wakes the conversation you're looking at — no headless side session. → [Claude Code guide](docs/claude-code.md) |
 | **Pi native** | Pi's extension steers the result into the running Pi session — even mid-run, before its next model call. → [Pi guide](docs/pi.md) |
-| **Any agent, any harness** | `reins agent codex\|claude\|pi` starts a fresh agent as a durable job from any of the three. It writes a structured report, shown to you as a claim, never as proof. |
+| **DeepSeek Harness native** | A background `reins wait` runs as a DSH job; its completion notification wakes the same conversation. DSH has no headless fallback, so delivery is always the original live session. → [DSH guide](docs/dsh.md) |
+| **Any agent, any harness** | `reins agent codex\|claude\|pi\|dsh` starts a fresh agent as a durable job from any of the four. It writes a structured report, shown to you as a claim, never as proof. |
 | **One installation** | `reins setup` installs one canonical `~/.reins/bin/reins`; copies of `reins` in other environments forward to it, so versions never mix. |
 | **Multi-stage goals** | Track an objective across many callbacks with a YAML plan that the agent must verify before declaring victory. |
 | **Never reruns blindly** | Ambiguous launches, reboots and failures are reported to the agent for inspection — Reins never silently replays work. |
@@ -145,6 +146,7 @@ npm install -g harness-reins
 # 2. Make it the installed Reins, add the skills for Codex + Claude Code, start the coordinator
 reins setup --force --enable --now
 #    Using Pi too? Add --with-pi-extension (Pi skill + live-callback extension)
+#    Using DeepSeek Harness too? Add --with-dsh (skill + launcher discovery)
 
 # 3. Check that everything is healthy
 reins --version
@@ -159,7 +161,7 @@ python3 -m pip install "git+https://github.com/lz59970062/harness-reins.git"
 ```
 
 That's it. `setup` installs the bundled skill, so your agent already knows when and how to use `reins`.
-From inside a Codex or Claude Code session, just ask it to run something long.
+From inside a Codex, Claude Code or DeepSeek Harness session, just ask it to run something long.
 
 <details>
 <summary><b>Platform requirements</b></summary>
@@ -254,6 +256,20 @@ Returns as soon as the task is durable, printing the task ID, backend and log fi
 tail -f ~/.reins/tasks/<task-id>/attempt-1.log
 ```
 
+### DeepSeek Harness: wake the live session
+
+DSH keeps background jobs alive across turns and notifies the conversation when one exits. After
+`reins run`, it prints the exact command to start with `run_in_background: true`:
+
+```bash
+reins wait --queue-dir ~/.reins/queue --task <task-id>
+```
+
+Read the finished job's output with `job_output`; that output is the callback. DSH's one-shot
+runner refuses desktop-preset sessions, and a second writer would race the live writer lock, so Reins
+never resumes a DSH conversation headlessly: with no waiter the callback stays queued until this
+session runs `reins wait` again. → [DSH guide](docs/dsh.md)
+
 ### Claude Code: wake the live session
 
 Claude Code wakes a session when a background shell command exits. After `reins run`, it prints the
@@ -299,7 +315,7 @@ queues the callback — it doesn't make the preceding process durable.
 ### Acknowledge, inspect, cancel
 
 ```bash
-reins wait --task <task-id>         # (Claude Code) block until the callback is ready, then print it
+reins wait --task <task-id>         # (Claude Code / DSH) block until the callback is ready, then print it
 reins ack <callback-id>        # confirm a callback was received and inspected
 reins status                        # list callbacks that still need handling
 reins cancel --id <callback-id>     # cancel a queued callback
@@ -383,6 +399,7 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 | --- | --- |
 | Claude Code: live callbacks, binary discovery, session directories | [docs/claude-code.md](docs/claude-code.md) |
 | Pi: steered live callbacks, managed sessions, Pi child agents | [docs/pi.md](docs/pi.md) |
+| DeepSeek Harness: live jobs, no headless resume, DSH child agents | [docs/dsh.md](docs/dsh.md) |
 | Agent mode, templates, Claude Code config | [docs/agent-mode.md](docs/agent-mode.md) |
 | Registering templates as discoverable skills | [docs/template-registration.md](docs/template-registration.md) |
 | Goals and acknowledgement layers | [docs/goals.md](docs/goals.md) |

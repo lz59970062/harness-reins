@@ -1,6 +1,6 @@
 ---
 name: harness-reins
-description: Submit durable Codex, Claude or Pi child agents using registered task templates, or arrange callbacks for long-running commands, training, benchmarks, tests, builds and data jobs. Use when independent task ownership or a return to the original Codex, Claude Code or PI Agent session is needed. Repair Reins configuration status blocks; inspect results, ACK callbacks and continue the original goal.
+description: Submit durable Codex, Claude, Pi or DeepSeek Harness child agents using registered task templates, or arrange callbacks for long-running commands, training, benchmarks, tests, builds and data jobs. Use when independent task ownership or a return to the original Codex, Claude Code, PI Agent or DeepSeek Harness session is needed. Repair Reins configuration status blocks; inspect results, ACK callbacks and continue the original goal.
 ---
 
 # Harness Reins
@@ -13,7 +13,7 @@ Code turn.
 There are three public workflows:
 
 - `reins run -- <command>` submits a new long-running task. The daemon launches it through an independent task owner (systemd on Linux, launchd on macOS, Task Scheduler on Windows; screen fallback on Linux/macOS).
-- `reins agent codex|claude|pi -- <prompt>` submits a fresh child agent through the same durable
+- `reins agent codex|claude|pi|dsh -- <prompt>` submits a fresh child agent through the same durable
   lifecycle. Codex/Claude are available since `0.6.5`; Pi is a child worker and callback
   parent in the current preview.
 - `reins done ...` queues a completion callback for work already owned by screen, tmux,
@@ -203,7 +203,7 @@ python3 -m pip install "git+https://github.com/lz59970062/harness-reins.git"
 reins setup --force --enable --now
 ```
 
-`setup` installs this skill for Codex and Claude Code and configures the selected coordinator service. It requires a reachable native manager (systemd/launchd/Task Scheduler) or screen for the Linux/macOS compatibility backend. It creates the user-editable fixed prompt hook at
+`setup` installs this skill for Codex and Claude Code and configures the selected coordinator service. Add `--with-dsh` to also install it for DeepSeek Harness; `--with-pi-extension` adds Pi. It requires a reachable native manager (systemd/launchd/Task Scheduler) or screen for the Linux/macOS compatibility backend. It creates the user-editable fixed prompt hook at
 `${REINS_HOME:-~/.reins}/callback-hook.md` without overwriting existing content.
 The delivery worker reads that UTF-8 file on attempts whose saved user-reminder decision is
 due, so edits apply on the next due attempt without a restart. Non-empty content is appended
@@ -384,7 +384,7 @@ empty, so a command that reads stdin ends instead of waiting for a terminal.
 
 ## Agent: submit a durable fresh child agent
 
-Use `reins agent` when a fresh Codex, Claude Code or Pi process should perform an independent task and
+Use `reins agent` when a fresh Codex, Claude Code, Pi or DeepSeek Harness process should perform an independent task and
 the work needs independent ownership, durable artifacts, or a completion callback. For short work that
 fits an in-turn native subagent, Reins is unnecessary.
 
@@ -431,7 +431,7 @@ reins agent expert writer --name draft -- "Draft the 0.8 release notes."
 reins expert export > experts.yaml                         # self-contained; reins expert import on another machine
 ```
 
-The `codex|claude|pi` subcommand selects the child process. The existing `--agent` option still
+The `codex|claude|pi|dsh` subcommand selects the child process. The existing `--agent` option still
 selects the parent agent to wake when explicit callback binding is needed. The text after `--` is
 the child's task, not a shell command. State the objective, relevant paths or context, expected
 deliverable, and real constraints; do not impose a fixed task template when they are unnecessary.
@@ -521,7 +521,7 @@ finally:
 Run from the agent-owned environment and omit target flags by default. Reins detects
 `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`, or Pi's absolute `PI_SESSION_FILE` (an ID alone is insufficient).
 
-Use `--agent codex|claude|pi --session <id>` when explicit binding is necessary. For Pi,
+Use `--agent codex|claude|pi|dsh --session <id>` when explicit binding is necessary. DSH callbacks are delivered only to a live session by `reins wait`; DSH has no headless fallback. For Pi,
 prefer the absolute session file from `PI_SESSION_FILE`. If the target cannot be determined, fail
 instead of guessing; there is no "most recent session" fallback.
 

@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 from ..harness.claude.adapter import CLAUDE_BIN_ENV
+from ..harness.dsh.adapter import DSH_BIN_ENV
 from ..harness.pi.adapter import PI_BIN_ENV
 from ..owners import linux as linux_platform
 
@@ -22,7 +23,7 @@ HARDENING = ("NoNewPrivileges=yes",)
 OPT_OUT_FLAG = "--allow-privilege-escalation"
 OPT_OUT_COMMENT = f"# NoNewPrivileges omitted by reins setup {OPT_OUT_FLAG}"
 ISSUE_CODE = "agent_cli_blocked_by_service_sandbox"
-AGENT_BIN_ENVS = {"codex": "REINS_CODEX_BIN", "claude": CLAUDE_BIN_ENV, "pi": PI_BIN_ENV}
+AGENT_BIN_ENVS = {"codex": "REINS_CODEX_BIN", "claude": CLAUDE_BIN_ENV, "pi": PI_BIN_ENV, "dsh": DSH_BIN_ENV}
 PROBE_TIMEOUT = 20.0
 STDERR_LIMIT = 300
 

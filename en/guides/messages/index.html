@@ -1488,7 +1488,7 @@
 <ul>
 <li>One machine and one OS account. An address like <code>reviewer@gpu1</code> is refused with a clear error for now; the plan for multiple machines is in the <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md">protocol document</a>.</li>
 <li>Messages carry text and references (<code>--ref git:origin:feature/x</code>, <code>--ref path:/tmp/report.md</code>), not files.</li>
-<li>A child started with <code>reins agent</code> runs once. It can register a name and send messages, but it continues through <code>reins agent continue</code>; a message does not wake it.</li>
+<li>A child started with <code>reins agent</code> runs once. It can register a name and send messages, but it continues through <code>reins agent continue</code>; a message does not wake it. A DeepSeek Harness child is the exception: its sandbox cannot write <code>~/.reins</code>, so it cannot register or send.</li>
 <li>Order within a thread is not guaranteed; use <code>in_reply_to</code> for cause and effect.</li>
 </ul>
 

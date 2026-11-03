@@ -131,6 +131,7 @@ def _submit_agent(args: argparse.Namespace) -> int:
     if args.child_model is not None and not args.child_model.strip():
         raise SystemExit("--model must not be empty")
     child_adapter = get_child_agent(args.agent_worker)
+    args.no_report = bool(getattr(args, "no_report", False) or not child_adapter.supports_report_file)
     if args.child_model and not getattr(child_adapter, "supports_model", True):
         raise SystemExit(f"{child_adapter.display_name} children do not support --model")
     if args.child_reasoning_effort and not child_adapter.supports_reasoning_effort:

@@ -53,15 +53,15 @@ class ChildReportTests(unittest.TestCase):
         script.write_text(textwrap.dedent(CHILD.format(python=sys.executable, report=report)), encoding="utf-8")
         return executable_python_fixture(script)
 
-    def submit(self, child: Path, *, no_report: bool = False) -> tuple[Path, dict[str, object]]:
+    def submit(self, child: Path, *, no_report: bool = False, worker: str = "codex") -> tuple[Path, dict[str, object]]:
         args = argparse.Namespace(
             cwd=str(self.directory), task="write the guide", command=None, exit_code=None, message=None,
             session="parent-thread", via_daemon=False, queue_dir=str(self.root), approvals_reviewer="auto_review",
             approval_policy="on-request", sandbox_mode="workspace-write", dry_run=False, strict=False,
-            wrapped_command=[], agent="codex", agent_worker="codex", agent_prompt=["--", "Write the guide."],
+            wrapped_command=[], agent="codex", agent_worker=worker, agent_prompt=["--", "Write the guide."],
             permission_mode="auto", no_report=no_report)
         with mock.patch.object(managed_tasks, "screen_binary", return_value="/usr/bin/screen"), \
-                mock.patch.dict(os.environ, {"REINS_CODEX_BIN": str(child)}), mock.patch("sys.stderr"):
+                mock.patch.dict(os.environ, {"REINS_CODEX_BIN": str(child), "REINS_DSH_BIN": str(child)}), mock.patch("sys.stderr"):
             self.assertEqual(work_commands.agent(args), 0)
         path = next(layout.managed_tasks_root(self.root).glob("*/task.json"))
         task = managed_tasks.load_managed_task(path)
@@ -102,6 +102,12 @@ class ChildReportTests(unittest.TestCase):
         self.assertIsNone(result["report"])
         self.assertEqual(result["report_error"], "no report was written")
         self.assertIn("Report: none: no report was written", self.callback(task)["prompt_compact"])
+
+    def test_dsh_children_are_not_asked_for_a_report_they_cannot_write(self):
+        # The headless profile confines writes to the workspace with no approval channel.
+        _, task = self.submit(self.child('{"status": "completed"}'), worker="dsh")
+        self.assertNotIn("report_path", task)
+        self.assertNotIn("REINS_REPORT_FILE", Path(str(task["agent_prompt_path"])).read_text(encoding="utf-8"))
 
     def test_no_report_sends_the_prompt_alone(self):
         path, task = self.submit(self.child('{"status": "completed"}'), no_report=True)

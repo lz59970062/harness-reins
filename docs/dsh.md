@@ -80,6 +80,29 @@ stdout. The headless profile does not use the desktop app's saved sign-in: set `
 (or restore stored credentials in the headless profile, as documented by DSH) or the child reports
 an authentication error.
 
+The child runs in DSH's default `workspace-write` sandbox with no approval channel, so it can write
+only inside `--cwd`. Its result is its final answer (`agent-result.txt`); DSH children write no
+`report.json`.
+
+To drive DSH with your own endpoint, declare the route in `~/.dsh/cordis.patch.yml`. It applies to
+every profile; `acp` selects its model separately:
+
+```yaml
+- id: llm-pi-ai
+  config:
+    providers:
+      my-gateway:
+        apiKeyEnv: MY_GATEWAY_API_KEY
+        api: openai-completions
+        baseURL: https://gateway.example/v1
+        models:
+          - id: my-model
+- id: agent-default-model
+  config: {provider: my-gateway, model: my-model}
+- id: acp
+  config: {provider: my-gateway, model: my-model}
+```
+
 | Option | DSH behavior |
 | --- | --- |
 | `--model` | unsupported: the compose profile selects the model |
@@ -91,10 +114,21 @@ Child commands strip `DSH_SESSION_ID`, `DSH_SHELL` and `DSH_WEB_URL`, so the chi
 parent session. They keep `DEEPSEEK_API_KEY`, `DSH_HOME` and `DSH_PROFILE`, which select the child's
 own configuration and credentials.
 
-## Platforms
+## Sandbox
 
-Real DSH sessions have been verified on macOS desktop only. On Linux, Reins's side of the route is
-tested against a stand-in `dsh`, and on Windows by unit tests; neither has run against a real DSH.
+In DSH's default `workspace-write` mode `~/.reins` is read-only to the session, so `reins run`, `wait`,
+`ack`, `session register`, `send` and `reply` are denied until the model retries them with
+`sandbox_permissions`. The skill tells it to, and each retry asks for approval once. Task processes
+themselves are not confined, because the OS task owner starts them.
+
+## Platform status
+
+| Platform | Real DSH verified |
+| --- | --- |
+| macOS | Desktop app: submit, job notification, ACK |
+| Linux | `dsh` 0.2.1-rc.5, ACP and web UI: submit, job notification, ACK; ACP also: child agent, messaging between two sessions |
+| Windows | Not yet: unit tests only |
+
 On Windows, DSH's shell tool is `pwsh`: use `run_in_background` on that tool and `$env:DSH_SESSION_ID`
 in place of `$DSH_SESSION_ID`.
 

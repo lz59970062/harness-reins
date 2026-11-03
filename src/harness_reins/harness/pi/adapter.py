@@ -39,6 +39,7 @@ class PiAdapter:
     supports_reasoning_effort = True
     reasoning_efforts = PI_REASONING_EFFORTS
     supports_system_prompt_file = True
+    supports_report_file = True
 
     def matches_environment(self, environment: Mapping[str, str]) -> bool:
         if environment.get(PI_SESSION_FILE_ENV, "").strip():

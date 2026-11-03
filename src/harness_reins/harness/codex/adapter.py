@@ -30,6 +30,7 @@ class CodexAdapter:
     supports_reasoning_effort = True
     reasoning_efforts = CODEX_REASONING_EFFORTS
     supports_system_prompt_file = False
+    supports_report_file = True
 
     def matches_environment(self, environment: Mapping[str, str]) -> bool:
         return bool(environment.get(self.session_id_env, "").strip())

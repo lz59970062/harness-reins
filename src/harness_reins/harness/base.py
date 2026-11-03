@@ -52,6 +52,7 @@ class ChildAgentAdapter(Protocol):
     supports_reasoning_effort: bool
     reasoning_efforts: tuple[str, ...]
     supports_system_prompt_file: bool
+    supports_report_file: bool
 
     def executable(self, environment: Mapping[str, str]) -> str: ...
 

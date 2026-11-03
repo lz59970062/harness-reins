@@ -19,7 +19,8 @@ from typing import NamedTuple, Optional
 
 from .adapter import DSH_BIN_ENV
 
-SESSION_ID_PATTERN = re.compile(r"session-[A-Za-z0-9-]+")
+# Web and headless sessions are named session-<uuid>; ACP sessions are a bare UUID.
+SESSION_ID_PATTERN = re.compile(r"[A-Za-z0-9-]+")
 # Places the desktop app or a package manager may install the launcher. The
 # macOS path is the desktop app's own CLI shim; the rest cover manual installs.
 STANDALONE_LOCATIONS = (

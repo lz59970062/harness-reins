@@ -585,6 +585,7 @@ def submit_managed_run(args: argparse.Namespace) -> int:
               file=sys.stderr)
         print("reins: start it now: DSH has no headless fallback, so the callback waits until this session runs "
               "`reins wait`", file=sys.stderr)
+        print("reins: if this submission needed sandbox_permissions, give the wait the same ones", file=sys.stderr)
     return 0
 
 

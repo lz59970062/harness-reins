@@ -26,6 +26,7 @@ class ClaudeAdapter:
     supports_reasoning_effort = False
     reasoning_efforts: tuple[str, ...] = ()
     supports_system_prompt_file = False
+    supports_report_file = True
 
     def matches_environment(self, environment: Mapping[str, str]) -> bool:
         marker = environment.get(CLAUDE_MARKER_ENV, "").strip().lower()

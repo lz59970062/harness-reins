@@ -10,7 +10,8 @@
   same session waits again.
 - `reins agent dsh` runs `dsh --profile headless` with the prompt on stdin and
   captures the final answer from stdout. It strips the parent DSH markers and
-  keeps provider credentials.
+  keeps provider credentials. DSH children write no `report.json`: the headless
+  sandbox cannot reach the task directory and has no approval channel.
 - `reins setup --with-dsh` installs the focused DSH skill under
   `${DSH_HOME:-~/.dsh}/skills/harness-reins` and records `--dsh-bin` for the
   coordinator. `install-skill --target dsh` and `install-skill --target all`

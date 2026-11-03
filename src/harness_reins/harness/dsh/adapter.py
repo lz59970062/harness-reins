@@ -45,6 +45,10 @@ class DshAdapter:
     supports_reasoning_effort = False
     reasoning_efforts: tuple[str, ...] = ()
     supports_system_prompt_file = False
+    # The headless profile confines writes to its workspace and has no approval
+    # channel, so a report under ~/.reins can never be written. The final answer
+    # on stdout is the child's result.
+    supports_report_file = False
     # ``live`` means the daemon never resumes this agent: a callback waits for
     # the bound session to run ``reins wait`` and is delivered there.
     callback_delivery: Literal["resume", "live"] = "live"

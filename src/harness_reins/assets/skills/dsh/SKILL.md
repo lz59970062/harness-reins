@@ -81,9 +81,11 @@ differs from this page about callback delivery, this page applies to DeepSeek Ha
   never read a child's raw session.
 
   Then background `reins wait --task <id>` exactly as for `reins run`. A DSH child runs
-  `dsh --profile headless`; that profile uses `DEEPSEEK_API_KEY` (or credentials restored in the
-  headless profile), not the desktop app's saved sign-in. If it cannot authenticate, the child
-  callback reports the error — do not retry blindly.
+  `dsh --profile headless`; that profile uses `DEEPSEEK_API_KEY`, credentials restored in the
+  headless profile or a provider route in `cordis.patch.yml`, not the desktop app's saved sign-in.
+  If it cannot authenticate, the child callback reports the error — do not retry blindly. The child
+  can write only inside `--cwd` and nobody can approve an escalation, so it returns its result as its
+  final answer (`agent-result.txt`) and leaves no `report.json`.
 
 - **Work already owned elsewhere** (tmux, screen, Slurm, a script): add `reins done` at its end.
 
@@ -100,8 +102,13 @@ differs from this page about callback delivery, this page applies to DeepSeek Ha
 
 - **Windows**: the shell tool is `pwsh`. It takes the same `run_in_background`; write
   `$env:DSH_SESSION_ID` and `$PWD` in PowerShell, and `pwsh -Command '...'` after `--`.
-- **Sandbox**: if a Reins command is denied access to `~/.reins`, retry that exact command once with
-  `sandbox_permissions` and a `justification`, as DSH's shell tool describes. Do not move the queue.
+- **Sandbox**: in DSH's default `workspace-write` mode every Reins command that touches `~/.reins`
+  is denied (`Read-only file system`), including `reins wait`, `ack`, `session register`, `send` and
+  `reply`. Retry that exact command once with `sandbox_permissions` and a `justification`, as DSH's
+  shell tool describes, then pass them from the first attempt on later Reins commands in this
+  session: a denied background `reins wait` only tells you so after spending a wake-up. A denial is
+  not a broken install, so do not run the `[reins-status]` repair command for it, and do not move
+  the queue.
 - **After `--` comes one command, not shell code**: for `;`, `&&`, pipes or redirection use
   `-- bash -c '...'` (`reins run --task check -- bash -c 'sleep 720; python3 report.py'`).
 - **Heredoc scripts work**: input piped into `reins run` (`-- python3 - <<'EOF'`) becomes the task's

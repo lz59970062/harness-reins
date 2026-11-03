@@ -115,5 +115,5 @@ Every process under one OS account can read and write `~/.reins`, so this is not
 
 - One machine and one OS account. An address like `reviewer@gpu1` is refused with a clear error for now; the plan for multiple machines is in the [protocol document](https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md).
 - Messages carry text and references (`--ref git:origin:feature/x`, `--ref path:/tmp/report.md`), not files.
-- A child started with `reins agent` runs once. It can register a name and send messages, but it continues through `reins agent continue`; a message does not wake it.
+- A child started with `reins agent` runs once. It can register a name and send messages, but it continues through `reins agent continue`; a message does not wake it. A DeepSeek Harness child is the exception: its sandbox cannot write `~/.reins`, so it cannot register or send.
 - Order within a thread is not guaranteed; use `in_reply_to` for cause and effect.

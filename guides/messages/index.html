@@ -816,6 +816,8 @@
       
         
       
+        
+      
     
     
     
@@ -934,6 +936,29 @@
   
   <span class="md-ellipsis">
     Pi
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/dsh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DeepSeek Harness
     
   </span>
   
@@ -1306,7 +1331,7 @@
 
 
 <h1 id="会话之间发消息">会话之间发消息<a class="headerlink" href="#会话之间发消息" title="Permanent link">&para;</a></h1>
-<p>同一台机器上的 Codex、Claude Code 和 Pi 会话可以直接互相发消息。一个会话写代码，另一个审查，第三个跑测试，它们之间不用你来回转述。</p>
+<p>同一台机器上的 Codex、Claude Code、Pi 和 DeepSeek Harness 会话可以直接互相发消息。一个会话写代码，另一个审查，第三个跑测试，它们之间不用你来回转述。</p>
 <p>消息不会因为对方在忙或已关闭而丢失，也不会悄悄启动进程花掉额度。</p>
 <h2 id="三步开始">三步开始<a class="headerlink" href="#三步开始" title="Permanent link">&para;</a></h2>
 <p>在要接收消息的会话里起个名字：</p>
@@ -1329,6 +1354,7 @@
 <th>Codex</th>
 <th>Claude Code</th>
 <th>Pi</th>
+<th>DeepSeek Harness</th>
 </tr>
 </thead>
 <tbody>
@@ -1337,23 +1363,27 @@
 <td>立刻开始新一轮</td>
 <td><code>reins wait</code> 运行时立刻收到</td>
 <td>立刻开始新一轮</td>
+<td><code>reins wait</code> 运行时立刻收到</td>
 </tr>
 <tr>
 <td>正在工作</td>
 <td>这一轮结束后收到</td>
 <td><code>reins wait</code> 运行时立刻收到</td>
 <td>当前命令结束后收到</td>
+<td><code>reins wait</code> 运行时立刻收到</td>
 </tr>
 <tr>
 <td>已关闭</td>
 <td>重新打开后收到</td>
 <td>留在 <code>reins inbox</code></td>
 <td>重新打开后收到</td>
+<td>留在 <code>reins inbox</code></td>
 </tr>
 </tbody>
 </table>
 <p>默认情况下，Reins 不会为一条消息启动任何进程。</p>
 <p><strong>Claude Code 需要一个等待命令。</strong> Claude Code 没有从外部推消息的通道，所以要让 <code>reins wait</code> 在后台运行。技能会提醒它这么做，每收到一批消息后再启动一次。用 <code>reins claude</code> 打开的会话不需要这一步。</p>
+<p><strong>DeepSeek Harness 也需要。</strong> <code>reins wait</code> 作为 DSH 后台作业运行。DSH 不能 headless 恢复，所以 <code>--wake resume</code> 在这里不会启动任何进程，消息里会说明这一点。</p>
 <p><strong>Codex 沙箱。</strong> 如果沙箱挡住了 <code>~/.reins</code>，批准这条命令，或者把这个目录加进可写目录。</p>
 <p>如果确实想唤醒已关闭的会话，明确加上 <code>--wake resume</code>：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI 挂了，需要现在处理。"</span>

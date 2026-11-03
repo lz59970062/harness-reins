@@ -720,6 +720,8 @@
       
         
       
+        
+      
     
     
     
@@ -925,6 +927,29 @@
   
   <span class="md-ellipsis">
     Pi
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dsh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DeepSeek Harness
     
   </span>
   
@@ -1326,6 +1351,12 @@
 <td>0.7.1 preview; recorded validation on Linux with Pi 0.87.1; macOS/Windows validation pending</td>
 </tr>
 <tr>
+<td>DeepSeek Harness (DSH)</td>
+<td><code>reins agent dsh</code></td>
+<td>Background <code>reins wait</code> runs as a DSH job; its completion notification wakes the same conversation; no headless resume</td>
+<td>Real sessions verified for submit, job notification and ACK on macOS desktop and Linux (<code>dsh</code> 0.2.1-rc.5, ACP and web UI); Windows not yet verified with a real DSH</td>
+</tr>
+<tr>
 <td>Codex Desktop</td>
 <td>Child tasks use Codex CLI</td>
 <td>Start Desktop normally; <code>auto</code> selects the native <code>codex queue</code></td>
@@ -1355,14 +1386,9 @@
 <td>Save the workflow in a script and use <code>reins run</code>, or call <code>reins done</code> at the end of an existing job</td>
 <td>Implement a session adapter and wakeup channel for the receiving harness</td>
 </tr>
-<tr>
-<td>DSH</td>
-<td>An adapter is on the repository roadmap</td>
-<td>Complete implementation and validation, then add it to the native table</td>
-</tr>
 </tbody>
 </table>
-<p>These frameworks currently use the generic command interface. The native adapter registry contains <code>codex</code>, <code>claude</code>, and <code>pi</code>. Begin with a script that prints a result and exits, check the log, callback, and ACK, then connect the actual workflow. See the <a href="../../guides/use-cases/#run-a-custom-agent-workflow">custom workflow example</a>.</p>
+<p>These frameworks currently use the generic command interface. The native adapter registry contains <code>codex</code>, <code>claude</code>, <code>pi</code>, and <code>dsh</code>. Begin with a script that prints a result and exits, check the log, callback, and ACK, then connect the actual workflow. See the <a href="../../guides/use-cases/#run-a-custom-agent-workflow">custom workflow example</a>.</p>
 <h2 id="execution-environments">Execution environments<a class="headerlink" href="#execution-environments" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

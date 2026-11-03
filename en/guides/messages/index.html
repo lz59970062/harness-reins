@@ -816,6 +816,8 @@
       
         
       
+        
+      
     
     
     
@@ -934,6 +936,29 @@
   
   <span class="md-ellipsis">
     Pi
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/dsh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DeepSeek Harness
     
   </span>
   
@@ -1306,7 +1331,7 @@
 
 
 <h1 id="messages-between-sessions">Messages between sessions<a class="headerlink" href="#messages-between-sessions" title="Permanent link">&para;</a></h1>
-<p>Codex, Claude Code and Pi sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.</p>
+<p>Codex, Claude Code, Pi and DeepSeek Harness sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.</p>
 <p>A message is not lost when the other session is busy or closed, and it never quietly starts a process that spends your quota.</p>
 <h2 id="get-started-in-three-steps">Get started in three steps<a class="headerlink" href="#get-started-in-three-steps" title="Permanent link">&para;</a></h2>
 <p>Name the session that should receive messages:</p>
@@ -1329,6 +1354,7 @@
 <th>Codex</th>
 <th>Claude Code</th>
 <th>Pi</th>
+<th>DeepSeek Harness</th>
 </tr>
 </thead>
 <tbody>
@@ -1337,23 +1363,27 @@
 <td>Starts a new turn at once</td>
 <td>At once while <code>reins wait</code> runs</td>
 <td>Starts a new turn at once</td>
+<td>At once while <code>reins wait</code> runs</td>
 </tr>
 <tr>
 <td>Working</td>
 <td>When the current turn ends</td>
 <td>At once while <code>reins wait</code> runs</td>
 <td>When the current command ends</td>
+<td>At once while <code>reins wait</code> runs</td>
 </tr>
 <tr>
 <td>Closed</td>
 <td>When it is reopened</td>
 <td>Stays in <code>reins inbox</code></td>
 <td>When it is reopened</td>
+<td>Stays in <code>reins inbox</code></td>
 </tr>
 </tbody>
 </table>
 <p>By default, Reins starts no process for a message.</p>
 <p><strong>Claude Code needs a waiting command.</strong> Claude Code has no general way to receive a push from outside, so <code>reins wait</code> has to run in the background. The skill reminds it to do this, and to start it again after each batch of messages. Sessions opened with <code>reins claude</code> do not need this step.</p>
+<p><strong>DeepSeek Harness needs one too.</strong> <code>reins wait</code> runs as a DSH background job. DSH cannot be resumed headless, so <code>--wake resume</code> starts nothing there and the message says so.</p>
 <p><strong>Codex sandbox.</strong> If the sandbox blocks <code>~/.reins</code>, approve the command or add that directory to the writable roots.</p>
 <p>To wake a closed session anyway, ask for it with <code>--wake resume</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI is broken and needs attention now."</span>

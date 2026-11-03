@@ -109,7 +109,8 @@ class DshAdapterTests(unittest.TestCase):
             approvals_reviewer="auto_review", approval_policy="on-request",
             sandbox_mode="workspace-write",
         )
-        with mock.patch.dict(os.environ, {"DSH_SESSION_ID": "session-abc"}, clear=True):
+        with tempfile.TemporaryDirectory() as home, mock.patch.dict(
+                os.environ, {"DSH_SESSION_ID": "session-abc", "REINS_HOME": home}, clear=True):
             request = dispatch.make_request(args, "wake up")
         self.assertEqual(request["agent"], "dsh")
         self.assertEqual(request["target"], {"kind": "session", "session": "session-abc"})
@@ -235,13 +236,13 @@ class DshUpgradeTests(unittest.TestCase):
         with mock.patch.object(services.service_sandbox, "probe", return_value=[]) as probe, \
                 mock.patch.object(services.service_sandbox, "report"):
             services.check_agent_clis_under_hardening(args)
-        self.assertEqual(probe.call_args.args[0]["dsh"], "/fixture/dsh")
+        self.assertEqual(probe.call_args.args[0]["dsh"], str(Path("/fixture/dsh")))
 
 
 class DshInstallTests(unittest.TestCase):
     def test_setup_installs_the_dsh_skill_under_dsh_home(self):
         with tempfile.TemporaryDirectory() as home:
-            with mock.patch.dict(os.environ, {"DSH_HOME": home}, clear=True):
+            with mock.patch.dict(os.environ, {"DSH_HOME": home, "HOME": home, "USERPROFILE": home}, clear=True):
                 code = skill_install.install_skill(
                     argparse.Namespace(path=None, target="dsh", force=False, keep_existing=False))
                 self.assertEqual(code, 0)

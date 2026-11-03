@@ -18,8 +18,8 @@
   include DSH; `reins doctor --agent dsh` explains the live-only route.
 - DSH sessions can use the messages from 0.11.0: `reins wait` delivers them, and
   `--wake resume` starts nothing and tells the receiver why.
-- Real DSH sessions are verified on macOS only. Linux and Windows are covered on
-  the Reins side, not yet against a real DSH.
+- Real DSH sessions are verified on macOS desktop and on Linux (`dsh` 0.2.1-rc.5,
+  ACP and web UI). Windows has unit tests only.
 
 ## 0.11.0 — 2026-11-03
 

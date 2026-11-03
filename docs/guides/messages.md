@@ -115,5 +115,5 @@ limits:
 
 - 只支持同一台机器、同一个系统账号。`reviewer@gpu1` 这样的地址现在会被明确拒绝，跨机器的方案在[协议文档](https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md)里。
 - 消息只传文字和引用（`--ref git:origin:feature/x`、`--ref path:/tmp/report.md`），不传文件。
-- `reins agent` 启动的子 Agent 是一次性的，可以注册名字并发出消息，但结束后要用 `reins agent continue` 接着做，消息不会把它叫醒。
+- `reins agent` 启动的子 Agent 是一次性的，可以注册名字并发出消息，但结束后要用 `reins agent continue` 接着做，消息不会把它叫醒。DeepSeek Harness 子 Agent 例外：它的沙箱写不了 `~/.reins`，所以不能注册名字或发消息。
 - 同一对话内的消息顺序不作保证，因果关系看 `in_reply_to`。

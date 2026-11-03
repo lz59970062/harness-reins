@@ -347,7 +347,7 @@ reins send reviewer --subject "Check the queue change" -m "Branch feature/queue 
 reins inbox                              # what is waiting for this session
 ```
 
-Works across Codex, Claude Code and Pi on one machine. Messages between machines are planned.
+Works across Codex, Claude Code, Pi and DeepSeek Harness on one machine. Messages between machines are planned.
 → [Messages between sessions](docs/guides/messages.en.md)
 
 ### Session binding
@@ -433,7 +433,7 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 - [x] Protocol v1: root-plus-suffix IDs, record schemas, delivery capabilities, results that keep child reports apart from observed facts (0.8)
 - [x] One canonical installation and npm distribution for Linux x64 (0.8)
 - [ ] Prebuilt npm packages for macOS and Windows
-- [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11)
+- [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11); DeepSeek Harness joins in the next release
 - [ ] Messages between machines, over SSH and an authenticated port ([design](docs/design/link-protocol.md))
 - [ ] Expert agents, and forking an expert's context from a checkpoint
 - [ ] Fan-in: one callback when a group of tasks finishes

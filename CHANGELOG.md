@@ -15,6 +15,10 @@
   `${DSH_HOME:-~/.dsh}/skills/harness-reins` and records `--dsh-bin` for the
   coordinator. `install-skill --target dsh` and `install-skill --target all`
   include DSH; `reins doctor --agent dsh` explains the live-only route.
+- DSH sessions can use the messages from 0.11.0: `reins wait` delivers them, and
+  `--wake resume` starts nothing and tells the receiver why.
+- Real DSH sessions are verified on macOS only. Linux and Windows are covered on
+  the Reins side, not yet against a real DSH.
 
 ## 0.11.0 — 2026-11-03
 

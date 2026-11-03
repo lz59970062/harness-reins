@@ -267,7 +267,10 @@ def live_watcher_dir(session: str, *, agent: str = "claude") -> Path:
     from ...store import records as queue_store
     from ...store import layout
 
-    digest = hashlib.sha256(f"{agent}:{session}".encode("utf-8")).hexdigest()
+    # Claude keeps its original key: a waiter or channel started before an upgrade
+    # must still hold back the upgraded daemon.
+    key = f"session:{session}" if agent == "claude" else f"{agent}:{session}"
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
     return layout.target_lock_dir() / LIVE_WATCHER_DIR_NAME / digest
 
 

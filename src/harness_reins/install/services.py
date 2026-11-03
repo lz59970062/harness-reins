@@ -541,6 +541,7 @@ def check_agent_clis_under_hardening(args: argparse.Namespace, unit: Path | None
         "codex": tower_environment.codex_bin_path(args),
         "claude": tower_environment.claude_bin_path(args),
         "pi": tower_environment.pi_bin_path(args),
+        "dsh": tower_environment.dsh_bin_path(args),
     }
     path = args.path or os.environ.get("PATH", "")
     service_sandbox.report(service_sandbox.probe(binaries, path))

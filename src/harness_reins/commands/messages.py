@@ -18,6 +18,8 @@ ARRIVAL_ADVICE = {
     "claude": "Messages reach this session while `reins wait` runs in the background, or under `reins claude`. "
               "Start it now and again after each one; until then they wait in `reins inbox`.",
     "codex": "Messages reach this thread through the Codex queue, and wait there while it is closed.",
+    "dsh": "Messages reach this session while `reins wait` runs as a background job. "
+           "Start it now and again after each one; until then they wait in `reins inbox`.",
     "pi": "Messages reach this session through the Reins Pi extension, and wait in `reins inbox` while it is closed.",
 }
 

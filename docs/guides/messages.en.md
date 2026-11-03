@@ -1,6 +1,6 @@
 # Messages between sessions
 
-Codex, Claude Code and Pi sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.
+Codex, Claude Code, Pi and DeepSeek Harness sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.
 
 A message is not lost when the other session is busy or closed, and it never quietly starts a process that spends your quota.
 
@@ -31,15 +31,17 @@ You can leave this to the agents, for example: "Register as planner and send thi
 
 ## When a message arrives
 
-| The other session is | Codex | Claude Code | Pi |
-| --- | --- | --- | --- |
-| Idle | Starts a new turn at once | At once while `reins wait` runs | Starts a new turn at once |
-| Working | When the current turn ends | At once while `reins wait` runs | When the current command ends |
-| Closed | When it is reopened | Stays in `reins inbox` | When it is reopened |
+| The other session is | Codex | Claude Code | Pi | DeepSeek Harness |
+| --- | --- | --- | --- | --- |
+| Idle | Starts a new turn at once | At once while `reins wait` runs | Starts a new turn at once | At once while `reins wait` runs |
+| Working | When the current turn ends | At once while `reins wait` runs | When the current command ends | At once while `reins wait` runs |
+| Closed | When it is reopened | Stays in `reins inbox` | When it is reopened | Stays in `reins inbox` |
 
 By default, Reins starts no process for a message.
 
 **Claude Code needs a waiting command.** Claude Code has no general way to receive a push from outside, so `reins wait` has to run in the background. The skill reminds it to do this, and to start it again after each batch of messages. Sessions opened with `reins claude` do not need this step.
+
+**DeepSeek Harness needs one too.** `reins wait` runs as a DSH background job. DSH cannot be resumed headless, so `--wake resume` starts nothing there and the message says so.
 
 **Codex sandbox.** If the sandbox blocks `~/.reins`, approve the command or add that directory to the writable roots.
 

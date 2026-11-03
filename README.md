@@ -131,7 +131,7 @@ Long Task Callback became Agent Traffic Control and then **Harness Reins**.
 | **Pi native** | Pi's extension steers the result into the running Pi session — even mid-run, before its next model call. → [Pi guide](docs/pi.md) |
 | **DeepSeek Harness native** | A background `reins wait` runs as a DSH job; its completion notification wakes the same conversation. DSH has no headless fallback, so delivery is always the original live session. → [DSH guide](docs/dsh.md) |
 | **Any agent, any harness** | `reins agent codex\|claude\|pi\|dsh` starts a fresh agent as a durable job from any of the four. It writes a structured report, shown to you as a claim, never as proof. |
-| **Sessions talk to each other** | Name a Codex, Claude Code or Pi session, then `reins send` to it from any other. Messages survive a busy or closed session, never start a process unless you ask, and agents that talk in circles get stopped. → [Guide](docs/guides/messages.en.md) |
+| **Sessions talk to each other** | Name a Codex, Claude Code, Pi or DSH session, then `reins send` to it from any other. Messages survive a busy or closed session, never start a process unless you ask, and agents that talk in circles get stopped. → [Guide](docs/guides/messages.en.md) |
 | **One installation** | `reins setup` installs one canonical `~/.reins/bin/reins`; copies of `reins` in other environments forward to it, so versions never mix. |
 | **Multi-stage goals** | Track an objective across many callbacks with a YAML plan that the agent must verify before declaring victory. |
 | **Never reruns blindly** | Ambiguous launches, reboots and failures are reported to the agent for inspection — Reins never silently replays work. |

@@ -12,7 +12,7 @@ reins setup --with-dsh --force --enable --now
 ```
 
 `--with-dsh` 会把专用技能安装到 `${DSH_HOME:-~/.dsh}/skills/harness-reins`，并把 `dsh`
-启动器记录到协调服务。桌面应用没有把 `dsh` 放进 `PATH` 时，显式指定：
+启动器记录到协调服务。`dsh` 不在 `PATH` 中时，显式指定。macOS 桌面应用的位置是：
 
 ```bash
 reins setup --with-dsh --dsh-bin "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" \
@@ -78,8 +78,14 @@ profile 中恢复凭据存储，否则子任务会报告认证错误。
 | `--system-prompt-file` | 不支持 |
 | `REINS_DSH_BIN` / `setup --dsh-bin` | 指定 `dsh` 启动器 |
 
-子任务保留 `DEEPSEEK_API_KEY`，并移除 `DSH_SESSION_ID`、`DSH_SHELL`、`DSH_WEB_URL`、
-`DSH_PROFILE` 和 `DSH_HOME`，避免子进程递归接管父会话。
+子任务移除 `DSH_SESSION_ID`、`DSH_SHELL` 和 `DSH_WEB_URL`，避免子进程绑定到父会话；保留
+`DEEPSEEK_API_KEY`、`DSH_HOME` 和 `DSH_PROFILE`，它们决定子进程自己的配置和凭据。
+
+## 平台
+
+真实 DSH 会话目前只在 macOS 桌面端验证过。Linux 上用替身 `dsh` 测试了 Reins 这一侧的路径，
+Windows 上只有单元测试，两者都没有对接过真实 DSH。Windows 上 DSH 的 shell 工具是 `pwsh`：
+在该工具上使用 `run_in_background`，并用 `$env:DSH_SESSION_ID` 代替 `$DSH_SESSION_ID`。
 
 ## 验证
 

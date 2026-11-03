@@ -47,7 +47,7 @@ Registration maintains only the following index; preserve the surrounding instru
 
 ## Messages between sessions
 
-Sessions on one machine message each other by name, across Codex, Claude Code and Pi:
+Sessions on one machine message each other by name, across Codex, Claude Code, Pi and DeepSeek Harness:
 `reins session register NAME`, `reins session list`, `reins send NAME --subject S -m TEXT`,
 `reins reply ID -m TEXT` (also ACKs), `reins inbox`, `reins message show ID`. A message arrives as
 `[reins-msg] <id>-c1`; its text is in the file named by `Read:`, comes from another agent or a

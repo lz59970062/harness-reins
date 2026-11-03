@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -19,6 +20,7 @@ from harness_reins.harness import AGENTS, CHILD_AGENT_NAMES, ChildOptions, get_a
 from harness_reins.harness.claude import session as live_session
 from harness_reins.harness.dsh import session as dsh_session
 from harness_reins.install import diagnostics
+from harness_reins.install import services
 from harness_reins.install import skills as skill_install
 from harness_reins.store import layout
 
@@ -217,6 +219,23 @@ class DshLiveWaitTests(unittest.TestCase):
         claude_dir = live_session.live_watcher_dir("shared", agent="claude")
         dsh_dir = live_session.live_watcher_dir("shared", agent="dsh")
         self.assertNotEqual(claude_dir, dsh_dir)
+
+
+class DshUpgradeTests(unittest.TestCase):
+    def test_claude_keeps_the_watcher_directory_of_earlier_versions(self):
+        # A waiter or channel started before an upgrade holds a lock here; the
+        # upgraded daemon has to see it or it resumes the session beside it.
+        with mock.patch.dict(os.environ, {"REINS_TARGET_LOCK_DIR": "/fixture/locks"}):
+            digest = hashlib.sha256(b"session:shared").hexdigest()
+            self.assertEqual(live_session.live_watcher_dir("shared").name, digest)
+
+    def test_setup_probes_the_dsh_launcher_under_the_service_sandbox(self):
+        args = argparse.Namespace(allow_privilege_escalation=False, path="/fixture/bin", codex_bin="codex",
+                                  claude_bin="claude", pi_bin="pi", dsh_bin="/fixture/dsh")
+        with mock.patch.object(services.service_sandbox, "probe", return_value=[]) as probe, \
+                mock.patch.object(services.service_sandbox, "report"):
+            services.check_agent_clis_under_hardening(args)
+        self.assertEqual(probe.call_args.args[0]["dsh"], "/fixture/dsh")
 
 
 class DshInstallTests(unittest.TestCase):

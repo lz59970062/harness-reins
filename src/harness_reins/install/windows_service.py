@@ -153,6 +153,9 @@ def run_coordinator(path: Path) -> int:
             environment.pop("CODEX_THREAD_ID", None)
             environment.pop("CLAUDE_CODE_SESSION_ID", None)
             environment.pop("CLAUDECODE", None)
+            environment.pop("DSH_SESSION_ID", None)
+            environment.pop("DSH_SHELL", None)
+            environment.pop("DSH_WEB_URL", None)
             command = windows_process.prepare_command(config["command"], env=environment)
             with Path(config["log_path"]).open("a", encoding="utf-8") as log:
                 process = subprocess.Popen(command, cwd=config["cwd"], env=environment,

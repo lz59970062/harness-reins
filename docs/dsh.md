@@ -13,8 +13,8 @@ reins setup --with-dsh --force --enable --now
 ```
 
 `--with-dsh` installs the focused skill under `${DSH_HOME:-~/.dsh}/skills/harness-reins` and records
-the `dsh` launcher for the coordinator. If the desktop app did not put `dsh` on `PATH`, pass it
-explicitly:
+the `dsh` launcher for the coordinator. If `dsh` is not on `PATH`, pass it explicitly. On macOS the
+desktop app keeps it here:
 
 ```bash
 reins setup --with-dsh --dsh-bin "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" \
@@ -87,8 +87,16 @@ an authentication error.
 | `--system-prompt-file` | unsupported |
 | `REINS_DSH_BIN` / `setup --dsh-bin` | select the `dsh` launcher |
 
-Child commands keep `DEEPSEEK_API_KEY` and strip `DSH_SESSION_ID`, `DSH_SHELL`, `DSH_WEB_URL`,
-`DSH_PROFILE` and `DSH_HOME`, so the child cannot recurse into the parent session.
+Child commands strip `DSH_SESSION_ID`, `DSH_SHELL` and `DSH_WEB_URL`, so the child cannot bind to the
+parent session. They keep `DEEPSEEK_API_KEY`, `DSH_HOME` and `DSH_PROFILE`, which select the child's
+own configuration and credentials.
+
+## Platforms
+
+Real DSH sessions have been verified on macOS desktop only. On Linux, Reins's side of the route is
+tested against a stand-in `dsh`, and on Windows by unit tests; neither has run against a real DSH.
+On Windows, DSH's shell tool is `pwsh`: use `run_in_background` on that tool and `$env:DSH_SESSION_ID`
+in place of `$DSH_SESSION_ID`.
 
 ## Verification
 

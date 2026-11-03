@@ -118,7 +118,7 @@ def arrival(record: Mapping[str, object]) -> str:
     probe = {"agent": harness, "target": targets.session(session), **dict(record.get("route") or {})}
     if harness == "codex":
         return "codex-queue"
-    if harness == "claude":
+    if claude_session.live_wait_agent(harness) is not None:
         return "live" if claude_session.live_watcher_is_held(probe) else "inbox"
     return "live" if pi_channel.live_mailbox_open(probe) else "inbox"
 
@@ -198,6 +198,9 @@ def send(queue: Path, args: argparse.Namespace, to: str, *, subject: Optional[st
         if wake == "resume" and thread["resumes"] >= limits["thread_resumes"]:
             effective_wake = "never"
             note = f"this thread used its {limits['thread_resumes']:g} resumes, so a closed session is not started again"
+        if wake == "resume" and _live_only(str(target["harness"])):
+            effective_wake = "never"
+            note = f"{get_agent(str(target['harness'])).display_name} cannot be resumed headless, so a closed session is not started"
         message["local"] = {"name": to, "harness": target["harness"], "session": target["session"],
                             "cwd": target["cwd"], "route": target.get("route") or {}, "wake": effective_wake,
                             "note": note, "callback": ids.callback_id(str(message["id"])), "admitted_at": now}
@@ -237,8 +240,15 @@ def reply(queue: Path, args: argparse.Namespace, parent_id: str, *, subject: Opt
     return send(queue, args, sender, subject=subject, body=body, refs=refs, wake=wake, reply_to=parent_id)
 
 
+def _live_only(harness: str) -> bool:
+    return getattr(get_agent(harness), "callback_delivery", "resume") == "live"
+
+
 def _callback_mode(harness: str, wake: str) -> str:
-    """Never starts a process: Codex keeps it in its queue, Claude in the inbox, Pi waits for its mailbox."""
+    """Never starts a process: Codex keeps it in its queue, Claude in the inbox, Pi waits for its mailbox.
+
+    DSH stays "cli" for any wake: the daemon never resumes a live-only agent.
+    """
     if wake == "never" and harness == "codex":
         return "codex-queue"
     if wake == "never" and harness == "claude":
@@ -262,7 +272,7 @@ def _queue_callback(queue: Path, message: Mapping[str, object], environment: Opt
     prompt = envelope.render_message(
         message, callback, details, dispatch.ack_command(queue, callback),
         (dispatch.session_command(queue, "reply", message_id) + ' --message "..."') if replyable else None,
-        keep_listening=harness == "claude" and mode == "manual")
+        keep_listening=(harness == "claude" and mode == "manual") or _live_only(harness))
     sender = message["from"]
     request: dict[str, object] = {
         "schema": records.CALLBACK_SCHEMA, "id": callback, "created_at": time.time(), "cwd": str(local["cwd"]),

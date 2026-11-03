@@ -1,6 +1,6 @@
 # 会话之间发消息
 
-同一台机器上的 Codex、Claude Code 和 Pi 会话可以直接互相发消息。一个会话写代码，另一个审查，第三个跑测试，它们之间不用你来回转述。
+同一台机器上的 Codex、Claude Code、Pi 和 DeepSeek Harness 会话可以直接互相发消息。一个会话写代码，另一个审查，第三个跑测试，它们之间不用你来回转述。
 
 消息不会因为对方在忙或已关闭而丢失，也不会悄悄启动进程花掉额度。
 
@@ -31,15 +31,17 @@ reins reply m-6ae8b07359c6e7f5 -m "看完了，第 42 行的重试没有上限�
 
 ## 消息什么时候到
 
-| 对方的状态 | Codex | Claude Code | Pi |
-| --- | --- | --- | --- |
-| 空闲 | 立刻开始新一轮 | `reins wait` 运行时立刻收到 | 立刻开始新一轮 |
-| 正在工作 | 这一轮结束后收到 | `reins wait` 运行时立刻收到 | 当前命令结束后收到 |
-| 已关闭 | 重新打开后收到 | 留在 `reins inbox` | 重新打开后收到 |
+| 对方的状态 | Codex | Claude Code | Pi | DeepSeek Harness |
+| --- | --- | --- | --- | --- |
+| 空闲 | 立刻开始新一轮 | `reins wait` 运行时立刻收到 | 立刻开始新一轮 | `reins wait` 运行时立刻收到 |
+| 正在工作 | 这一轮结束后收到 | `reins wait` 运行时立刻收到 | 当前命令结束后收到 | `reins wait` 运行时立刻收到 |
+| 已关闭 | 重新打开后收到 | 留在 `reins inbox` | 重新打开后收到 | 留在 `reins inbox` |
 
 默认情况下，Reins 不会为一条消息启动任何进程。
 
 **Claude Code 需要一个等待命令。** Claude Code 没有从外部推消息的通道，所以要让 `reins wait` 在后台运行。技能会提醒它这么做，每收到一批消息后再启动一次。用 `reins claude` 打开的会话不需要这一步。
+
+**DeepSeek Harness 也需要。** `reins wait` 作为 DSH 后台作业运行。DSH 不能 headless 恢复，所以 `--wake resume` 在这里不会启动任何进程，消息里会说明这一点。
 
 **Codex 沙箱。** 如果沙箱挡住了 `~/.reins`，批准这条命令，或者把这个目录加进可写目录。
 

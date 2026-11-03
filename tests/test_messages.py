@@ -15,6 +15,7 @@ from unittest import mock
 from harness_reins import cli
 from harness_reins.core import envelope, messages as rules
 from harness_reins.engine import delivery, dispatch, messages, native_queue
+from harness_reins.harness.claude import session as claude_session
 from harness_reins.harness.pi import channel as pi_channel
 from harness_reins.store import layout, link
 from harness_reins.store import records as queue_store
@@ -26,7 +27,8 @@ CLAUDE_SESSION = "9d6e4d1f-3f49-4a6b-8a27-6c3f2f1a7b10"
 def inside(harness, session):
     """The environment variables a real session of this harness exposes to its tools."""
     return {"codex": {"CODEX_THREAD_ID": session}, "claude": {"CLAUDE_CODE_SESSION_ID": session, "CLAUDECODE": "1"},
-            "pi": {"PI_SESSION_FILE": session, "PI_CODING_AGENT": "true"}}[harness]
+            "pi": {"PI_SESSION_FILE": session, "PI_CODING_AGENT": "true"},
+            "dsh": {"DSH_SESSION_ID": session, "DSH_SHELL": "1"}}[harness]
 
 
 class MessageTestCase(unittest.TestCase):
@@ -77,6 +79,37 @@ class MessageTestCase(unittest.TestCase):
 
     def callback(self, item, state="pending"):
         return json.loads(layout.request_path(self.queue, state, item["callback"]).read_text(encoding="utf-8"))
+
+
+class DeepSeekHarnessTests(MessageTestCase):
+    def setUp(self):
+        super().setUp()
+        self.dsh = inside("dsh", "session-receiver")
+        self.register_all()
+        code, out, err = self.reins(self.dsh, "session", "register", "deep")
+        self.assertEqual(code, 0, err)
+        self.assertIn("`reins wait`", out)
+
+    def test_arrival_follows_the_live_waiter(self):
+        rows = lambda: {row["name"]: row for row in json.loads(self.reins({}, "session", "list", "--json")[1])}
+        self.assertEqual(rows()["deep"]["arrival"], "inbox")
+        watcher = claude_session.register_live_watcher("session-receiver", agent="dsh")
+        self.addCleanup(claude_session.release_live_watcher, watcher)
+        self.assertEqual(rows()["deep"]["arrival"], "live")
+
+    def test_resume_starts_nothing_says_so_and_spends_no_budget(self):
+        item = self.send(self.codex, "deep", "--subject", "wake", "-m", "up", "--wake", "resume")
+        message = link.load_message(self.queue, item["id"])
+        self.assertEqual(message["local"]["wake"], "never")
+        self.assertIn("cannot be resumed headless", message["local"]["note"])
+        self.assertEqual(link.load_thread(self.queue, message["thread"])["resumes"], 0)
+        self.assertIsNone(delivery.select_pending(self.queue, time.time() + 1))
+
+    def test_the_receiver_is_told_to_keep_listening(self):
+        item = self.send(self.codex, "deep", "--subject", "s", "-m", "m")
+        request = self.callback(item)
+        self.assertEqual(request["callback_mode"], "cli")
+        self.assertIn("reins wait", request["prompt"])
 
 
 class DirectoryTests(MessageTestCase):

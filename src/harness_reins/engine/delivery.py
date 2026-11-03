@@ -377,6 +377,12 @@ def select_pending(root: Path, now: float) -> Path | None:
             return path
         if isinstance(request, dict) and capabilities.unsupported(request.get("requires")) and records.is_callback(request):
             continue  # needs a newer tower; leave it untouched rather than deliver it halfway
+        if isinstance(request, dict) and (
+            layout.ack_path(root, path.stem).exists() or queue_store.is_canceled(root, path.stem)
+        ):
+            # Finalize an ACKed/canceled callback even when its delivery route
+            # never lets the daemon start a resume (for example live-only DSH).
+            return path
         if isinstance(request, dict) and (request.get("callback_mode") == "manual"
                                          or (request.get("delivery_state") == "queued_awaiting_ack"
                                              and not layout.ack_path(root, path.stem).exists())

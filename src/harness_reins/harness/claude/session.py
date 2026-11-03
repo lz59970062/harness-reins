@@ -528,16 +528,23 @@ def wait(args: argparse.Namespace) -> int:
         print(f"reins wait: {agent} does not deliver callbacks through a live waiter", file=sys.stderr)
         return 2
     if agent not in LIVE_WAIT_AGENTS:
-        # DSH injects its own marker into every shell; a Claude prompt keeps
-        # CLAUDE_CODE_SESSION_ID. Nested shells can retain a parent marker, so
-        # an explicit --agent always wins over this guess.
-        agent = ("dsh" if os.environ.get(DSH_SESSION_ID_ENV, "").strip()
-                 and not os.environ.get(SESSION_ENV, "").strip() else "claude")
+        # Use the registry's precedence rather than a two-marker guess: a DSH
+        # shell nested under Claude can retain both markers, and DSH outranks it.
+        from ...harness import AGENTS
+        detected = AGENTS.detect(os.environ)
+        if detected in LIVE_WAIT_AGENTS:
+            agent = detected
+        elif args.session:
+            agent = "claude"  # Legacy explicit session without a live marker.
+    if agent not in LIVE_WAIT_AGENTS:
+        print("reins wait is only for Claude Code and DeepSeek Harness sessions: "
+              "CLAUDE_CODE_SESSION_ID or DSH_SESSION_ID is unset. "
+              "Other agents receive callbacks from the daemon and should not run it.", file=sys.stderr)
+        return 2
     environment_name = session_environment_name(agent)
     session = args.session or os.environ.get(environment_name, "").strip()
     if not session:
-        print(f"reins wait is only for Claude Code and DeepSeek Harness sessions: {environment_name} is unset. "
-              "Other agents receive callbacks from the daemon and should not run it.", file=sys.stderr)
+        print(f"reins wait: {environment_name} is unset for the detected {agent} session.", file=sys.stderr)
         return 2
     root = layout.queue_dir(args).expanduser().absolute()
     queue_store.ensure_daemon_dirs(root)

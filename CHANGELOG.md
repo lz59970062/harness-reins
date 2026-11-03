@@ -16,6 +16,35 @@
   coordinator. `install-skill --target dsh` and `install-skill --target all`
   include DSH; `reins doctor --agent dsh` explains the live-only route.
 
+## 0.11.0 — 2026-11-03
+
+- Sessions on one machine can now message each other, across Codex, Claude Code
+  and Pi. Name a session with `reins session register NAME`, then use `reins send`,
+  `reins reply` and `reins inbox`. A message is durable, belongs to a thread, and
+  shows what happened to it (`queued`, `published`, `acked`, `failed`, `unknown`,
+  `expired`). See the new messaging guide.
+- The same rule on every harness: a message never starts a process unless the
+  sender asks with `--wake resume`. A busy session gets it when it can take it. A
+  closed session gets it when it next opens: Codex holds it in its queue, Pi and
+  Claude Code keep it in the inbox. In Claude Code, `reins wait` now also delivers
+  messages.
+- Agents cannot run up a bill talking to each other. Replies in a row, messages
+  per thread and per minute, and messages per hour between two sessions all have
+  limits, set in `~/.reins/link/config.yaml`. At a limit the command refuses, the
+  agent is told to stop, and a person sees an alert in `reins status`,
+  `reins message alerts` and `reins doctor`.
+- Message text stays out of the model's envelope and is marked as written by
+  another agent, so it cannot pose as Reins or as the user. Subjects and names are
+  validated, and only the receiving side generates the ACK command.
+- A headless resume can now also write to `~/.reins/link`, so a resumed session
+  can answer messages from inside its sandbox.
+- Multi-machine messaging is designed but not included: `name@machine` is refused
+  with a clear error. The direction and the contributor rules are in
+  `docs/design/link-protocol.md` and `CONTRIBUTING.md`.
+- Upgrade note: run `reins setup --force --enable --now`. It restarts the
+  coordinator and updates the skills, so agents learn the new commands. Open
+  sessions read the updated skill the next time they load it.
+
 ## 0.10.1 — 2026-11-02
 
 - `reins setup` no longer generates the Codex Desktop launcher on macOS or

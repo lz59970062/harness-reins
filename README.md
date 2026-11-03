@@ -131,6 +131,7 @@ Long Task Callback became Agent Traffic Control and then **Harness Reins**.
 | **Pi native** | Pi's extension steers the result into the running Pi session — even mid-run, before its next model call. → [Pi guide](docs/pi.md) |
 | **DeepSeek Harness native** | A background `reins wait` runs as a DSH job; its completion notification wakes the same conversation. DSH has no headless fallback, so delivery is always the original live session. → [DSH guide](docs/dsh.md) |
 | **Any agent, any harness** | `reins agent codex\|claude\|pi\|dsh` starts a fresh agent as a durable job from any of the four. It writes a structured report, shown to you as a claim, never as proof. |
+| **Sessions talk to each other** | Name a Codex, Claude Code or Pi session, then `reins send` to it from any other. Messages survive a busy or closed session, never start a process unless you ask, and agents that talk in circles get stopped. → [Guide](docs/guides/messages.en.md) |
 | **One installation** | `reins setup` installs one canonical `~/.reins/bin/reins`; copies of `reins` in other environments forward to it, so versions never mix. |
 | **Multi-stage goals** | Track an objective across many callbacks with a YAML plan that the agent must verify before declaring victory. |
 | **Never reruns blindly** | Ambiguous launches, reboots and failures are reported to the agent for inspection — Reins never silently replays work. |
@@ -338,6 +339,17 @@ The plan is an editable YAML path of steps. Completion is rejected unless every 
 and the digest matches a fresh `goal check`. Idle goals get a status nudge every three hours.
 → [Goals guide](docs/goals.md)
 
+### `send` — message another session
+
+```bash
+reins session register reviewer          # inside the session that should receive
+reins send reviewer --subject "Check the queue change" -m "Branch feature/queue is ready."
+reins inbox                              # what is waiting for this session
+```
+
+Works across Codex, Claude Code and Pi on one machine. Messages between machines are planned.
+→ [Messages between sessions](docs/guides/messages.en.md)
+
 ### Session binding
 
 Inside an agent conversation, Reins binds automatically via `CODEX_THREAD_ID` (Codex) or
@@ -421,7 +433,8 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 - [x] Protocol v1: root-plus-suffix IDs, record schemas, delivery capabilities, results that keep child reports apart from observed facts (0.8)
 - [x] One canonical installation and npm distribution for Linux x64 (0.8)
 - [ ] Prebuilt npm packages for macOS and Windows
-- [ ] `--notify`: deliver a callback to another session
+- [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11)
+- [ ] Messages between machines, over SSH and an authenticated port ([design](docs/design/link-protocol.md))
 - [ ] Expert agents, and forking an expert's context from a checkpoint
 - [ ] Fan-in: one callback when a group of tasks finishes
 - [ ] More harnesses: Gemini CLI, OpenCode, and agents that speak ACP

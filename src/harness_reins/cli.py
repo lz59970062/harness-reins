@@ -451,6 +451,61 @@ def main() -> int:
     channel_parser.add_argument("--parent-pid", type=int, help=argparse.SUPPRESS)
     channel_parser.add_argument("--poll-interval", type=float, default=1.0, help=argparse.SUPPRESS)
 
+    session_parser = sub.add_parser("session", help="Name sessions on this machine so they can message each other")
+    session_actions = session_parser.add_subparsers(dest="session_action", required=True)
+    session_register = session_actions.add_parser("register", help="Give the current session a name")
+    session_register.add_argument("name", help="Lowercase letters, digits, '-' or '_', up to 32 characters")
+    session_register.add_argument("--replace", action="store_true", help="Take over the name, or rename this session")
+    session_register.add_argument("--agent", choices=AGENT_NAMES, help="Harness of the session (default: auto-detect)")
+    session_register.add_argument("--session", help="Session to name (default: the one this command runs in)")
+    session_register.add_argument("--cwd", help="The session's working directory (default: here)")
+    session_register.add_argument("--queue-dir", help="Wakeup queue directory")
+    session_list = session_actions.add_parser("list", help="Named sessions, and how a message reaches each one now")
+    session_list.add_argument("--json", action="store_true", help="Print JSON")
+    session_list.add_argument("--queue-dir", help="Wakeup queue directory")
+    session_unregister = session_actions.add_parser("unregister", help="Remove a name")
+    session_unregister.add_argument("name")
+    session_unregister.add_argument("--queue-dir", help="Wakeup queue directory")
+
+    def add_message_flags(message_parser: argparse.ArgumentParser) -> None:
+        message_parser.add_argument("--message", "-m", help="The message text")
+        message_parser.add_argument("--message-file", help="Read the message text from this file, or - for stdin")
+        message_parser.add_argument("--subject", help="One line; default: the text's first line")
+        message_parser.add_argument("--ref", action="append", help="git:REPO:REF or path:PATH; repeatable")
+        message_parser.add_argument("--wake", choices=("never", "resume"), default="never",
+                                    help="never (default): nothing is started, a closed session reads it when it "
+                                         "next opens. resume: a closed session may be resumed headless, which costs "
+                                         "model usage and is limited per thread")
+        message_parser.add_argument("--json", action="store_true", help="Print JSON")
+        message_parser.add_argument("--agent", choices=AGENT_NAMES, help=argparse.SUPPRESS)
+        message_parser.add_argument("--session", help=argparse.SUPPRESS)
+        message_parser.add_argument("--queue-dir", help="Wakeup queue directory")
+
+    send_parser = sub.add_parser("send", help="Send a message to a named session on this machine")
+    send_parser.add_argument("name", help="The session's name; see reins session list")
+    add_message_flags(send_parser)
+    reply_parser = sub.add_parser("reply", help="Reply to a message; this also acknowledges it")
+    reply_parser.add_argument("id", help="The message ID")
+    add_message_flags(reply_parser)
+    inbox_parser = sub.add_parser("inbox", help="Unread messages of this session")
+    inbox_parser.add_argument("--name", help="Another session's inbox")
+    inbox_parser.add_argument("--all", action="store_true", help="Include messages already acknowledged or expired")
+    inbox_parser.add_argument("--sent", action="store_true", help="Messages this session sent, and what became of them")
+    inbox_parser.add_argument("--thread", help="Every message of one thread")
+    inbox_parser.add_argument("--json", action="store_true", help="Print JSON")
+    inbox_parser.add_argument("--agent", choices=AGENT_NAMES, help=argparse.SUPPRESS)
+    inbox_parser.add_argument("--session", help=argparse.SUPPRESS)
+    inbox_parser.add_argument("--queue-dir", help="Wakeup queue directory")
+    message_parser = sub.add_parser("message", help="Read one message; review threads stopped at a limit")
+    message_actions = message_parser.add_subparsers(dest="message_action", required=True)
+    message_show = message_actions.add_parser("show", help="One message, with its state")
+    message_show.add_argument("id", help="The message ID or callback ID")
+    message_show.add_argument("--json", action="store_true", help="Print JSON")
+    message_show.add_argument("--queue-dir", help="Wakeup queue directory")
+    message_alerts = message_actions.add_parser("alerts", help="Threads stopped at a limit")
+    message_alerts.add_argument("--clear", action="store_true", help="Remove the alerts")
+    message_alerts.add_argument("--queue-dir", help="Wakeup queue directory")
+
     ack_parser = sub.add_parser("ack", help="Mark a daemon callback as successfully received")
     ack_parser.add_argument("--queue-dir", help="Wakeup queue directory")
     ack_parser.add_argument("callback_id", nargs="?", help="Callback id to acknowledge")
@@ -540,6 +595,17 @@ def main() -> int:
         forwarded = canonical.forward(sys.argv[1:])
         if forwarded is not None:
             return forwarded
+    if args.mode in ("session", "send", "reply", "inbox", "message"):
+        from .commands import messages as message_commands
+        if args.mode == "session":
+            return {"register": message_commands.session_register, "list": message_commands.session_list,
+                    "unregister": message_commands.session_unregister}[args.session_action](args)
+        if args.mode == "message":
+            return {"show": message_commands.message_show, "alerts": message_commands.message_alerts}[args.message_action](args)
+        if args.mode == "inbox":
+            return message_commands.inbox(args)
+        args.operation = "done"  # what doctor rechecks: a message needs what any queued callback needs
+        return invoke_with_diagnostics(args, message_commands.send if args.mode == "send" else message_commands.reply)
     if args.mode == "expert":
         from .commands import experts as expert_commands
         return expert_commands.command(args)

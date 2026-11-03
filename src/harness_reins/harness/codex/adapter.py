@@ -51,9 +51,9 @@ class CodexAdapter:
             value = request.get(key, default)
             if isinstance(value, str) and value:
                 cmd.extend(["-c", f"{key}={json.dumps(value)}"])
-        queue_root = request.get("queue_dir")
-        if isinstance(queue_root, str) and queue_root:
-            cmd.extend(["-c", f"sandbox_workspace_write.writable_roots=[{json.dumps(queue_root)}]"])
+        roots = [request[key] for key in ("queue_dir", "link_dir") if isinstance(request.get(key), str) and request[key]]
+        if roots:
+            cmd.extend(["-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"])
         cmd.append(resume_target(request))
         cmd.append("-")
         return cmd

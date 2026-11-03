@@ -49,6 +49,21 @@ reins agent --help
 | `reins cancel --id <回调ID>` | 撤销这条回调的投递 |
 | `reins prompt-policy` | 查看提醒间隔 |
 
+## 会话之间发消息
+
+| 命令 | 用途 |
+| --- | --- |
+| `reins session register <名字>` | 给当前会话起名 |
+| `reins session list` | 查看有哪些会话，以及消息现在怎么到达 |
+| `reins session unregister <名字>` | 删除名字 |
+| `reins send <名字> --subject <主题> -m <正文>` | 发消息，开始新对话 |
+| `reins reply <消息ID> -m <正文>` | 回复，同时确认收到 |
+| `reins inbox` | 查看未读；`--all` 含已读，`--sent` 看自己发的，`--thread <ID>` 看整个对话 |
+| `reins message show <消息ID>` | 读一条消息和它的状态 |
+| `reins message alerts` | 查看被限额拦下的对话；`--clear` 清除 |
+
+`--wake resume` 允许恢复已关闭的会话，默认不启动任何进程。详见[会话之间发消息](../guides/messages.md)。
+
 ## 预览版命令
 
 以下命令使用 `0.7.1` 预览版：

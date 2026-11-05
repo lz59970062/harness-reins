@@ -54,6 +54,7 @@ reins agent --help
 | 命令 | 用途 |
 | --- | --- |
 | `reins session register <名字>` | 给当前会话起名 |
+| `reins install-claude-hook [--remove]` | 添加或移除 Claude Code 钩子，消息和任务结果直接进开着的窗口 |
 | `reins session list` | 查看有哪些会话，以及消息现在怎么到达 |
 | `reins session unregister <名字>` | 删除名字 |
 | `reins send <名字> --subject <主题> -m <正文>` | 发消息，开始新对话 |
@@ -62,7 +63,7 @@ reins agent --help
 | `reins message show <消息ID>` | 读一条消息和它的状态 |
 | `reins message alerts` | 查看被限额拦下的对话；`--clear` 清除 |
 
-`--wake resume` 允许恢复已关闭的会话，默认不启动任何进程。详见[会话之间发消息](../guides/messages.md)。
+没有监听的 Claude Code 会话和已关闭的 `reins pi` 会话默认会被无头恢复；Codex 默认进自己的队列，要恢复得加 `--wake resume`。`--wake never` 不启动任何进程。详见[会话之间发消息](../guides/messages.md)。
 
 ## 预览版命令
 

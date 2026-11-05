@@ -1460,6 +1460,10 @@
 <td>Name the current session</td>
 </tr>
 <tr>
+<td><code>reins install-claude-hook [--remove]</code></td>
+<td>Add or remove the Claude Code hook that delivers into open windows</td>
+</tr>
+<tr>
 <td><code>reins session list</code></td>
 <td>See the sessions, and how a message reaches each one now</td>
 </tr>
@@ -1489,7 +1493,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>--wake resume</code> allows a closed session to be resumed; by default nothing is started. See <a href="../../guides/messages/">Messages between sessions</a>.</p>
+<p>A Claude Code session with nothing listening, or a closed <code>reins pi</code> session, is resumed headless by default. Codex holds the message in its queue unless you pass <code>--wake resume</code>. <code>--wake never</code> starts nothing. See <a href="../../guides/messages/">Messages between sessions</a>.</p>
 <h2 id="preview-commands">Preview commands<a class="headerlink" href="#preview-commands" title="Permanent link">&para;</a></h2>
 <p>These commands use the <code>0.7.1</code> preview:</p>
 <table>

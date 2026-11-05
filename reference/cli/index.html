@@ -1460,6 +1460,10 @@
 <td>给当前会话起名</td>
 </tr>
 <tr>
+<td><code>reins install-claude-hook [--remove]</code></td>
+<td>添加或移除 Claude Code 钩子，消息和任务结果直接进开着的窗口</td>
+</tr>
+<tr>
 <td><code>reins session list</code></td>
 <td>查看有哪些会话，以及消息现在怎么到达</td>
 </tr>
@@ -1489,7 +1493,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>--wake resume</code> 允许恢复已关闭的会话，默认不启动任何进程。详见<a href="../../guides/messages/">会话之间发消息</a>。</p>
+<p>没有监听的 Claude Code 会话和已关闭的 <code>reins pi</code> 会话默认会被无头恢复；Codex 默认进自己的队列，要恢复得加 <code>--wake resume</code>。<code>--wake never</code> 不启动任何进程。详见<a href="../../guides/messages/">会话之间发消息</a>。</p>
 <h2 id="预览版命令">预览版命令<a class="headerlink" href="#预览版命令" title="Permanent link">&para;</a></h2>
 <p>以下命令使用 <code>0.7.1</code> 预览版：</p>
 <table>

@@ -1332,7 +1332,7 @@
 
 <h1 id="messages-between-sessions">Messages between sessions<a class="headerlink" href="#messages-between-sessions" title="Permanent link">&para;</a></h1>
 <p>Codex, Claude Code, Pi and DeepSeek Harness sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.</p>
-<p>A message is not lost when the other session is busy or closed, and it never quietly starts a process that spends your quota.</p>
+<p>A busy session gets the message when it can take it. A closed Claude Code session, or a Pi session opened with <code>reins pi</code>, is started to handle it.</p>
 <h2 id="get-started-in-three-steps">Get started in three steps<a class="headerlink" href="#get-started-in-three-steps" title="Permanent link">&para;</a></h2>
 <p>Name the session that should receive messages:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>reins<span class="w"> </span>session<span class="w"> </span>register<span class="w"> </span>reviewer
@@ -1361,34 +1361,35 @@
 <tr>
 <td>Idle</td>
 <td>Starts a new turn at once</td>
-<td>At once while <code>reins wait</code> runs</td>
+<td>Starts a new turn at once</td>
 <td>Starts a new turn at once</td>
 <td>At once while <code>reins wait</code> runs</td>
 </tr>
 <tr>
 <td>Working</td>
 <td>When the current turn ends</td>
-<td>At once while <code>reins wait</code> runs</td>
+<td>At its next model call</td>
 <td>When the current command ends</td>
 <td>At once while <code>reins wait</code> runs</td>
 </tr>
 <tr>
 <td>Closed</td>
 <td>When it is reopened</td>
-<td>Stays in <code>reins inbox</code></td>
-<td>When it is reopened</td>
+<td>Session resumed to handle it</td>
+<td>Resumed if opened with <code>reins pi</code>; otherwise when it is reopened</td>
 <td>Stays in <code>reins inbox</code></td>
 </tr>
 </tbody>
 </table>
-<p>By default, Reins starts no process for a message.</p>
-<p><strong>Claude Code needs a waiting command.</strong> Claude Code has no general way to receive a push from outside, so <code>reins wait</code> has to run in the background. The skill reminds it to do this, and to start it again after each batch of messages. Sessions opened with <code>reins claude</code> do not need this step.</p>
+<p>A message takes the same route as a job result: with no process receiving, Reins resumes the Claude Code session, or the Pi session opened with <code>reins pi</code>, headless. This uses model quota.</p>
+<p><strong>An open Claude Code window never forks.</strong> <code>reins setup</code> adds a hook to Claude Code's user settings, so a message goes straight into the open window and wakes it even when idle, with no <code>reins wait</code>. While a window is open, Reins never resumes the same session next to it; it resumes only after the window closes. Skip the hook with <code>reins setup --no-claude-hook</code>, and remove it with <code>reins install-claude-hook --remove</code>. Without the hook, open the session with <code>reins claude</code> or keep <code>reins wait</code> running in the background. With none of these, a message waits until the window closes and is then resumed. It is not lost.</p>
+<p><strong>A session has one headless resume at a time.</strong> Messages that arrive together are handled one after another.</p>
 <p><strong>DeepSeek Harness needs one too.</strong> <code>reins wait</code> runs as a DSH background job. DSH cannot be resumed headless, so <code>--wake resume</code> starts nothing there and the message says so.</p>
 <p><strong>Codex sandbox.</strong> If the sandbox blocks <code>~/.reins</code>, approve the command or add that directory to the writable roots.</p>
-<p>To wake a closed session anyway, ask for it with <code>--wake resume</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI is broken and needs attention now."</span>
+<p>Codex only gets the queue by default, because Reins cannot tell an open Codex from a closed one. To resume a closed Codex, ask for it with <code>--wake resume</code>. When a session should not be started at all, use <code>--wake never</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>planner<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI is broken and needs attention now."</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>never<span class="w"> </span>-m<span class="w"> </span><span class="s2">"When you have time."</span>
 </code></pre></div>
-<p>This resumes the other session headless and uses model quota. A thread can do this 3 times. After that, messages are still kept, but no process is started.</p>
 <h2 id="see-messages-and-their-state">See messages and their state<a class="headerlink" href="#see-messages-and-their-state" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">        </span><span class="c1"># who is here, and how a message reaches them now</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>reins<span class="w"> </span>inbox<span class="w">               </span><span class="c1"># unread messages for this session</span>

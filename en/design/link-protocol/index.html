@@ -1474,7 +1474,7 @@
 <li><strong>实现顺序：</strong> Link 服务和本机 socket（PR 3）→ SSH（PR 4）→ TLS 和配对（PR 5）→ 远程启动（PR 6）。前一步的 N 组验收没过，不合并下一步。</li>
 <li><strong>塔台不碰网络。</strong> 网络进来的消息落到 <code>inbound/</code>，塔台调用的准入逻辑和 <code>reins send</code> 是同一份，限额也是同一份。投递引擎不知道消息从哪来。</li>
 <li><strong>限额和权限由接收方执行。</strong> 发送方的声明一律不作为依据。</li>
-<li><strong>默认最小权限。</strong> Link 服务默认关闭，不监听任何地址；新对端只有 <code>message</code> 权限；<code>spawn</code> 默认没有；<code>wake</code> 默认 <code>never</code>；不提供明文 TCP，也不提供关闭证书校验的开关。</li>
+<li><strong>默认最小权限。</strong> Link 服务默认关闭，不监听任何地址；新对端只有 <code>message</code> 权限；<code>spawn</code> 默认没有；跨机器的 <code>wake</code> 默认 <code>never</code>；不提供明文 TCP，也不提供关闭证书校验的开关。</li>
 <li><strong>多机之前绝不猜。</strong> <code>reviewer@gpu1</code> 现在就是 <code>unknown_peer</code> 错误，不会退回到本机同名会话。</li>
 </ol>
 <h2 id="2-五条不变量">2. 五条不变量<a class="headerlink" href="#2-五条不变量" title="Permanent link">&para;</a></h2>
@@ -1581,7 +1581,7 @@
 <p>准入时写入一条 <code>reins.callback/1</code>，<code>root</code> 是消息 ID。重试、目标锁、ACK、回调提醒都复用现有逻辑，不写第二套。回调的 <code>requires</code> 由实际路由决定，例如 <code>deliver.codex-queue</code>。</p>
 <p>准入只有一个函数：本机 <code>reins send</code> 在命令进程里调用它，多机后塔台对 <code>inbound/</code> 调用同一个函数。这样 <code>reins send</code> 能当场给出 <code>unknown_name</code>、<code>limit_exceeded</code>，塔台没运行时消息也不丢。</p>
 <h3 id="62-wake是否唤醒已关闭的会话">6.2 <code>wake</code>：是否唤醒已关闭的会话<a class="headerlink" href="#62-wake是否唤醒已关闭的会话" title="Permanent link">&para;</a></h3>
-<p><code>wake</code> 默认 <code>never</code>。把两个关闭的会话互相唤醒会持续消耗额度，所以这必须是显式选择。</p>
+<p>本机消息和任务结果走同一条路，Claude Code 和 <code>reins pi</code> 打开的 Pi 默认 <code>resume</code>：没有进程接收时就是要拉起来处理，消息才算可用。Codex 默认 <code>never</code>，因为只有队列能进入开着的 Codex，而 Reins 分不清它开着还是已关闭；DSH 和普通 Pi 不能安全地无头恢复，也是 <code>never</code>，指定 <code>resume</code> 时降级并在正文前注明。跨机器消息默认 <code>never</code>，第 5 号 PR 之后由对端权限决定。</p>
 <table>
 <thead>
 <tr>
@@ -1591,16 +1591,16 @@
 </thead>
 <tbody>
 <tr>
-<td><code>never</code>（默认）</td>
+<td><code>never</code></td>
 <td>只走不启动新进程的通道；不可用时等会话下次打开</td>
 </tr>
 <tr>
 <td><code>resume</code></td>
-<td>允许用无头方式恢复已关闭的会话，受第 10 节的预算限制，超出后降级为 <code>never</code> 并在正文前注明</td>
+<td>没有进程接收时，用无头方式恢复会话。回复链和频率仍受第 10 节限制</td>
 </tr>
 </tbody>
 </table>
-<p>三种 Harness 在 <code>never</code> 下的行为（0.11.0 用真实 Harness 验证过，见第 12.2 节）：</p>
+<p>三种 Harness 在 <code>never</code> 下的行为（0.11.0 用真实 Harness 验证过，见第 12.2 节）。Claude Code 和托管 Pi 选 <code>resume</code> 时，关闭这一列变成恢复会话：</p>
 <table>
 <thead>
 <tr>
@@ -1957,11 +1957,6 @@
 <td>同上；多机时回 <code>busy</code></td>
 </tr>
 <tr>
-<td>单个对话的 <code>wake: resume</code> 次数（<code>thread_resumes</code>）</td>
-<td>3</td>
-<td>降级为 <code>never</code> 并在正文前注明</td>
-</tr>
-<tr>
 <td>消息保留天数（<code>ttl_days</code>）</td>
 <td>7</td>
 <td>未读的变成 <code>expired</code></td>
@@ -2070,6 +2065,16 @@
 <td>L3</td>
 <td>接收会话关闭，<code>wake: never</code></td>
 <td>不启动新进程，重新打开后可见</td>
+</tr>
+<tr>
+<td>L3a</td>
+<td>Claude Code 或托管 Pi 会话关闭，默认 <code>wake</code></td>
+<td>恢复会话并投递一次</td>
+</tr>
+<tr>
+<td>L3b</td>
+<td>Claude Code 窗口开着</td>
+<td>不恢复，经钩子、频道或 <code>reins wait</code> 投递；窗口关闭后才恢复</td>
 </tr>
 <tr>
 <td>L4</td>
@@ -2220,8 +2225,8 @@
 <tr>
 <td>1</td>
 <td><code>wake</code> 默认值</td>
-<td><code>never</code></td>
-<td><code>resume</code> 需要显式指定，有额度风险</td>
+<td>本机 Claude Code 和托管 Pi 用 <code>resume</code>，其余 <code>never</code></td>
+<td>维护者决定：本机消息优先可用，和任务结果一致。跨机器仍需对端授权</td>
 </tr>
 <tr>
 <td>2</td>

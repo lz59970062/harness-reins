@@ -2,7 +2,7 @@
 
 同一台机器上的 Codex、Claude Code、Pi 和 DeepSeek Harness 会话可以直接互相发消息。一个会话写代码，另一个审查，第三个跑测试，它们之间不用你来回转述。
 
-消息不会因为对方在忙或已关闭而丢失，也不会悄悄启动进程花掉额度。
+对方在忙，消息会排队；对方已关闭，Claude Code 和用 `reins pi` 打开的 Pi 会被自动拉起来处理。
 
 ## 三步开始
 
@@ -33,25 +33,27 @@ reins reply m-6ae8b07359c6e7f5 -m "看完了，第 42 行的重试没有上限�
 
 | 对方的状态 | Codex | Claude Code | Pi | DeepSeek Harness |
 | --- | --- | --- | --- | --- |
-| 空闲 | 立刻开始新一轮 | `reins wait` 运行时立刻收到 | 立刻开始新一轮 | `reins wait` 运行时立刻收到 |
-| 正在工作 | 这一轮结束后收到 | `reins wait` 运行时立刻收到 | 当前命令结束后收到 | `reins wait` 运行时立刻收到 |
-| 已关闭 | 重新打开后收到 | 留在 `reins inbox` | 重新打开后收到 | 留在 `reins inbox` |
+| 空闲 | 立刻开始新一轮 | 立刻开始新一轮 | 立刻开始新一轮 | `reins wait` 运行时立刻收到 |
+| 正在工作 | 这一轮结束后收到 | 下一次模型调用时收到 | 当前命令结束后收到 | `reins wait` 运行时立刻收到 |
+| 已关闭 | 重新打开后收到 | 自动恢复会话来处理 | `reins pi` 打开的自动恢复；其他的重新打开后收到 | 留在 `reins inbox` |
 
-默认情况下，Reins 不会为一条消息启动任何进程。
+消息和任务结果走同一条路：没有进程在接收时，Reins 用无头方式恢复 Claude Code 会话或 `reins pi` 打开的 Pi 会话。这会消耗模型额度。
 
-**Claude Code 需要一个等待命令。** Claude Code 没有从外部推消息的通道，所以要让 `reins wait` 在后台运行。技能会提醒它这么做，每收到一批消息后再启动一次。用 `reins claude` 打开的会话不需要这一步。
+**开着的 Claude Code 不会分叉。** `reins setup` 在 Claude Code 的用户设置里加一个钩子，消息直接进开着的窗口，窗口空闲时也能叫醒它，不用再运行 `reins wait`。只要窗口开着，Reins 就不会在它旁边恢复同一个会话；关闭之后才恢复。不想加钩子就用 `reins setup --no-claude-hook`，移除用 `reins install-claude-hook --remove`。没有钩子时，也可以用 `reins claude` 打开会话，或者让 `reins wait` 在后台运行；三者都没有时，消息等到窗口关闭后再恢复处理，不会丢。
+
+**一个会话同一时间只有一个无头恢复。** 同时到的多条消息按顺序逐条处理。
 
 **DeepSeek Harness 也需要。** `reins wait` 作为 DSH 后台作业运行。DSH 不能 headless 恢复，所以 `--wake resume` 在这里不会启动任何进程，消息里会说明这一点。
 
 **Codex 沙箱。** 如果沙箱挡住了 `~/.reins`，批准这条命令，或者把这个目录加进可写目录。
 
-如果确实想唤醒已关闭的会话，明确加上 `--wake resume`：
+Codex 默认只进队列，因为 Reins 分不清它是开着还是已关闭。要恢复已关闭的 Codex，明确加上 `--wake resume`。任何会话都不想被拉起时，用 `--wake never`：
 
 ```bash
-reins send reviewer --wake resume -m "CI 挂了，需要现在处理。"
+reins send planner --wake resume -m "CI 挂了，需要现在处理。"
+reins send reviewer --wake never -m "有空再看。"
 ```
 
-这会以无头方式恢复对方的会话并消耗模型额度。同一个对话最多恢复 3 次，超过后消息照常保留，只是不再启动进程。
 
 ## 查看消息和状态
 

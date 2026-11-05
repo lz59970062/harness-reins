@@ -54,6 +54,7 @@ Put submission options before `--`:
 | Command | Purpose |
 | --- | --- |
 | `reins session register <name>` | Name the current session |
+| `reins install-claude-hook [--remove]` | Add or remove the Claude Code hook that delivers into open windows |
 | `reins session list` | See the sessions, and how a message reaches each one now |
 | `reins session unregister <name>` | Remove a name |
 | `reins send <name> --subject <subject> -m <text>` | Send a message, starting a new thread |
@@ -62,7 +63,7 @@ Put submission options before `--`:
 | `reins message show <message-id>` | Read one message and its state |
 | `reins message alerts` | See threads stopped at a limit; `--clear` removes the alerts |
 
-`--wake resume` allows a closed session to be resumed; by default nothing is started. See [Messages between sessions](../guides/messages.md).
+A Claude Code session with nothing listening, or a closed `reins pi` session, is resumed headless by default. Codex holds the message in its queue unless you pass `--wake resume`. `--wake never` starts nothing. See [Messages between sessions](../guides/messages.md).
 
 ## Preview commands
 

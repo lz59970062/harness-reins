@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — DeepSeek Harness support
+## 0.12.0 — 2026-11-05
 
 - DSH is a native callback parent and child worker. `DSH_SESSION_ID` binds the
   exact conversation, `reins wait` runs as a DSH background job, and its job
@@ -20,6 +20,23 @@
   `--wake resume` starts nothing and tells the receiver why.
 - Real DSH sessions are verified on macOS desktop and on Linux (`dsh` 0.2.1-rc.5,
   ACP and web UI). Windows has unit tests only.
+- A message now reaches a Claude Code session or a `reins pi` session the way a job
+  result does: with nothing listening, the session is resumed headless to handle
+  it, which costs model usage. `--wake never` starts nothing. Codex stays on its
+  queue by default, since Reins cannot tell an open Codex from a closed one;
+  `--wake resume` still resumes it. Other Pi sessions get it when they reopen, and
+  `--wake resume` no longer fails on them. The per-thread resume limit is gone,
+  along with `thread_resumes`.
+- A live session that just registered, sent a message or received a batch gets 2
+  minutes to start `reins wait` before a resume is tried next to it.
+- An open Claude Code window is no longer forked. While a live process has the
+  session open, the daemon does not resume it, for job results as well as messages;
+  it does so once the window closes. This changes job results: without a hook,
+  channel or waiter, one now waits for the window instead of being handled beside it.
+- `reins setup` adds a Claude Code hook that delivers into the open window and wakes
+  it when idle, with no `reins wait`. Verified in the terminal with Claude Code
+  2.1.318; the desktop app has not been tested yet.
+  `--no-claude-hook` skips it; `reins install-claude-hook [--remove]` manages it.
 
 ## 0.11.0 — 2026-11-03
 

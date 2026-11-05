@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.resources as resources
+import json
 import os
 import shlex
 import shutil
@@ -13,11 +14,15 @@ from ..harness.pi import channel as pi_channel
 from .. import template_registration
 from ..store import layout
 from .. import runtime as reins_runtime
+from ..system import shell
 
 
 SHELL_HOOK_BEGIN = "# >>> harness-reins pending status >>>"
 SHELL_HOOK_END = "# <<< harness-reins pending status <<<"
 SKILL_TARGETS = ("codex", "claude", "pi", "dsh", "both", "all")
+CLAUDE_HOOK_COMMAND = "_claude-hook"
+CLAUDE_HOOK_EVENTS = ("SessionStart", "Stop")
+CLAUDE_HOOK_TIMEOUT_SECONDS = 7 * 86400  # An idle window can wait this long; its next Stop starts the hook again.
 
 
 def install_skill_tree(target: Path, *, include_codex_plugin: bool, force: bool, keep_existing: bool = False,
@@ -79,6 +84,12 @@ def install_skill(args: argparse.Namespace) -> int:
     if target_name in ("claude", "both", "all"):
         status |= install_skill_tree(layout.claude_home() / "skills" / "harness-reins", include_codex_plugin=False, force=args.force,
                                      keep_existing=keep, focused="claude")
+        if getattr(args, "claude_hook", None):  # Only setup passes one; install-skill leaves settings alone.
+            try:
+                print(f"Installed the Reins hook in {configure_claude_hook(args.claude_hook)}")
+            except (OSError, ValueError) as exc:
+                print(f"reins: warning: could not add the Claude Code hook, so open windows need `reins wait`: {exc}",
+                      file=sys.stderr)
     if target_name in ("pi", "all"):
         status |= install_skill_tree(pi_channel.profile_dir() / "skills" / "harness-reins", include_codex_plugin=False,
                                      force=args.force, keep_existing=keep, focused="pi")
@@ -128,4 +139,66 @@ def install_shell_hook(args: argparse.Namespace) -> int:
         tmp.chmod(mode)
     os.replace(tmp, rc_file)
     print(f"Installed long-task pending-status hook in {rc_file}")
+    return 0
+
+
+def _without_reins_hook(groups: object) -> list[object]:
+    """A settings event's hook groups with Reins's entry gone and everything else untouched."""
+    kept = []
+    for group in groups if isinstance(groups, list) else []:
+        entries = group.get("hooks") if isinstance(group, dict) else None
+        if not isinstance(entries, list):
+            kept.append(group)
+            continue
+        others = [entry for entry in entries
+                  if not (isinstance(entry, dict) and CLAUDE_HOOK_COMMAND in str(entry.get("command", "")))]
+        if others:
+            kept.append({**group, "hooks": others})
+    return kept
+
+
+def configure_claude_hook(command: str | None, settings_path: Path | None = None) -> Path:
+    """Add the delivery hook to Claude Code's user settings, or remove it when ``command`` is None."""
+    path = settings_path or layout.claude_home() / "settings.json"
+    settings = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    if not isinstance(settings, dict) or not isinstance(settings.get("hooks", {}), dict):
+        raise ValueError(f"{path} does not hold a settings object")
+    hooks = dict(settings.get("hooks", {}))
+    for event in CLAUDE_HOOK_EVENTS:
+        groups = _without_reins_hook(hooks.get(event, []))
+        if command is not None:
+            groups.append({"hooks": [{"type": "command", "command": command, "async": True, "asyncRewake": True,
+                                      "timeout": CLAUDE_HOOK_TIMEOUT_SECONDS}]})
+        if groups:
+            hooks[event] = groups
+        else:
+            hooks.pop(event, None)
+    if hooks:
+        settings["hooks"] = hooks
+    else:
+        settings.pop("hooks", None)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(json.dumps(settings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    if path.exists():
+        tmp.chmod(path.stat().st_mode)
+    os.replace(tmp, path)
+    return path
+
+
+def claude_hook_command(executable: str | None, queue_dir: str | None) -> str:
+    arguments = [CLAUDE_HOOK_COMMAND, *(["--queue-dir", str(queue_dir)] if queue_dir else [])]
+    return shell.format_command([executable, *arguments]) if executable else reins_runtime.control_command(*arguments)
+
+
+def install_claude_hook(args: argparse.Namespace) -> int:
+    """`reins install-claude-hook [--remove]`."""
+    try:
+        command = None if args.remove else claude_hook_command(getattr(args, "command", None), args.queue_dir)
+        path = configure_claude_hook(command)
+    except (OSError, ValueError) as exc:
+        print(f"reins: could not change the Claude Code hook: {exc}", file=sys.stderr)
+        return 2
+    print(f"{'Removed the Reins hook from' if args.remove else 'Installed the Reins hook in'} {path}; "
+          "windows that are already open pick the change up after their next turn")
     return 0

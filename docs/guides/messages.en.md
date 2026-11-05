@@ -2,7 +2,7 @@
 
 Codex, Claude Code, Pi and DeepSeek Harness sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.
 
-A message is not lost when the other session is busy or closed, and it never quietly starts a process that spends your quota.
+A busy session gets the message when it can take it. A closed Claude Code session, or a Pi session opened with `reins pi`, is started to handle it.
 
 ## Get started in three steps
 
@@ -33,25 +33,26 @@ You can leave this to the agents, for example: "Register as planner and send thi
 
 | The other session is | Codex | Claude Code | Pi | DeepSeek Harness |
 | --- | --- | --- | --- | --- |
-| Idle | Starts a new turn at once | At once while `reins wait` runs | Starts a new turn at once | At once while `reins wait` runs |
-| Working | When the current turn ends | At once while `reins wait` runs | When the current command ends | At once while `reins wait` runs |
-| Closed | When it is reopened | Stays in `reins inbox` | When it is reopened | Stays in `reins inbox` |
+| Idle | Starts a new turn at once | Starts a new turn at once | Starts a new turn at once | At once while `reins wait` runs |
+| Working | When the current turn ends | At its next model call | When the current command ends | At once while `reins wait` runs |
+| Closed | When it is reopened | Session resumed to handle it | Resumed if opened with `reins pi`; otherwise when it is reopened | Stays in `reins inbox` |
 
-By default, Reins starts no process for a message.
+A message takes the same route as a job result: with no process receiving, Reins resumes the Claude Code session, or the Pi session opened with `reins pi`, headless. This uses model quota.
 
-**Claude Code needs a waiting command.** Claude Code has no general way to receive a push from outside, so `reins wait` has to run in the background. The skill reminds it to do this, and to start it again after each batch of messages. Sessions opened with `reins claude` do not need this step.
+**An open Claude Code window never forks.** `reins setup` adds a hook to Claude Code's user settings, so a message goes straight into the open window and wakes it even when idle, with no `reins wait`. While a window is open, Reins never resumes the same session next to it; it resumes only after the window closes. Skip the hook with `reins setup --no-claude-hook`, and remove it with `reins install-claude-hook --remove`. Without the hook, open the session with `reins claude` or keep `reins wait` running in the background. With none of these, a message waits until the window closes and is then resumed. It is not lost.
+
+**A session has one headless resume at a time.** Messages that arrive together are handled one after another.
 
 **DeepSeek Harness needs one too.** `reins wait` runs as a DSH background job. DSH cannot be resumed headless, so `--wake resume` starts nothing there and the message says so.
 
 **Codex sandbox.** If the sandbox blocks `~/.reins`, approve the command or add that directory to the writable roots.
 
-To wake a closed session anyway, ask for it with `--wake resume`:
+Codex only gets the queue by default, because Reins cannot tell an open Codex from a closed one. To resume a closed Codex, ask for it with `--wake resume`. When a session should not be started at all, use `--wake never`:
 
 ```bash
-reins send reviewer --wake resume -m "CI is broken and needs attention now."
+reins send planner --wake resume -m "CI is broken and needs attention now."
+reins send reviewer --wake never -m "When you have time."
 ```
-
-This resumes the other session headless and uses model quota. A thread can do this 3 times. After that, messages are still kept, but no process is started.
 
 ## See messages and their state
 

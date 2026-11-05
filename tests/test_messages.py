@@ -43,7 +43,8 @@ class MessageTestCase(unittest.TestCase):
         self.base = {"HOME": str(self.root), "USERPROFILE": str(self.root), "PATH": os.environ.get("PATH", ""),
                      "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""), "CODEX_HOME": str(self.root / "codex"),
                      "REINS_HOME": str(self.root / "reins"), "REINS_TARGET_LOCK_DIR": str(self.root / "locks"),
-                     "REINS_CODEX_BIN": sys.executable, "PI_CODING_AGENT_DIR": str(self.root / "pi")}
+                     "REINS_CODEX_BIN": sys.executable, "PI_CODING_AGENT_DIR": str(self.root / "pi"),
+                     claude_session.LIVE_WAIT_GRACE_ENV: "0"}
         patcher = mock.patch.dict(os.environ, self.base, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -97,12 +98,11 @@ class DeepSeekHarnessTests(MessageTestCase):
         self.addCleanup(claude_session.release_live_watcher, watcher)
         self.assertEqual(rows()["deep"]["arrival"], "live")
 
-    def test_resume_starts_nothing_says_so_and_spends_no_budget(self):
+    def test_resume_starts_nothing_and_says_so(self):
         item = self.send(self.codex, "deep", "--subject", "wake", "-m", "up", "--wake", "resume")
         message = link.load_message(self.queue, item["id"])
         self.assertEqual(message["local"]["wake"], "never")
         self.assertIn("cannot be resumed headless", message["local"]["note"])
-        self.assertEqual(link.load_thread(self.queue, message["thread"])["resumes"], 0)
         self.assertIsNone(delivery.select_pending(self.queue, time.time() + 1))
 
     def test_the_receiver_is_told_to_keep_listening(self):
@@ -121,7 +121,7 @@ class DirectoryTests(MessageTestCase):
         self.assertEqual(rows["planner"]["session"], CODEX_THREAD)
         self.assertEqual(rows["reviewer"]["harness"], "claude")
         self.assertEqual(rows["planner"]["arrival"], "codex-queue")
-        self.assertEqual(rows["reviewer"]["arrival"], "inbox")
+        self.assertEqual(rows["reviewer"]["arrival"], "resume")
         self.assertEqual(rows["tester"]["arrival"], "inbox")
 
     def test_a_taken_name_is_refused_unless_replaced(self):
@@ -190,7 +190,7 @@ class RoutingTests(MessageTestCase):
                     self.assertEqual(callback["agent"], link.load_session(self.queue, receiver)["harness"])
 
     def test_never_uses_routes_that_start_nothing(self):
-        modes = {name: self.callback(self.send(self.codex if name != "planner" else self.pi, name, "-m", "x"))
+        modes = {name: self.callback(self.send(self.codex if name != "planner" else self.pi, name, "-m", "x", "--wake", "never"))
                  for name in ("planner", "reviewer", "tester")}
         self.assertEqual(modes["planner"]["callback_mode"], "codex-queue")
         self.assertEqual(modes["planner"]["callback_codex_home"], str(self.root / "codex"))
@@ -198,31 +198,76 @@ class RoutingTests(MessageTestCase):
         self.assertEqual(modes["tester"]["pi_callback_protocol"], pi_channel.PROTOCOL)
         self.assertEqual(modes["tester"]["wake"], "never")
 
-    def test_resume_is_an_explicit_choice(self):
-        item = self.send(self.codex, "reviewer", "-m", "x", "--wake", "resume")
+    def test_closed_claude_is_resumed_by_default(self):
+        item = self.send(self.codex, "reviewer", "-m", "x")
+        self.assertEqual(item["wake"], "resume")
+        self.assertEqual(self.callback(item)["callback_mode"], "cli")
+        self.assertEqual(delivery.select_pending(self.queue, time.time()).stem, item["callback"])
+
+    def test_closed_managed_pi_is_resumed_by_default(self):
+        with mock.patch.object(pi_channel, "owner_record", return_value=(self.root, {"managed": True})):
+            item = self.send(self.codex, "tester", "-m", "x")
+        self.assertEqual(item["wake"], "resume")
+        self.assertEqual(delivery.select_pending(self.queue, time.time()).stem, item["callback"])
+
+    def test_closed_ordinary_pi_waits_for_it_to_reopen_even_when_asked_to_resume(self):
+        default = self.send(self.codex, "tester", "-m", "x")
+        self.assertEqual(default["wake"], "never")
+        self.assertIsNone(delivery.select_pending(self.queue, time.time()))
+        asked = self.send(self.codex, "tester", "-m", "y", "--wake", "resume")
+        self.assertEqual(asked["wake"], "never")
+        self.assertIn("reins pi", asked["note"])
+        self.assertIsNone(delivery.select_pending(self.queue, time.time()))
+
+    def test_codex_stays_on_its_queue_unless_asked(self):
+        item = self.send(self.claude, "planner", "-m", "x")
+        self.assertEqual(item["wake"], "never")
+        self.assertEqual(self.callback(item)["callback_mode"], "codex-queue")
+        item = self.send(self.claude, "planner", "-m", "y", "--wake", "resume")
         self.assertEqual(self.callback(item)["callback_mode"], "cli")
 
+    def test_a_thread_can_resume_as_often_as_it_needs(self):
+        item = self.send(self.codex, "reviewer", "-m", "0")
+        for number in range(4):
+            code, out, err = self.reins(self.claude, "reply", item["id"], "--json", "-m", str(number), "--wake", "resume")
+            self.assertEqual(code, 0, err)
+            self.assertEqual(json.loads(out)["wake"], "resume")
+            code, out, err = self.reins(self.codex, "reply", json.loads(out)["id"], "--json", "-m", str(number))
+            self.assertEqual(code, 0, err)
+            item = json.loads(out)
+            self.assertEqual(item["wake"], "resume")
+
+    def test_a_session_that_just_sent_gets_time_to_wait(self):
+        waiting = dict(self.claude, **{claude_session.LIVE_WAIT_GRACE_ENV: "60"})
+        item = self.send(waiting, "planner", "-m", "x")
+        (self.queue / "pending" / f"{item['callback']}.json").unlink()
+        self.send(self.codex, "reviewer", "-m", "y")
+        self.assertIsNone(delivery.select_pending(self.queue, time.time()))
+
+    def test_a_headless_resume_does_not_sit_in_a_wait(self):
+        key = delivery.callback_target_key({"agent": "claude", "target": {"kind": "session", "session": CLAUDE_SESSION}})
+        resumed = dict(self.claude, **{claude_session.RESUMED_TARGET_ENV: key})
+        code, _, err = self.reins(resumed, "wait", "--timeout", "30")
+        self.assertEqual(code, 0, err)
+        self.assertIn("headless resume", err)
+
     def test_l3_closed_claude_stays_in_the_inbox_and_starts_nothing(self):
-        item = self.send(self.codex, "reviewer", "-m", "x")
+        item = self.send(self.codex, "reviewer", "-m", "x", "--wake", "never")
         self.assertIsNone(delivery.select_pending(self.queue, time.time()))
         code, out, _ = self.reins(self.claude, "inbox")
         self.assertEqual(code, 0)
         self.assertIn(item["id"], out)
 
     def test_l3_closed_pi_is_not_selected_until_its_mailbox_opens(self):
-        item = self.send(self.codex, "tester", "-m", "x")
+        item = self.send(self.codex, "tester", "-m", "x", "--wake", "never")
         self.assertIsNone(delivery.select_pending(self.queue, time.time()))
         with mock.patch.object(pi_channel, "live_mailbox_open", return_value=True):
             selected = delivery.select_pending(self.queue, time.time())
         self.assertEqual(selected.stem, item["callback"])
 
     def test_an_acked_message_for_a_closed_pi_is_still_finalized(self):
-        item = self.send(self.codex, "tester", "-m", "x")
+        item = self.send(self.codex, "tester", "-m", "x", "--wake", "never")
         self.assertEqual(self.reins(self.pi, "ack", item["callback"])[0], 0)
-        self.assertEqual(delivery.select_pending(self.queue, time.time()).stem, item["callback"])
-
-    def test_resume_message_for_closed_pi_is_not_held(self):
-        item = self.send(self.codex, "tester", "-m", "x", "--wake", "resume")
         self.assertEqual(delivery.select_pending(self.queue, time.time()).stem, item["callback"])
 
     def test_l4_an_unknown_name_tries_nobody_else(self):
@@ -470,17 +515,6 @@ class LimitTests(MessageTestCase):
         self.assertEqual(limits["thread_messages"], rules.DEFAULT_LIMITS["thread_messages"])
         self.assertEqual(limits["ttl_days"], rules.DEFAULT_LIMITS["ttl_days"])
 
-    def test_resumes_are_budgeted_per_thread(self):
-        self.configure(thread_resumes=1)
-        first = self.send(self.codex, "reviewer", "-m", "1", "--wake", "resume")
-        self.assertEqual(first["wake"], "resume")
-        code, out, _ = self.reins(self.claude, "reply", first["id"], "--json", "-m", "2", "--wake", "resume")
-        second = json.loads(out)
-        self.assertEqual(code, 0)
-        self.assertEqual(second["wake"], "never")
-        self.assertEqual(self.callback(second)["callback_mode"], "codex-queue")
-        self.assertIn("resumes", second["note"])
-
 
 class RecoveryTests(MessageTestCase):
     def setUp(self):
@@ -551,7 +585,7 @@ class RecoveryTests(MessageTestCase):
             self.send(self.codex, "reviewer", "-m", "x")
 
     def test_pi_delivery_worker_waits_when_the_session_closed_after_selection(self):
-        item = self.send(self.codex, "tester", "-m", "x")
+        item = self.send(self.codex, "tester", "-m", "x", "--wake", "never")
         request = self.callback(item)
         self.assertTrue(delivery.waits_for_open_session(self.queue, request, item["callback"]))
         with mock.patch.object(pi_channel, "live_mailbox_open", return_value=True):
@@ -579,7 +613,7 @@ class ClaudeReceiptTests(MessageTestCase):
 
     def test_the_channel_does_not_step_aside_for_an_unread_message(self):
         from harness_reins.harness.claude import channel as claude_channel
-        item = self.send(self.codex, "reviewer", "-m", "x")
+        item = self.send(self.codex, "reviewer", "-m", "x", "--wake", "never")
         out = io.StringIO()
         server = claude_channel.ChannelServer(self.queue, parent_pid=os.getpid(), environment=os.environ,
                                               poll_interval=0.01, ack_grace=0.0, out=out)

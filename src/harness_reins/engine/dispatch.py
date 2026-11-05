@@ -533,7 +533,8 @@ def submit_managed_run(args: argparse.Namespace) -> int:
         live_wait = (live_agent is not None and target.get("kind") == "session"
                      and os.environ.get(session_env_name(live_agent), "").strip() == str(target.get("session"))
                      and task["callback_mode"] != "manual"
-                     and not (live_agent == "claude" and claude_session.channel_is_held(str(target.get("session"))))
+                     and not (live_agent == "claude" and (claude_session.channel_is_held(str(target.get("session")))
+                                                          or claude_session.hook_is_held(str(target.get("session")))))
                      and not (live_agent == "claude" and claude_session.background_tasks_disabled(os.environ)))
         if live_wait and live_agent == "claude":
             # Before the task exists, so even one that ends at once waits for this session's waiter.
@@ -568,9 +569,13 @@ def submit_managed_run(args: argparse.Namespace) -> int:
         if claude_session.channel_is_held(str(target.get("session"))):
             print("reins: Claude Code live callback: arrives through the reins channel; no `reins wait` needed",
                   file=sys.stderr)
+        elif claude_session.hook_is_held(str(target.get("session"))):
+            print("reins: Claude Code live callback: arrives through the Reins hook; no `reins wait` needed",
+                  file=sys.stderr)
         elif claude_session.background_tasks_disabled(os.environ):
             print("reins: Claude Code background tasks are disabled here, so do not run `reins wait`: end your turn; "
-                  "Reins resumes this session with the callback when the task ends", file=sys.stderr)
+                  "Reins delivers the callback through its hook if `reins setup` installed one, and otherwise "
+                  "resumes this session once its window closes", file=sys.stderr)
         else:
             wait = reins_runtime.control_command("wait", "--queue-dir", str(root), "--task", task_id)
             print(f"reins: Claude Code live callback: run in the background (run_in_background): {wait}",
@@ -578,7 +583,7 @@ def submit_managed_run(args: argparse.Namespace) -> int:
             grace = claude_session.live_wait_grace(os.environ)
             if live_wait and grace > 0:
                 print(f"reins: start it now: the callback is held for this session's waiter for {grace:g}s, "
-                      "then resumed headless", file=sys.stderr)
+                      "then resumed headless if the window has closed", file=sys.stderr)
     if task["agent"] == "dsh" and target.get("kind") == "session":
         wait = reins_runtime.control_command("wait", "--queue-dir", str(root), "--task", task_id)
         print(f"reins: DeepSeek Harness live callback: run as a background job (run_in_background: true): {wait}",

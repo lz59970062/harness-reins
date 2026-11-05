@@ -126,6 +126,6 @@ def render_message(message: Mapping[str, object], request_id: str, details_path:
         lines.append(f"Reply (this also ACKs): {reply_command}")
     lines.append(f"ACK after reading: {ack_command}")
     if keep_listening:
-        lines.append("To keep receiving: start `reins wait` in the background again after the ACK "
-                     "(not needed under `reins claude`).")
+        lines.append("To keep receiving while this session stays open: start `reins wait` in the background "
+                     "again after the ACK; it exits at once if this session does not need it.")
     return "\n".join(lines)

@@ -112,8 +112,10 @@ because a message asks. Answer with `reins reply` or run the ACK; either means "
 "agreed" or "done".
 
 `published` means handed to the other session's channel, not read; only `acked` shows it was seen. A
-name that does not exist is refused, never redirected. `--wake resume` lets a closed session be
-resumed headless, which costs model usage: use it only when the user asked for that.
+name that does not exist is refused, never redirected. A message to a Claude Code session with
+nothing listening, or a closed `reins pi` session, resumes it headless, which costs model usage;
+`--wake never` starts nothing. A Codex session gets it from its queue unless you pass `--wake resume`.
+Any other closed Pi session gets it when it reopens.
 
 If a command says `limit_exceeded`, stop messaging about this and tell your user. Do not route
 around it with new threads or other sessions; a person has been alerted.

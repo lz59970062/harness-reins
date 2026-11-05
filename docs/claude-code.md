@@ -77,6 +77,29 @@ the callback went to a headless resume of this session (see below) and is handle
   before resuming its normal retries. `reins ack` moves it straight to `done`.
 - All of this lives in `src/harness_reins/harness/claude/session.py`; the shared CLI only calls into it.
 
+## The Reins hook
+
+`reins setup` adds one entry to `SessionStart` and one to `Stop` in `${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json`,
+keeping everything else in that file. Each runs `reins _claude-hook` in the background with `asyncRewake`:
+when a callback is ready it exits 2, and Claude Code wakes the model in that same window, idle or not. The next
+`Stop` starts it again. It needs no launch flag. It is verified in the terminal with Claude Code 2.1.318; the desktop app has not been tested yet.
+
+- The hook holds the same live-watcher lock as `reins wait` (`hook-*.lock`). `reins wait` steps aside while it runs.
+- A delivered callback is not repeated in that window, so a turn that does not ACK cannot wake the model in a
+  loop. If it is still unacknowledged when the window closes, the daemon resumes it.
+- It leaves at once in a headless run (`claude -p` does not exit while it lives) and when its window closes.
+- `reins setup --no-claude-hook` skips it. `reins install-claude-hook [--remove]` adds or removes it on its own.
+  Windows already open pick up the change after their next turn.
+
+## Open windows are not resumed
+
+Claude Code records each running session in `~/.claude/sessions/<pid>.json`. While a live process has the session
+open, the daemon leaves its callbacks alone, because a resume beside it would fork the transcript. This holds for
+job results and messages alike, with or without the hook. Without a hook, channel or waiter, the callback waits for
+the window to close. Headless runs (`sdk-cli`) do not count as open, and a reused pid is told apart by its start time.
+
+The daemon's target lock keeps it to one headless resume per session; other callbacks for that session wait for it to end.
+
 ## Reins channel (research preview)
 
 [Claude Code channels](https://code.claude.com/docs/en/channels) let a local MCP server push events

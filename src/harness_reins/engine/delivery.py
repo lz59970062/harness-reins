@@ -373,6 +373,16 @@ def waits_for_open_session(root: Path, request: dict[str, object], request_id: s
             and not layout.ack_path(root, request_id).exists() and not pi_channel.live_mailbox_open(request))
 
 
+def waits_for_open_window(root: Path, request: dict[str, object], request_id: str) -> bool:
+    """A resume beside an open Claude Code window forks its transcript, so the callback waits for that window."""
+    target = request.get("target")
+    if (dispatch.request_agent(request) != "claude" or not isinstance(target, dict)
+            or target.get("kind") != "session" or not isinstance(target.get("session"), str)):
+        return False
+    environment = resume_environment.merged(os.environ, resume_environment.load(root, request_id))
+    return claude_session.open_window(target["session"], environment) is not None
+
+
 def select_pending(root: Path, now: float) -> Path | None:
     for path in sorted((root / "pending").glob("*.json")):
         if next_attempt_at(path) > now:
@@ -395,7 +405,8 @@ def select_pending(root: Path, now: float) -> Path | None:
                                          or is_live_delivery(request)
                                          or target_has_live_resume(root, request)
                                          or claude_session.live_watcher_is_held(request)
-                                         or waits_for_open_session(root, request, path.stem)):
+                                         or waits_for_open_session(root, request, path.stem)
+                                         or waits_for_open_window(root, request, path.stem)):
             continue
         return path
     return None

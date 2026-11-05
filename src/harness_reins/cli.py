@@ -190,7 +190,7 @@ def invoke_with_diagnostics(args: argparse.Namespace, operation: Callable[[argpa
 # Modes that act on this installation itself, or that OS services start
 # directly, never forward to the canonical installation.
 LOCAL_MODES = frozenset({
-    "setup", "migrate", "daemon", "desktop", "install-skill", "install-pi-extension", "install-shell-hook",
+    "setup", "migrate", "daemon", "desktop", "install-skill", "install-pi-extension", "install-shell-hook", "install-claude-hook",
     "install-systemd", "install-launchd", "install-supervisor", "install-windows-task", "uninstall-windows-task",
 })
 
@@ -398,6 +398,8 @@ def main() -> int:
                               help="Coordinator hosting: systemd on Linux, launchd on macOS, Task Scheduler on Windows")
     setup_parser.add_argument("--skill-path", help="Skills directory to install into (overrides --skill-target)")
     setup_parser.add_argument("--with-pi-extension", action="store_true", help="Also install Pi's native live callback extension")
+    setup_parser.add_argument("--no-claude-hook", action="store_true",
+                              help="Do not add the hook that delivers into open Claude Code windows to its user settings")
     setup_parser.add_argument("--with-dsh", action="store_true", help="Also install the DeepSeek Harness skill and record its launcher")
     setup_parser.add_argument(
         "--skill-target",
@@ -451,6 +453,15 @@ def main() -> int:
     channel_parser.add_argument("--parent-pid", type=int, help=argparse.SUPPRESS)
     channel_parser.add_argument("--poll-interval", type=float, default=1.0, help=argparse.SUPPRESS)
 
+    claude_hook_parser = sub.add_parser("_claude-hook", help=argparse.SUPPRESS)
+    claude_hook_parser.add_argument("--queue-dir", help=argparse.SUPPRESS)
+    claude_hook_parser.add_argument("--poll-interval", type=float, default=1.0, help=argparse.SUPPRESS)
+    install_claude_hook_parser = sub.add_parser(
+        "install-claude-hook", help="Add the hook that delivers into open Claude Code windows, without forking them")
+    install_claude_hook_parser.add_argument("--remove", action="store_true", help="Remove the hook instead")
+    install_claude_hook_parser.add_argument("--queue-dir", help="Wakeup queue directory")
+    install_claude_hook_parser.add_argument("--command", help="Executable path embedded in the hook")
+
     session_parser = sub.add_parser("session", help="Name sessions on this machine so they can message each other")
     session_actions = session_parser.add_subparsers(dest="session_action", required=True)
     session_register = session_actions.add_parser("register", help="Give the current session a name")
@@ -472,10 +483,10 @@ def main() -> int:
         message_parser.add_argument("--message-file", help="Read the message text from this file, or - for stdin")
         message_parser.add_argument("--subject", help="One line; default: the text's first line")
         message_parser.add_argument("--ref", action="append", help="git:REPO:REF or path:PATH; repeatable")
-        message_parser.add_argument("--wake", choices=("never", "resume"), default="never",
-                                    help="never (default): nothing is started, a closed session reads it when it "
-                                         "next opens. resume: a closed session may be resumed headless, which costs "
-                                         "model usage and is limited per thread")
+        message_parser.add_argument("--wake", choices=("never", "resume"),
+                                    help="resume: a session with nothing listening is resumed headless, which costs "
+                                         "model usage (default for Claude Code and Pi). never: nothing is started, a "
+                                         "closed session reads it when it next opens (default for Codex)")
         message_parser.add_argument("--json", action="store_true", help="Print JSON")
         message_parser.add_argument("--agent", choices=AGENT_NAMES, help=argparse.SUPPRESS)
         message_parser.add_argument("--session", help=argparse.SUPPRESS)
@@ -674,6 +685,10 @@ def main() -> int:
     if args.mode == "claude":
         from .harness.claude import channel as claude_channel
         return claude_channel.launch(args)
+    if args.mode == "_claude-hook":
+        return claude_session.hook(args)
+    if args.mode == "install-claude-hook":
+        return skill_install.install_claude_hook(args)
     if args.mode == "_claude-channel":
         from .harness.claude import channel as claude_channel
         return claude_channel.serve(args)

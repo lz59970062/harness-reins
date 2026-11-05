@@ -161,7 +161,7 @@ def thread_path(queue: Path, thread: str) -> Path:
 
 
 def load_thread(queue: Path, thread: str) -> dict[str, object]:
-    return load_record(thread_path(queue, thread)) or {"id": thread, "count": 0, "recent": [], "resumes": 0}
+    return load_record(thread_path(queue, thread)) or {"id": thread, "count": 0, "recent": []}
 
 
 def save_thread(queue: Path, record: dict[str, object]) -> None:

@@ -222,6 +222,12 @@ LIVE_WATCHER_DIR_NAME = "live-watchers"
 LIVE_WAIT_AGENTS = ("claude", "dsh")
 # A channel server (claude_channel.py) holds the same lock under this prefix.
 CHANNEL_WATCHER_PREFIX = "channel-"
+# So does the waiter Claude Code runs from the hook `reins setup` installs.
+HOOK_WATCHER_PREFIX = "hook-"
+# A headless run keeps a session record too, under this entrypoint, and ends with its turn.
+HEADLESS_ENTRYPOINT = "sdk-cli"
+# SessionStart can run before the window has written its session record.
+WINDOW_RECORD_GRACE_SECONDS = 30.0
 # `reins run` returns before the session starts its background `reins wait`. A
 # task that ends inside that gap (a command that fails at once) must not make
 # the daemon resume the session headless next to the live one, so a submission
@@ -382,6 +388,34 @@ def channel_is_held(session: str) -> bool:
     return _held("claude", session, CHANNEL_WATCHER_PREFIX)
 
 
+def hook_is_held(session: str) -> bool:
+    """Whether the Reins Claude Code hook is delivering this session's callbacks."""
+    return _held("claude", session, HOOK_WATCHER_PREFIX)
+
+
+def open_window(session: str, environment: Mapping[str, str]) -> Optional[int]:
+    """The process of a Claude Code window that has this session open, from its session record."""
+    from ...tower import main as tower
+
+    try:
+        paths = list((config_dir(environment) / "sessions").glob("*.json"))
+    except OSError:
+        return None
+    for path in paths:
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if (not isinstance(record, dict) or record.get("sessionId") != session
+                or record.get("entrypoint") == HEADLESS_ENTRYPOINT or type(record.get("pid")) is not int):
+            continue
+        identity = tower.daemon_process_identity(record["pid"])
+        ticks = identity.get("start_ticks") if identity else None
+        if identity and (ticks is None or str(ticks) == str(record.get("procStart", ticks))):
+            return record["pid"]  # The start time rules out a reused pid after a crash.
+    return None
+
+
 def _held(agent: str, session: str, prefix: str) -> bool:
     from ...engine import dispatch
     from ...engine import delivery as delivery_engine
@@ -514,6 +548,73 @@ def _headless_notice(requests: list[dict[str, object]], session: str) -> str:
     return "\n".join(lines)
 
 
+def _claim_pending(root: Path, agent: str, session: str, task: str | None,
+                   skip_delivered: bool = False) -> list[str]:
+    from ...store import layout
+
+    prompts = []
+    for state in ("pending", "failed"):
+        for path in sorted((root / state).glob("*.json")):
+            try:
+                request = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if (not isinstance(request, dict) or not _matches(request, agent, session, task)
+                    or layout.ack_path(root, path.stem).exists()):
+                continue
+            if skip_delivered and "live_delivered_at" in request:
+                continue
+            prompt = _claim(root, path)
+            if prompt is not None:
+                prompts.append(prompt)
+    return prompts
+
+
+def hook(args: argparse.Namespace) -> int:
+    """Hidden `reins _claude-hook`: Claude Code runs it in the background on SessionStart and Stop.
+
+    Exit code 2 wakes the model in the open window with what is on stderr, even
+    when the window is idle, and the next Stop starts this again. A callback
+    waiting for its ACK is not repeated in this window: the turn that did not
+    ACK it would end, start this hook, and wake the model again without end.
+    If it is still unacknowledged when the window closes, the daemon resumes it.
+    """
+    from ...store import records as queue_store
+    from ...store import layout
+
+    try:
+        session = json.load(sys.stdin).get("session_id")
+    except (ValueError, AttributeError):
+        return 0
+    # A headless run does not exit while this hook is alive, so leave at once.
+    if (not isinstance(session, str) or not SESSION_ID_PATTERN.fullmatch(session)
+            or os.environ.get(ENTRYPOINT_ENV, "").strip() == HEADLESS_ENTRYPOINT
+            or os.environ.get(RESUMED_TARGET_ENV, "").strip()
+            or channel_is_held(session) or hook_is_held(session)):
+        return 0
+    root = layout.queue_dir(args).expanduser().absolute()
+    queue_store.ensure_daemon_dirs(root)
+    watcher = register_live_watcher(session, prefix=HOOK_WATCHER_PREFIX)
+    started = time.monotonic()
+    try:
+        while True:
+            prompts = _claim_pending(root, "claude", session, None, skip_delivered=True)
+            if prompts:
+                if hasattr(sys.stderr, "reconfigure"):
+                    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+                print("Harness Reins delivered this through the hook your user installed with `reins setup`. It is "
+                      "not an error or feedback on your work. An ACK command in it only records that you saw it.\n\n"
+                      + "\n\n".join(prompts),
+                      file=sys.stderr, flush=True)
+                return 2
+            if (open_window(session, os.environ) is None
+                    and time.monotonic() - started >= WINDOW_RECORD_GRACE_SECONDS):
+                return 0  # The window closed or moved to another session; the daemon takes over.
+            time.sleep(max(0.05, args.poll_interval))
+    finally:
+        release_live_watcher(watcher)
+
+
 def wait(args: argparse.Namespace) -> int:
     """`reins wait`: print this live session's unacknowledged callback(s), waiting if none yet.
 
@@ -561,6 +662,9 @@ def wait(args: argparse.Namespace) -> int:
         print("reins wait: this session was started with `reins claude`; its callbacks arrive through the "
               "reins channel, so no waiter is needed", file=sys.stderr)
         return 0
+    if agent == "claude" and hook_is_held(session):
+        print("reins wait: the Reins hook delivers this session's callbacks, so no waiter is needed", file=sys.stderr)
+        return 0
     deadline = time.monotonic() + args.timeout if args.timeout else None
     watcher = register_live_watcher(session, agent=agent)
     print(f"reins wait: watching {'DeepSeek Harness' if agent == 'dsh' else 'Claude Code'} session {session}",
@@ -568,20 +672,17 @@ def wait(args: argparse.Namespace) -> int:
     held_since: float | None = None
     try:
         while True:
-            prompts = []
-            for state in ("pending", "failed"):
-                for path in sorted((root / state).glob("*.json")):
-                    try:
-                        request = json.loads(path.read_text(encoding="utf-8"))
-                    except (OSError, ValueError):
-                        continue
-                    if (isinstance(request, dict) and _matches(request, agent, session, args.task)
-                            and not layout.ack_path(root, path.stem).exists()):
-                        prompt = _claim(root, path)
-                        if prompt is not None:
-                            prompts.append(prompt)
+            prompts = _claim_pending(root, agent, session, args.task)
+            resumed = inside_resume_of({"agent": agent, "target": {"kind": "session", "session": session}})
             if prompts:
+                # A message asks this session to wait again; hold the next one for that wait.
+                if not resumed and any("[reins-msg]" in prompt for prompt in prompts):
+                    expect_live_waiter(session, live_wait_grace(os.environ), agent=agent)
                 print("\n\n".join(prompts), flush=True)
+                return 0
+            if resumed and not args.task:
+                print("reins wait: this headless resume ends with its turn; the next message resumes the session "
+                      "again", file=sys.stderr)
                 return 0
             if args.task and _task_already_acknowledged(root, agent, session, args.task):
                 print(f"reins wait: task {args.task}'s callback is already acknowledged", file=sys.stderr)

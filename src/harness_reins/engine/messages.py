@@ -2,7 +2,8 @@
 
 A message becomes one ordinary callback, so delivery, target locks, ACK and
 ``reins retry`` are the ones every result already uses. Only the route differs,
-and ``wake`` decides it: ``never`` may not start a process, ``resume`` may. Limits
+and ``wake`` decides it: ``never`` may not start a process, ``resume`` may, and
+a session a job result would resume (Claude Code, managed Pi) defaults to ``resume``. Limits
 are checked at admission and any refusal stops there, with an alert for a person
 rather than a reply that could become the next turn of the same conversation.
 """
@@ -97,6 +98,7 @@ def register(queue: Path, args: argparse.Namespace, name: str, *, replace: bool)
                   "registered_at": results.timestamp(time.time()), "route": route}
         link.save_session(queue, record)
         link.save_session_environment(queue, name, resume_environment.session_environment(os.environ))
+        _expect_waiter(args)
         return record
     finally:
         queue_store.release_owner_lock(guard, remove=False)
@@ -119,8 +121,12 @@ def arrival(record: Mapping[str, object]) -> str:
     if harness == "codex":
         return "codex-queue"
     if claude_session.live_wait_agent(harness) is not None:
-        return "live" if claude_session.live_watcher_is_held(probe) else "inbox"
-    return "live" if pi_channel.live_mailbox_open(probe) else "inbox"
+        if claude_session.live_watcher_is_held(probe):
+            return "live"
+        if _live_only(str(harness)):
+            return "inbox"
+        return "window" if claude_session.open_window(session, os.environ) is not None else "resume"
+    return "live" if pi_channel.live_mailbox_open(probe) else "resume" if _managed_pi(record) else "inbox"
 
 
 def _stop(queue: Path, key: str, message: Mapping[str, object], text: str) -> rules.Refused:
@@ -163,7 +169,7 @@ def _sender(queue: Path, args: argparse.Namespace) -> tuple[Optional[str], Optio
 
 
 def send(queue: Path, args: argparse.Namespace, to: str, *, subject: Optional[str], body: str, refs: list[dict[str, str]],
-         wake: str = "never", reply_to: Optional[str] = None) -> dict[str, object]:
+         wake: Optional[str] = None, reply_to: Optional[str] = None) -> dict[str, object]:
     """Admit one message and queue its callback, or raise Refused with nothing queued."""
     rules.validate_address(to)
     rules.validate_body(body)
@@ -180,6 +186,7 @@ def send(queue: Path, args: argparse.Namespace, to: str, *, subject: Optional[st
             parent = link.load_message(queue, reply_to)
             if parent is None:
                 raise rules.Refused("unknown_name", f"no message {reply_to} on this machine")
+        wake = wake or _default_wake(target)
         limits = link.limits(queue)
         now = time.time()
         message = rules.new_message(
@@ -195,12 +202,12 @@ def send(queue: Path, args: argparse.Namespace, to: str, *, subject: Optional[st
         _admit_limits(queue, message, thread, rates, limits, now)
         effective_wake = wake
         note = None
-        if wake == "resume" and thread["resumes"] >= limits["thread_resumes"]:
-            effective_wake = "never"
-            note = f"this thread used its {limits['thread_resumes']:g} resumes, so a closed session is not started again"
         if wake == "resume" and _live_only(str(target["harness"])):
             effective_wake = "never"
             note = f"{get_agent(str(target['harness'])).display_name} cannot be resumed headless, so a closed session is not started"
+        elif wake == "resume" and target["harness"] == "pi" and not _managed_pi(target):
+            effective_wake = "never"
+            note = "only a session opened with `reins pi` can be resumed headless, so a closed one gets this when it reopens"
         message["local"] = {"name": to, "harness": target["harness"], "session": target["session"],
                             "cwd": target["cwd"], "route": target.get("route") or {}, "wake": effective_wake,
                             "note": note, "callback": ids.callback_id(str(message["id"])), "admitted_at": now}
@@ -210,20 +217,20 @@ def send(queue: Path, args: argparse.Namespace, to: str, *, subject: Optional[st
         thread["count"] = int(thread["count"]) + 1
         thread["recent"] = [at for at in thread["recent"] if now - at < 60] + [now]
         thread["last_at"] = now
-        thread["resumes"] = int(thread["resumes"]) + (1 if effective_wake == "resume" else 0)
         link.save_thread(queue, thread)
         sender_key = str(sender_name or rules.SHELL_SENDER)
         rates[sender_key] = [at for at in rates.get(sender_key, []) if now - at < 60] + [now]
         pair = f"{sender_key}>{to}"
         rates[pair] = [at for at in rates.get(pair, []) if now - at < 3600] + [now]
         link.save_rates(queue, rates)
+        _expect_waiter(args)
         return message
     finally:
         queue_store.release_owner_lock(guard, remove=False)
 
 
 def reply(queue: Path, args: argparse.Namespace, parent_id: str, *, subject: Optional[str], body: str,
-          refs: list[dict[str, str]], wake: str = "never") -> dict[str, object]:
+          refs: list[dict[str, str]], wake: Optional[str] = None) -> dict[str, object]:
     parent = link.load_message(queue, parent_id)
     if parent is None:
         raise rules.Refused("unknown_name", f"no message {parent_id} on this machine")
@@ -242,6 +249,36 @@ def reply(queue: Path, args: argparse.Namespace, parent_id: str, *, subject: Opt
 
 def _live_only(harness: str) -> bool:
     return getattr(get_agent(harness), "callback_delivery", "resume") == "live"
+
+
+def _managed_pi(target: Mapping[str, object]) -> bool:
+    """Whether this Pi session was opened by `reins pi`, the only kind that may be resumed offline."""
+    probe = {"agent": "pi", "target": targets.session(str(target.get("session"))), **dict(target.get("route") or {})}
+    try:
+        return pi_channel.owner_record(probe)[1].get("managed") is True
+    except (OSError, ValueError, KeyError):
+        return False
+
+
+def _default_wake(target: Mapping[str, object]) -> str:
+    """What a message may do when the sender does not say: what a job result would.
+
+    Codex stays on its queue: only that reaches an open Codex in its own turn, and
+    nothing tells an open thread from a closed one, so a resume could be a second writer.
+    """
+    harness = str(target["harness"])
+    if harness == "claude" or (harness == "pi" and _managed_pi(target)):
+        return "resume"
+    return "never"
+
+
+def _expect_waiter(args: argparse.Namespace) -> None:
+    """A live session that just registered or sent is about to wait; don't resume next to it first."""
+    current = current_session(args)
+    if (current is None or getattr(args, "session", None) or claude_session.live_wait_agent(current[0]) is None
+            or os.environ.get(claude_session.RESUMED_TARGET_ENV, "").strip()):
+        return
+    claude_session.expect_live_waiter(current[1], claude_session.live_wait_grace(os.environ), agent=current[0])
 
 
 def _callback_mode(harness: str, wake: str) -> str:
@@ -272,7 +309,7 @@ def _queue_callback(queue: Path, message: Mapping[str, object], environment: Opt
     prompt = envelope.render_message(
         message, callback, details, dispatch.ack_command(queue, callback),
         (dispatch.session_command(queue, "reply", message_id) + ' --message "..."') if replyable else None,
-        keep_listening=(harness == "claude" and mode == "manual") or _live_only(harness))
+        keep_listening=claude_session.live_wait_agent(harness) is not None)
     sender = message["from"]
     request: dict[str, object] = {
         "schema": records.CALLBACK_SCHEMA, "id": callback, "created_at": time.time(), "cwd": str(local["cwd"]),

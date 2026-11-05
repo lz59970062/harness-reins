@@ -38,7 +38,6 @@ DEFAULT_LIMITS = {
     "sender_per_minute": 120,
     "pair_per_hour": 60,
     "pending_messages": 1000,
-    "thread_resumes": 3,
     "ttl_days": 7,
     "retention_days": 30,
 }

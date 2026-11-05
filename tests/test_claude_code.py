@@ -19,6 +19,7 @@ from harness_reins import cli
 from harness_reins.commands import callbacks as callback_commands
 from harness_reins.engine import dispatch
 from harness_reins.engine import delivery as delivery_engine
+from harness_reins.engine import messages as messages_engine
 from harness_reins import runtime as reins_runtime
 from harness_reins.store import records as queue_store
 from harness_reins.store import layout
@@ -26,6 +27,8 @@ from harness_reins.system import shell
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
 SESSION = "3f0c9a52-claude-session"
+WINDOW_SESSION = "11111111-2222-4333-8444-555555555555"
+OTHER_WINDOW_SESSION = "66666666-7777-4888-8999-000000000000"
 
 
 def make_executable(path: Path) -> Path:
@@ -358,6 +361,112 @@ class LiveWaiterTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIn("cb-failed", output)
         self.assertTrue(layout.request_path(self.root, "pending", "cb-failed").exists())
+
+    def open_window(self, session: str = WINDOW_SESSION, **fields: object) -> Path:
+        config = self.directory / "claude"
+        sessions = config / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        path = sessions / f"{os.getpid()}.json"
+        path.write_text(json.dumps({"pid": os.getpid(), "sessionId": session, "entrypoint": "cli", **fields}),
+                        encoding="utf-8")
+        patcher = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(config)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return path
+
+    def run_hook(self, session: str = WINDOW_SESSION, *, grace: float = 0.0, **environment: str) -> tuple[int, str]:
+        stderr = io.StringIO()
+        with mock.patch.object(sys, "stdin", io.StringIO(json.dumps({"session_id": session}))), \
+                mock.patch.object(claude_session, "WINDOW_RECORD_GRACE_SECONDS", grace), \
+                mock.patch.dict(os.environ, environment), contextlib.redirect_stderr(stderr):
+            status = claude_session.hook(argparse.Namespace(queue_dir=str(self.root), poll_interval=0.01))
+        return status, stderr.getvalue()
+
+    def test_an_open_window_keeps_the_daemon_from_forking_it(self) -> None:
+        pending = self.enqueue("cb-open", session=WINDOW_SESSION)
+        record = self.open_window()
+        self.assertIsNone(delivery_engine.select_pending(self.root, time.time()))
+        record.unlink()
+        self.assertEqual(delivery_engine.select_pending(self.root, time.time()), pending)
+
+    def test_arrival_tells_an_open_window_from_a_closed_session(self) -> None:
+        record = {"harness": "claude", "session": WINDOW_SESSION}
+        self.assertEqual(messages_engine.arrival(record), "resume")
+        window = self.open_window()
+        self.assertEqual(messages_engine.arrival(record), "window")
+        watcher = claude_session.register_live_watcher(WINDOW_SESSION, prefix=claude_session.HOOK_WATCHER_PREFIX)
+        self.addCleanup(claude_session.release_live_watcher, watcher)
+        self.assertEqual(messages_engine.arrival(record), "live")
+        window.unlink()
+
+    def test_only_a_live_window_on_this_session_counts_as_open(self) -> None:
+        self.open_window(entrypoint="sdk-cli")  # A headless run, ours or anyone's, ends with its turn.
+        self.assertIsNone(claude_session.open_window(WINDOW_SESSION, os.environ))
+        self.open_window(session=OTHER_WINDOW_SESSION)
+        self.assertIsNone(claude_session.open_window(WINDOW_SESSION, os.environ))
+        record = self.open_window()
+        self.assertEqual(claude_session.open_window(WINDOW_SESSION, os.environ), os.getpid())
+        record.write_text(json.dumps({"pid": 2 ** 22 + 1, "sessionId": WINDOW_SESSION}), encoding="utf-8")
+        self.assertIsNone(claude_session.open_window(WINDOW_SESSION, os.environ))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "start ticks come from /proc")
+    def test_a_reused_pid_is_not_an_open_window(self) -> None:
+        self.open_window(procStart="1")
+        self.assertIsNone(claude_session.open_window(WINDOW_SESSION, os.environ))
+
+    def test_a_session_never_gets_two_headless_resumes_at_once(self) -> None:
+        first = self.enqueue("cb-first", session=WINDOW_SESSION)
+        self.enqueue("cb-second", session=WINDOW_SESSION)
+        self.assertEqual(delivery_engine.select_pending(self.root, time.time()), first)
+        lock = delivery_engine.acquire_target_lock(
+            {"agent": "claude", "target": {"kind": "session", "session": WINDOW_SESSION}}, blocking=False)
+        try:
+            self.assertIsNone(delivery_engine.select_pending(self.root, time.time()))
+            self.assertIsNone(delivery_engine.acquire_target_lock(
+                {"agent": "claude", "target": {"kind": "session", "session": WINDOW_SESSION}}, blocking=False))
+        finally:
+            queue_store.release_owner_lock(lock, remove=False)
+        self.assertEqual(delivery_engine.select_pending(self.root, time.time()), first)
+
+    def test_the_hook_wakes_the_window_and_does_not_repeat_itself(self) -> None:
+        self.open_window()
+        self.enqueue("cb-hook", session=WINDOW_SESSION)
+        status, output = self.run_hook()
+        self.assertEqual(status, 2)
+        self.assertIn("[reins] cb-hook", output)
+        self.assertTrue(layout.request_path(self.root, "pending", "cb-hook").exists())
+        # A turn that did not ACK ends, Stop starts the hook, and it must not wake the model again.
+        with mock.patch.object(claude_session, "open_window", return_value=None):
+            self.assertEqual(self.run_hook(), (0, ""))
+        request = json.loads(layout.request_path(self.root, "pending", "cb-hook").read_text(encoding="utf-8"))
+        request["live_delivered_at"] = time.time() - claude_session.LIVE_ACK_GRACE_SECONDS - 1
+        queue_store.write_request(layout.request_path(self.root, "pending", "cb-hook"), request)
+        with mock.patch.object(claude_session, "open_window", return_value=None):
+            self.assertEqual(self.run_hook(), (0, ""))
+
+    def test_the_hook_leaves_at_once_where_it_has_no_window(self) -> None:
+        self.enqueue("cb-hook", session=WINDOW_SESSION)
+        # A headless run does not exit while the hook lives, so a long grace must not matter.
+        for environment in ({claude_session.ENTRYPOINT_ENV: claude_session.HEADLESS_ENTRYPOINT},
+                            {claude_session.RESUMED_TARGET_ENV: f"session:{WINDOW_SESSION}"}):
+            self.assertEqual(self.run_hook(grace=60.0, **environment), (0, ""))
+        self.assertEqual(self.run_hook("not a session id", grace=60.0), (0, ""))
+        self.assertEqual(self.run_hook(grace=0.0), (2, mock.ANY))
+
+    def test_the_hook_exits_when_the_window_closes_and_stops_holding_the_daemon(self) -> None:
+        self.assertEqual(self.run_hook(), (0, ""))
+        self.assertFalse(claude_session.hook_is_held(WINDOW_SESSION))
+
+    def test_one_hook_serves_a_session_and_reins_wait_steps_aside(self) -> None:
+        self.enqueue("cb-hook", session=WINDOW_SESSION)
+        watcher = claude_session.register_live_watcher(WINDOW_SESSION, prefix=claude_session.HOOK_WATCHER_PREFIX)
+        try:
+            self.assertEqual(self.run_hook(grace=60.0), (0, ""))
+            status, output, errors = self.run_wait(session=WINDOW_SESSION)
+        finally:
+            claude_session.release_live_watcher(watcher)
+        self.assertEqual((status, output), (0, ""))
+        self.assertIn("no waiter is needed", errors)
 
     def test_wait_skips_callbacks_the_daemon_is_delivering(self) -> None:
         self.enqueue("cb-busy")

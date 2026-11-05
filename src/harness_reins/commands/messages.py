@@ -15,12 +15,14 @@ from ..store import records as queue_store
 from . import callbacks
 
 ARRIVAL_ADVICE = {
-    "claude": "Messages reach this session while `reins wait` runs in the background, or under `reins claude`. "
-              "Start it now and again after each one; until then they wait in `reins inbox`.",
+    "claude": "Messages reach this open window through the hook `reins setup` installs, under `reins claude`, or "
+              "while `reins wait` runs in the background. Without any of them a message waits for the window and "
+              "never forks it; once the window closes, it resumes the session headless.",
     "codex": "Messages reach this thread through the Codex queue, and wait there while it is closed.",
     "dsh": "Messages reach this session while `reins wait` runs as a background job. "
            "Start it now and again after each one; until then they wait in `reins inbox`.",
-    "pi": "Messages reach this session through the Reins Pi extension, and wait in `reins inbox` while it is closed.",
+    "pi": "Messages reach this session through the Reins Pi extension. While it is closed they wait for it to reopen, "
+          "or resume it headless if it was opened with `reins pi`.",
 }
 
 
@@ -82,7 +84,7 @@ def session_list(args: argparse.Namespace) -> int:
         return 0
     for row in rows:
         print(f"{row['name']:<20} {row['harness']:<7} {row['arrival']:<12} {row['cwd']}")
-    print("arrival: live = reaches it now; codex-queue = Codex delivers it; inbox = waits until it is read")
+    print("arrival: live = reaches it now; codex-queue = Codex delivers it; window = waits for this open window's next `reins wait` or for it to close; resume = a headless resume delivers it; inbox = waits until it is read")
     return 0
 
 

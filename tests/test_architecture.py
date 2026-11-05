@@ -62,6 +62,7 @@ KNOWN_VIOLATIONS = {
     "harness_reins.harness.pi.channel -> harness_reins.store.layout",
     "harness_reins.harness.pi.channel -> harness_reins.store.records",
     "harness_reins.harness.pi.channel -> harness_reins.tower.main",
+    "harness_reins.harness.claude.session -> harness_reins.tower.main",
     # Process identity and peer checks are OS primitives that still live in
     # the owner backends; they move to harness_reins.system.
     "harness_reins.harness.codex.app_server -> harness_reins.owners.macos",

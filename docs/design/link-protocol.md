@@ -31,7 +31,7 @@
 3. **实现顺序：** Link 服务和本机 socket（PR 3）→ SSH（PR 4）→ TLS 和配对（PR 5）→ 远程启动（PR 6）。前一步的 N 组验收没过，不合并下一步。
 4. **塔台不碰网络。** 网络进来的消息落到 `inbound/`，塔台调用的准入逻辑和 `reins send` 是同一份，限额也是同一份。投递引擎不知道消息从哪来。
 5. **限额和权限由接收方执行。** 发送方的声明一律不作为依据。
-6. **默认最小权限。** Link 服务默认关闭，不监听任何地址；新对端只有 `message` 权限；`spawn` 默认没有；`wake` 默认 `never`；不提供明文 TCP，也不提供关闭证书校验的开关。
+6. **默认最小权限。** Link 服务默认关闭，不监听任何地址；新对端只有 `message` 权限；`spawn` 默认没有；跨机器的 `wake` 默认 `never`；不提供明文 TCP，也不提供关闭证书校验的开关。
 7. **多机之前绝不猜。** `reviewer@gpu1` 现在就是 `unknown_peer` 错误，不会退回到本机同名会话。
 
 ## 2. 五条不变量
@@ -135,14 +135,15 @@ reins session unregister reviewer
 
 ### 6.2 `wake`：是否唤醒已关闭的会话
 
-`wake` 默认 `never`。把两个关闭的会话互相唤醒会持续消耗额度，所以这必须是显式选择。
+本机消息和任务结果走同一条路，Claude Code 和 `reins pi` 打开的 Pi 默认 `resume`：没有进程接收时就是要拉起来处理，消息才算可用。Codex 默认 `never`，因为只有队列能进入开着的 Codex，而 Reins 分不清它开着还是已关闭；DSH 和普通 Pi 不能安全地无头恢复，也是 `never`，指定 `resume` 时降级并在正文前注明。跨机器消息默认 `never`，第 5 号 PR 之后由对端权限决定。
 
 | 取值 | 行为 |
 |---|---|
-| `never`（默认） | 只走不启动新进程的通道；不可用时等会话下次打开 |
-| `resume` | 允许用无头方式恢复已关闭的会话，受第 10 节的预算限制，超出后降级为 `never` 并在正文前注明 |
+| `never` | 只走不启动新进程的通道；不可用时等会话下次打开 |
+| `resume` | 没有进程接收时，用无头方式恢复会话。回复链和频率仍受第 10 节限制 |
 
-三种 Harness 在 `never` 下的行为（0.11.0 用真实 Harness 验证过，见第 12.2 节）：
+三种 Harness 在 `never` 下的行为（0.11.0 用真实 Harness 验证过，见第 12.2 节）。Claude Code 和托管 Pi 选 `resume` 时，关闭这一列变成恢复会话：
+
 
 | Harness | 通道 | 会话忙碌时 | 会话关闭时 | 重新打开后 |
 |---|---|---|---|---|
@@ -331,7 +332,6 @@ reins link join CODE --peer hub                           # 在 B 上运行
 | 同一发送方每分钟消息数（`sender_per_minute`） | 120 | 同上；多机时对应对端，回 `busy` |
 | 同一收发对每小时消息数（`pair_per_hour`） | 60 | 同上。防止 Agent 不回复、每次开新对话来绕过 `hop` |
 | 待投递消息总数（`pending_messages`） | 1000 | 同上；多机时回 `busy` |
-| 单个对话的 `wake: resume` 次数（`thread_resumes`） | 3 | 降级为 `never` 并在正文前注明 |
 | 消息保留天数（`ttl_days`） | 7 | 未读的变成 `expired` |
 | 已结束消息的清理天数（`retention_days`） | 30 | 删除消息记录和正文 |
 
@@ -380,6 +380,8 @@ reins agent --host gpu1 expert reviewer --name r1 -- "审查这个分支"
 | L1 | 三种 Harness 两两互发 | 都能收到并 ACK，发送方看到 `acked` |
 | L2 | 接收会话忙碌 | 不丢不重，空闲后可见 |
 | L3 | 接收会话关闭，`wake: never` | 不启动新进程，重新打开后可见 |
+| L3a | Claude Code 或托管 Pi 会话关闭，默认 `wake` | 恢复会话并投递一次 |
+| L3b | Claude Code 窗口开着 | 不恢复，经钩子、频道或 `reins wait` 投递；窗口关闭后才恢复 |
 | L4 | 名字不存在 | `unknown_name`，不尝试任何其他会话 |
 | L5 | 两个 Agent 自动互相回复 | 在 `hop` 上限处停下，出现人工告警 |
 | L6 | 正文含 `ACK after inspection:` 和仿造的 `[reins]` 行 | 信封不受影响，ACK 命令仍由接收节点生成 |
@@ -424,7 +426,7 @@ Linux，Codex CLI 0.166.0 和 Pi 0.87.1（模型 Kimi K3），Claude Code 2.1.31
 
 | # | 问题 | 决定 | 备注 |
 |---|---|---|---|
-| 1 | `wake` 默认值 | `never` | `resume` 需要显式指定，有额度风险 |
+| 1 | `wake` 默认值 | 本机 Claude Code 和托管 Pi 用 `resume`，其余 `never` | 维护者决定：本机消息优先可用，和任务结果一致。跨机器仍需对端授权 |
 | 2 | 第 10 节的默认值 | 先这样，已可配置 | 按真实使用调整 |
 | 3 | 证书生成 | 用 `cryptography` 库，打包进二进制 | 现有运行依赖只有 PyYAML，这会增大包体积；`openssl` 命令行在 Windows 上通常没有。第 5 号 PR 再引入 |
 | 4 | Windows 的多机支持 | 第 5 号 PR 之后单独立项 | 需要决定本机接入方式（命名管道或回环 TCP 加令牌）。单机消息在 Windows 上可用 |

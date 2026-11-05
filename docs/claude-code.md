@@ -10,7 +10,7 @@ how a callback reaches a Claude Code session and what is needed for each route.
 | Route | How it works | Needs |
 | --- | --- | --- |
 | **Live (`reins wait`)** — recommended | The session runs `reins wait --task <id>` as a background Bash command. Claude Code wakes the session when a background command exits; `reins wait` exits as soon as the callback is queued and prints it. | Nothing beyond Reins. Works in the desktop app and the terminal CLI. |
-| **Headless fallback** | When no waiter is alive, the daemon runs `claude -p --resume <session>` from the directory where the session started. | A standalone `claude` CLI that is signed in (`claude auth login`). |
+| **Headless resume** | When the session is closed, the daemon runs `claude -p --resume <session>` from the directory where the session started, and later callbacks go into that same process. | A standalone `claude` CLI that is signed in (`claude auth login`). |
 
 A third route, the **Reins channel** (`reins claude`), pushes callbacks into a terminal session without
 any waiter; see [below](#reins-channel-research-preview).
@@ -99,6 +99,23 @@ job results and messages alike, with or without the hook. Without a hook, channe
 the window to close. Headless runs (`sdk-cli`) do not count as open, and a reused pid is told apart by its start time.
 
 The daemon's target lock keeps it to one headless resume per session; other callbacks for that session wait for it to end.
+
+## Headless resumes
+
+A closed session has at most one `claude -p --resume` at a time, and a callback that comes due while it runs goes
+into that process through Claude Code's streaming input. It arrives between model steps, or with the result of a
+command that is still running. Nothing queues for a second process, so nothing forks.
+
+- The process stays while a turn or a background task is running, and takes new callbacks until then. Reins then
+  closes its stdin and it exits.
+- A resume has no time limit by default, so unattended work can run for hours. `--resume-timeout SECONDS` on
+  `reins daemon` or `reins setup` sets one. Without one, a stuck process keeps that session's callbacks unanswered
+  until you stop it; `reins status` shows them. An upgrade keeps a limit already in a service definition until
+  `reins setup` runs again.
+- Sessions do not wait for each other: each resume runs on its own, and all of them count toward your usage.
+- A callback that went in but has no ACK when the process ends is due again at once, within the usual retry limit.
+- A CLI that refuses the streaming flags gets the callback as a plain prompt, and later callbacks wait for it to
+  exit. `claude -p` drops channel events, so the channel plays no part here.
 
 ## Reins channel (research preview)
 

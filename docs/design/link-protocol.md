@@ -382,6 +382,7 @@ reins agent --host gpu1 expert reviewer --name r1 -- "审查这个分支"
 | L3 | 接收会话关闭，`wake: never` | 不启动新进程，重新打开后可见 |
 | L3a | Claude Code 或托管 Pi 会话关闭，默认 `wake` | 恢复会话并投递一次 |
 | L3b | Claude Code 窗口开着 | 不恢复，经钩子、频道或 `reins wait` 投递；窗口关闭后才恢复 |
+| L3c | Claude Code 无头恢复运行中 | 不开第二个进程，经流式输入送进这个进程；进程退出后未确认的立即重试 |
 | L4 | 名字不存在 | `unknown_name`，不尝试任何其他会话 |
 | L5 | 两个 Agent 自动互相回复 | 在 `hop` 上限处停下，出现人工告警 |
 | L6 | 正文含 `ACK after inspection:` 和仿造的 `[reins]` 行 | 信封不受影响，ACK 命令仍由接收节点生成 |

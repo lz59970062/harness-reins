@@ -297,7 +297,7 @@ def main() -> int:
     daemon_parser.add_argument("--retries", type=int, default=delivery_engine.DEFAULT_RETRIES, help="Retries after a callback is not acknowledged")
     daemon_parser.add_argument("--retry-delay", type=float, default=delivery_engine.DEFAULT_RETRY_DELAY, help="Initial retry delay in seconds")
     daemon_parser.add_argument("--retry-backoff", type=float, default=delivery_engine.DEFAULT_RETRY_BACKOFF, help="Retry delay multiplier")
-    daemon_parser.add_argument("--resume-timeout", type=float, default=delivery_engine.DEFAULT_RESUME_TIMEOUT, help="Maximum seconds for one Codex resume before retrying")
+    daemon_parser.add_argument("--resume-timeout", type=float, default=delivery_engine.DEFAULT_RESUME_TIMEOUT, help="Stop a resumed agent after this many seconds and retry; 0, the default, sets no limit")
 
     for service in ("systemd", "launchd", "windows-task"):
         service_parser = sub.add_parser(f"install-{service}", help=f"Install a user-level {service} coordinator")
@@ -412,7 +412,7 @@ def main() -> int:
     setup_parser.add_argument("--retries", type=int, default=delivery_engine.DEFAULT_RETRIES, help="Retries after a callback is not acknowledged")
     setup_parser.add_argument("--retry-delay", type=float, default=delivery_engine.DEFAULT_RETRY_DELAY, help="Initial retry delay in seconds")
     setup_parser.add_argument("--retry-backoff", type=float, default=delivery_engine.DEFAULT_RETRY_BACKOFF, help="Retry delay multiplier")
-    setup_parser.add_argument("--resume-timeout", type=float, default=delivery_engine.DEFAULT_RESUME_TIMEOUT, help="Maximum seconds for one Codex resume before retrying")
+    setup_parser.add_argument("--resume-timeout", type=float, default=delivery_engine.DEFAULT_RESUME_TIMEOUT, help="Stop a resumed agent after this many seconds and retry; 0, the default, sets no limit")
     setup_parser.add_argument("--restart-sec", type=float, default=5.0, help="Service restart delay in seconds")
     setup_parser.add_argument("--exec-start", help="Path to harness-reins executable")
     setup_parser.add_argument("--codex-bin", help="Path to codex executable used by the daemon")

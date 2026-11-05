@@ -114,6 +114,7 @@ differs from this page about callback delivery, this page applies to Claude Code
   a signed-in standalone CLI; otherwise the callback stays queued and the next `reins wait` from this
   session (or `reins status`) picks it up. After a live delivery, the daemon waits 30 minutes for the
   ACK before it falls back.
+- **In a headless resume**, a later callback can arrive while you work on the first. Handle and ACK each one.
 - **Wait exit code 4** means the callback went to such a headless resume of this session instead: a
   second copy of the session is handling it. Do not redo its work; check `reins status` and the
   task's files, and let that copy finish before starting more work on the task.

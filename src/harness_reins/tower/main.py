@@ -58,7 +58,7 @@ def daemon_reexec_command(args: argparse.Namespace) -> list[str]:
 
 
 def daemon_has_live_delivery_workers(root: Path) -> bool:
-    if delivery_engine._BACKGROUND_RESUMES:
+    if delivery_engine._BACKGROUND_RESUMES or delivery_engine.deliveries_active():
         return True
     for path in (root / "running").glob("*.json"):
         if queue_store.delivery_lock_is_held(root, path.stem):
@@ -140,7 +140,7 @@ def daemon(args: argparse.Namespace) -> int:
             delivery_engine.recover_running(root)
             delivery_engine.reconcile_acknowledged_retained_leases(root)
             resume_environment.prune(root)
-            pi_channel.reconcile_publications(root, max(1.0, float(getattr(args, "resume_timeout", delivery_engine.DEFAULT_RESUME_TIMEOUT))))
+            pi_channel.reconcile_publications(root, delivery_engine.resume_limit(getattr(args, "resume_timeout", delivery_engine.DEFAULT_RESUME_TIMEOUT)) or delivery_engine.PUBLISHED_ACK_TIMEOUT)
             managed_work = managed_tasks.recover_managed_tasks(root)
             recovery.recover_active(root)
             messages.maintain(root)
@@ -153,7 +153,9 @@ def daemon(args: argparse.Namespace) -> int:
                 continue
             if goals.process_blocked_goal_email(root):
                 continue
-            did_work = delivery_engine.process_one(root, args)
+            # A bounded run stays in order on this thread; it has to count what it finished.
+            bounded = args.once or args.max_items is not None
+            did_work = (delivery_engine.process_one if bounded else delivery_engine.start_one)(root, args)
             if did_work:
                 processed += 1
                 if args.max_items is not None and processed >= args.max_items:

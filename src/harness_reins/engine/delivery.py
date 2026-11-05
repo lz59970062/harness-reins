@@ -9,12 +9,14 @@ import signal
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from ..core import capabilities, records
 from .. import __version__
 from ..harness.claude import session as claude_session
+from ..harness.claude import stream as claude_stream
 from ..harness.dsh import session as dsh_session
 from ..harness.pi import channel as pi_channel
 from ..harness import get_agent
@@ -35,7 +37,9 @@ from ..harness.codex import app_server
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_DELAY = 30.0
 DEFAULT_RETRY_BACKOFF = 2.0
-DEFAULT_RESUME_TIMEOUT = 3600.0
+DEFAULT_RESUME_TIMEOUT = 0.0  # No limit: unattended work may run for hours, and a stuck one only holds its session.
+# How long to wait for an answer from a process Reins did not start, which a limit of its own cannot end.
+PUBLISHED_ACK_TIMEOUT = 3600.0
 # Codex refuses a second writer for a thread whose original process still runs.
 CODEX_ACTIVE_WRITER = "already has an active writer"
 
@@ -44,11 +48,13 @@ CODEX_ACTIVE_WRITER = "already has an active writer"
 class BackgroundResume:
     process: subprocess.Popen[str]
     target_key: str
-    deadline: float
+    deadline: float | None
     request_id: str
 
 
 _BACKGROUND_RESUMES: dict[int, BackgroundResume] = {}
+# Callbacks the daemon's delivery threads own, with their targets.
+_ACTIVE_DELIVERIES: dict[str, str | None] = {}
 
 
 class TargetLeaseUnavailable(RuntimeError):
@@ -118,6 +124,11 @@ def codex_resume_command(request: dict[str, object]) -> list[str]:
 def claude_resume_command(request: dict[str, object]) -> list[str]:
     """Compatibility entrypoint for callers that explicitly request Claude."""
     return get_agent("claude").resume_command(request, os.environ)
+
+
+def resume_limit(value: object) -> float | None:
+    seconds = float(value or 0)
+    return None if seconds <= 0 else max(1.0, seconds)
 
 
 def next_attempt_at(path: Path) -> float:
@@ -319,7 +330,7 @@ def reap_background_resumes() -> None:
             finish_delivery_worker(delivery.process)
             _BACKGROUND_RESUMES.pop(pid, None)
             continue
-        if now >= delivery.deadline:
+        if delivery.deadline is not None and now >= delivery.deadline:
             print(
                 f"reins: warning: acknowledged resume {delivery.request_id} "
                 "exceeded its timeout; terminating the resume process",
@@ -347,7 +358,9 @@ def target_has_live_resume(root: Path, request: dict[str, object]) -> bool:
         return True
     if retained_target_lease_is_held(request):
         return True
-    if any(delivery.target_key == key for delivery in _BACKGROUND_RESUMES.values()):
+    if any(delivery.target_key == key for delivery in list(_BACKGROUND_RESUMES.values())):
+        return True
+    if key in list(_ACTIVE_DELIVERIES.values()):
         return True
     for state in ("running", "canceled", "failed"):
         for path in (root / state).glob("*.json"):
@@ -385,7 +398,7 @@ def waits_for_open_window(root: Path, request: dict[str, object], request_id: st
 
 def select_pending(root: Path, now: float) -> Path | None:
     for path in sorted((root / "pending").glob("*.json")):
-        if next_attempt_at(path) > now:
+        if path.stem in _ACTIVE_DELIVERIES or next_attempt_at(path) > now:
             continue
         try:
             request = json.loads(path.read_text(encoding="utf-8"))
@@ -670,7 +683,7 @@ def delivery_worker_main() -> int:
     # worker starts. A callback already skipped must not consume a sequence.
     if not (Path(str(payload["ack_path"])).exists() or Path(str(payload["canceled_path"])).exists()):
         prompt = reminder_policy.select_delivery_prompt(payload)
-    timeout = max(1.0, float(payload["timeout"]))
+    timeout = resume_limit(payload["timeout"])
     result: dict[str, object] = {"returncode": 127}
     process: subprocess.Popen[str] | None = None
     desktop_delivery: app_server.DesktopAppServerDelivery | None = None
@@ -700,7 +713,7 @@ def delivery_worker_main() -> int:
             payload["prompt"] = prompt
             result = native_queue.publish(payload)
         elif (desktop_delivery := start_desktop_app_server_turn(payload)) is not None:
-            result = wait_for_remote_delivery(payload, desktop_delivery, timeout)
+            result = wait_for_remote_delivery(payload, desktop_delivery, timeout or PUBLISHED_ACK_TIMEOUT)
         elif (isinstance(payload.get("request"), dict) and payload["request"].get("wake") == "never"
               and waits_for_open_session(Path(str(payload["queue_dir"])), payload["request"], str(payload["request"]["id"]))):
             result = {"returncode": 123, "delivery_state": "waiting_for_open"}  # it closed after selection
@@ -736,27 +749,41 @@ def delivery_worker_main() -> int:
                 # A Codex thread whose original process is still running refuses a
                 # second writer before any turn starts; that means busy, not failed.
                 codex_resume = pi_delivery is None and isinstance(request, dict) and dispatch.request_agent(request) == "codex"
-                process = subprocess.Popen(
-                    shell.process_command([str(part) for part in command]),
-                    env=resume_env,
-                    stdin=subprocess.PIPE,
-                    stdout=sys.stderr,
-                    stderr=subprocess.PIPE if codex_resume else sys.stderr,
-                    text=True,
-                    encoding="utf-8",
-                    cwd=str(payload["cwd"]),
-                    close_fds=True,
-                    **(windows_process.background_popen_kwargs() if os.name == "nt" else {"start_new_session": True}),
-                )
-                if pi_delivery is not None:
-                    pi_delivery.monitor_owner(process)
+
+                def start_resume(extra: tuple[str, ...], stdout: object) -> subprocess.Popen[str]:
+                    return subprocess.Popen(
+                        shell.process_command([*(str(part) for part in command), *extra]),
+                        env=resume_env,
+                        stdin=subprocess.PIPE,
+                        stdout=stdout,
+                        stderr=subprocess.PIPE if codex_resume else sys.stderr,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        cwd=str(payload["cwd"]),
+                        close_fds=True,
+                        **(windows_process.background_popen_kwargs() if os.name == "nt" else {"start_new_session": True}),
+                    )
+
                 try:
-                    _, errors = process.communicate(input=prompt, timeout=timeout)
-                    if errors:
-                        sys.stderr.write(errors)
-                    result = {"returncode": int(process.returncode)}
-                    if codex_resume and process.returncode != 0 and CODEX_ACTIVE_WRITER in (errors or ""):
-                        result = {"returncode": 123, "delivery_state": "waiting_for_idle"}
+                    stream_code = None
+                    if target_key is not None and dispatch.request_agent(request) == "claude":
+                        os.environ[claude_session.RESUMED_TARGET_ENV] = target_key  # Its own claims pass the lock it holds.
+                        process = start_resume(claude_stream.ARGUMENTS, subprocess.PIPE)
+                        stream_code = claude_stream.supervise(process, prompt, Path(str(payload["queue_dir"])),
+                                                              str(request["target"]["session"]), timeout)
+                    if stream_code is not None:
+                        result = {"returncode": stream_code}
+                    else:
+                        process = start_resume((), sys.stderr)
+                        if pi_delivery is not None:
+                            pi_delivery.monitor_owner(process)
+                        _, errors = process.communicate(input=prompt, timeout=timeout)
+                        if errors:
+                            sys.stderr.write(errors)
+                        result = {"returncode": int(process.returncode)}
+                        if codex_resume and process.returncode != 0 and CODEX_ACTIVE_WRITER in (errors or ""):
+                            result = {"returncode": 123, "delivery_state": "waiting_for_idle"}
                 except subprocess.TimeoutExpired:
                     terminate_process_group(process)
                     result = {"returncode": 124, "timed_out": True}
@@ -872,8 +899,8 @@ def run_resume_until_exit_or_ack(
         return None, False, False
     delivery_handle, _ = delivery_lock
     target_handle, _ = target_lock
-    timeout = max(1.0, float(getattr(args, "resume_timeout", DEFAULT_RESUME_TIMEOUT)))
-    deadline = time.monotonic() + timeout
+    timeout = resume_limit(getattr(args, "resume_timeout", DEFAULT_RESUME_TIMEOUT))
+    deadline = None if timeout is None else time.monotonic() + timeout
     payload = {
         "command": command,
         "prompt": str(request["prompt"]),
@@ -946,7 +973,7 @@ def run_resume_until_exit_or_ack(
                         and not queue_store.is_canceled(root, request_id) and desktop_submission_pending(root, request)):
                     child_returncode = 125
                 return subprocess.CompletedProcess(command, child_returncode), acked, False
-            if time.monotonic() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 stop_resume_process(process)
                 acked = layout.ack_path(root, request_id).exists()
                 code = (125 if not acked and not queue_store.is_canceled(root, request_id)
@@ -961,9 +988,39 @@ def run_resume_until_exit_or_ack(
 def process_one(root: Path, args: argparse.Namespace) -> bool:
     queue_store.ensure_daemon_dirs(root)
     path = select_pending(root, time.time())
+    return False if path is None else process_selected(root, args, path)
+
+
+def start_one(root: Path, args: argparse.Namespace) -> bool:
+    """Start the next due callback on its own thread, so a long resume holds only its session."""
+    queue_store.ensure_daemon_dirs(root)
+    path = select_pending(root, time.time())
     if path is None:
         return False
+    try:
+        request = json.loads(path.read_text(encoding="utf-8"))
+        key = callback_target_key(request) if isinstance(request, dict) else None
+    except (OSError, ValueError):
+        key = None  # The delivery itself reports a bad record.
+    _ACTIVE_DELIVERIES[path.stem] = key
 
+    def deliver() -> None:
+        try:
+            process_selected(root, args, path)
+        except Exception as exc:
+            print(f"reins: warning: delivery of {path.name} failed: {exc}", file=sys.stderr)
+        finally:
+            _ACTIVE_DELIVERIES.pop(path.stem, None)
+
+    threading.Thread(target=deliver, name=f"reins-delivery-{path.stem}", daemon=True).start()
+    return True
+
+
+def deliveries_active() -> bool:
+    return bool(_ACTIVE_DELIVERIES)
+
+
+def process_selected(root: Path, args: argparse.Namespace, path: Path) -> bool:
     request_id = path.stem
     if queue_store.is_canceled(root, request_id):
         queue_store.remove_live_request_copies(root, request_id)
@@ -1146,7 +1203,7 @@ def process_one(root: Path, args: argparse.Namespace) -> bool:
 def recover_running(root: Path) -> None:
     queue_store.ensure_daemon_dirs(root)
     for path in sorted((root / "running").glob("*.json")):
-        if queue_store.delivery_lock_is_held(root, path.stem):
+        if path.stem in _ACTIVE_DELIVERIES or queue_store.delivery_lock_is_held(root, path.stem):
             continue
         try:
             request = dispatch.load_request(path)

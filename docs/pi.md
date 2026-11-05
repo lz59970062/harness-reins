@@ -50,7 +50,7 @@ for manual recovery — never replayed automatically — when:
 | --- | --- |
 | the receiving Pi exited or closed its mailbox | it can no longer ACK |
 | the session was reopened by another process | the published envelope belongs to the old owner |
-| `--resume-timeout` (default 1 h) passed since publication | no ACK in time |
+| `--resume-timeout`, or 1 h if none is set, passed since publication | no ACK in time |
 
 If the extension had already seen the callback in the session (`session_observed`), order is kept
 and nothing needs replaying, so later callbacks for that session continue; each names the

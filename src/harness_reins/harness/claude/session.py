@@ -570,6 +570,49 @@ def _claim_pending(root: Path, agent: str, session: str, task: str | None,
     return prompts
 
 
+def claim_for_resume(root: Path, session: str) -> list[tuple[str, str]]:
+    """Callbacks a running headless resume takes in. A manual one waits to be asked for."""
+    from ...store import layout
+
+    claimed = []
+    for path in sorted((root / "pending").glob("*.json")):
+        try:
+            request = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if (not isinstance(request, dict) or not _matches(request, "claude", session, None)
+                or request.get("callback_mode") == "manual" or "live_delivered_at" in request
+                or layout.ack_path(root, path.stem).exists()):
+            continue
+        prompt = _claim(root, path)
+        if prompt is not None:
+            claimed.append((path.stem, prompt))
+    return claimed
+
+
+def release_resume_claims(root: Path, callback_ids: list[str]) -> None:
+    """The resume these went into has ended: without an ACK they are due now, not after the live grace."""
+    from ...store import records as queue_store
+    from ...store import layout
+
+    for callback_id in callback_ids:
+        path = layout.request_path(root, "pending", callback_id)
+        lock = queue_store.acquire_owner_lock(root, layout.delivery_lock_id(callback_id), blocking=False)
+        if lock is None:
+            continue
+        try:
+            request = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(request, dict) and not layout.ack_path(root, callback_id).exists():
+                request.pop("live_delivered_at", None)
+                request.pop("next_attempt_at", None)
+                request["last_deferred_reason"] = "the headless resume it went into ended without its ACK"
+                queue_store.write_request(path, request)
+        except (OSError, ValueError):
+            pass  # It was ACKed or canceled and already moved on.
+        finally:
+            queue_store.release_owner_lock(lock, remove=False)
+
+
 def hook(args: argparse.Namespace) -> int:
     """Hidden `reins _claude-hook`: Claude Code runs it in the background on SessionStart and Stop.
 

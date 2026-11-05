@@ -1,6 +1,21 @@
 # Changelog
 
-## 0.12.0 — 2026-11-05
+## 0.13.0 — 2026-11-05
+
+- A callback that comes due while a headless Claude Code resume is running now goes
+  into that process through Claude Code's streaming input, instead of waiting for it
+  to exit. There is still one process per session and no fork. Verified with Claude
+  Code 2.1.318 on Linux.
+- A long resume no longer holds up other sessions, or the daemon's own work: each
+  resume runs on its own. Running several at once also uses more model quota.
+- Resumes have no time limit by default, for Codex and Pi as well as Claude, so
+  unattended work is not killed at one hour. `--resume-timeout` still sets a limit.
+  A service installed earlier keeps its limit until `reins setup` runs again. Waiting
+  for a Pi or Codex process that Reins did not start still gives up after one hour.
+- A callback that went into a resume without being ACKed is due again as soon as that
+  resume ends, rather than after 30 minutes.
+
+## 0.12.0 — 2026-11-05 (tagged, not published to npm)
 
 - DSH is a native callback parent and child worker. `DSH_SESSION_ID` binds the
   exact conversation, `reins wait` runs as a DSH background job, and its job

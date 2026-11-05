@@ -65,14 +65,17 @@ export PATH=/opt/fake:$PATH REINS_CLAUDE_BIN=/opt/fake/claude
 mkdir -p /opt/fake
 cat >/opt/fake/claude <<'EOF'
 #!/bin/sh
-# Stands in for `claude -p --resume ...`: record what reins delivered.
+# Stands in for `claude -p --resume ... --input-format stream-json`: record what reins delivered.
 case "$1" in auth) echo '{"loggedIn": true}'; exit 0;; esac
-prompt=$(cat)
+IFS= read -r line
+prompt=$(printf '%s' "$line" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).message.content))')
 { echo "argv: $*"; echo "--- stdin ---"; echo "$prompt"; echo "--- end ---"; } >>/tmp/fake-claude.log
 # Like a real agent: inspect, then run the ACK command the callback names.
 ack=$(printf '%s\n' "$prompt" | sed -n 's/^ACK after inspection: //p')
 sh -c "$ack" >>/tmp/fake-claude.log 2>&1
-echo "fake claude received the callback"
+echo '{"type":"system","subtype":"init"}'
+echo '{"type":"result","subtype":"success","result":"fake claude received the callback"}'
+cat >/dev/null  # Claude stays until its stdin closes.
 EOF
 chmod +x /opt/fake/claude
 reins setup --backend screen --service standalone --skill-target claude --claude-bin /opt/fake/claude --now

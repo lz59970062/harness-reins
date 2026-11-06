@@ -211,6 +211,17 @@ class ServiceSandboxProbeTests(unittest.TestCase):
             running([*new, *old_flags])
             self.assertEqual(services.reload_cannot_apply("harness-reins.service", unit, proc=proc), ["daemon command"])
 
+    def test_a_script_given_as_exec_start_is_compared_as_the_kernel_runs_it(self):
+        script = self.root / "reins-console"
+        script.write_text("#!/opt/venv/bin/python3\nimport sys\n", encoding="utf-8")
+        flagged = self.root / "flagged"
+        flagged.write_text("#!/usr/bin/env python3 -u\n", encoding="utf-8")
+        self.assertEqual(service_sandbox.launched_command([str(script), "daemon", "--interval", "2.0"]),
+                         ["/opt/venv/bin/python3", str(script), "daemon", "--interval", "2.0"])
+        self.assertEqual(service_sandbox.launched_command([str(flagged), "daemon"]),
+                         ["/usr/bin/env", "python3 -u", str(flagged), "daemon"])
+        self.assertEqual(service_sandbox.launched_command(["/no/such/binary", "daemon"]), ["/no/such/binary", "daemon"])
+
     def test_setup_restarts_when_a_reload_cannot_apply_the_unit_and_defers_during_delivery(self):
         args = self.service_args(now=True, enable=False)
         for running, expected in ((False, ["restart", "harness-reins.service"]), (True, None)):

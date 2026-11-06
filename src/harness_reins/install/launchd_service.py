@@ -47,8 +47,6 @@ def running_command(pid: int) -> str | None:
 
 
 def runs_command(running: str, expected: list[str]) -> bool:
-    import os.path
-
     return running in (" ".join(expected), " ".join(os.path.realpath(part) if os.path.isabs(part) else part
                                                     for part in expected))
 

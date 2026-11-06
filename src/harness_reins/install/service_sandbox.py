@@ -176,7 +176,19 @@ def launched_command(exec_start: list[str]) -> list[str]:
         through_launcher = False
     if through_launcher and record is not None:
         return [*record["command"], *exec_start[1:]]
-    return list(exec_start)
+    return [*_interpreter_of(exec_start[0]), *exec_start]
+
+
+def _interpreter_of(path: str) -> list[str]:
+    """The kernel runs a ``#!`` script as its interpreter with the script path, so that is what the process shows."""
+    try:
+        with open(path, "rb") as handle:
+            first = handle.readline(256)
+    except OSError:
+        return []
+    if not first.startswith(b"#!"):
+        return []
+    return first[2:].decode("utf-8", "replace").strip().split(maxsplit=1)
 
 
 def same_command(expected: list[str], running: list[str]) -> bool:

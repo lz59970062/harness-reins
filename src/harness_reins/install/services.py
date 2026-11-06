@@ -229,6 +229,9 @@ def reload_cannot_apply(name: str, unit: Path, *, proc: Path = Path("/proc")) ->
     no_new_privs flag and the process environment survive it: a changed
     NoNewPrivileges (setup --allow-privilege-escalation, a drop-in) or Environment=
     line (an agent binary path, PATH) would otherwise never reach the daemon.
+    It also re-executes the daemon's own interpreter with its own arguments, so a
+    new ExecStart (an upgrade into another installation, new daemon flags) needs a
+    restart as well.
     """
     parsed = service_sandbox.read_unit(unit)
     if parsed is None or not sys.platform.startswith("linux"):
@@ -260,6 +263,15 @@ def reload_cannot_apply(name: str, unit: Path, *, proc: Path = Path("/proc")) ->
     changed = sorted(key for key, value in parsed["environment"].items() if running.get(key) != value)
     if changed:
         stale.append("environment (" + ", ".join(changed) + ")")
+    try:
+        command = (proc / pid / "cmdline").read_bytes().decode("utf-8", "replace").split("\0")
+    except OSError:
+        command = []
+    while command and command[-1] == "":
+        command.pop()
+    expected = service_sandbox.launched_command(parsed.get("exec_start") or [])
+    if expected and command and not service_sandbox.same_command(expected, command):
+        stale.append("daemon command")
     return stale
 
 

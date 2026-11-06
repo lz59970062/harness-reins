@@ -14,20 +14,17 @@ import sys
 
 from ..owners import OwnerState
 from ..owners import macos
+from . import service_sandbox
 
 
 def agent_directory() -> Path:
     return Path.home() / "Library" / "LaunchAgents"
 
 
-def service_text(args: argparse.Namespace) -> str:
-    from ..tower import environment as tower_environment
+def program_arguments(args: argparse.Namespace) -> list[str]:
     from ..tower import main as tower
-    from ..harness.codex import app_server
-    from ..store import records as queue_store
     from ..store import layout
 
-    label = macos.validate_label(args.name)
     command = tower.daemon_command(args)
     command[0] = str(Path(command[0]).expanduser().absolute())
     # Pin even the default queue: launchd does not inherit the submitting shell.
@@ -35,6 +32,35 @@ def service_text(args: argparse.Namespace) -> str:
         command[command.index("--queue-dir") + 1] = str(layout.queue_dir(args).resolve())
     else:
         command.extend(["--queue-dir", str(layout.queue_dir(args).resolve())])
+    return command
+
+
+def running_command(pid: int) -> str | None:
+    """The coordinator's command line as ps shows it: arguments joined by spaces, unquoted."""
+    try:
+        result = subprocess.run(["ps", "-ww", "-o", "command=", "-p", str(pid)], capture_output=True, text=True,
+                                check=False, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    text = result.stdout.strip()
+    return text or None
+
+
+def runs_command(running: str, expected: list[str]) -> bool:
+    import os.path
+
+    return running in (" ".join(expected), " ".join(os.path.realpath(part) if os.path.isabs(part) else part
+                                                    for part in expected))
+
+
+def service_text(args: argparse.Namespace) -> str:
+    from ..tower import environment as tower_environment
+    from ..harness.codex import app_server
+    from ..store import records as queue_store
+    from ..store import layout
+
+    label = macos.validate_label(args.name)
+    command = program_arguments(args)
     environment = tower_environment.daemon_environment(args, include_proxy_values=False)
     environment.update(CODEX_HOME=str(layout.codex_home().resolve()),
                        CLAUDE_CONFIG_DIR=str(layout.claude_home().resolve()))
@@ -85,6 +111,28 @@ def install(args: argparse.Namespace) -> int:
             return 0
 
         state, pid, registered = macos.job_status(args.name)
+        if state == OwnerState.ALIVE and pid is not None:
+            # A reload re-executes the coordinator's own command, so after an upgrade or new
+            # flags it would keep the old ones; restart it instead while nothing is delivering.
+            running = running_command(pid)
+            expected = service_sandbox.launched_command(program_arguments(args))
+            if running is not None and expected and not runs_command(running, expected):
+                if not any((layout.queue_dir(args) / "running").glob("*.json")):
+                    print("Restarting the coordinator: it runs an older command than the LaunchAgent now gives.")
+                    result = macos.launchctl(["bootout", service])
+                    if result.returncode != 0:
+                        print("reins: could not stop the running coordinator; it was left as it was", file=sys.stderr)
+                        return 1
+                    result = macos.launchctl(["bootstrap", macos.gui_domain(), str(target)])
+                    if result.returncode != 0:
+                        print("reins: LaunchAgent bootstrap failed; inspect launchctl status and daemon.log before "
+                              "retrying", file=sys.stderr)
+                        return 1
+                    print(f"Started {service}; log: {state_dir / 'daemon.log'}")
+                    return 0
+                print("reins: the coordinator runs an older command, and callback delivery is running, so it is "
+                      "only reloaded and keeps its old flags; rerun `reins setup --now` when `reins status` shows "
+                      "nothing running", file=sys.stderr)
         if state == OwnerState.ALIVE:
             if pid is not None and tower.send_standalone_reload(pid, expected_queue=layout.queue_dir(args)):
                 print("Requested coordinator reload after callback deliveries drain. LaunchAgent settings apply at next load.")

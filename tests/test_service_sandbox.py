@@ -177,6 +177,40 @@ class ServiceSandboxProbeTests(unittest.TestCase):
                 self.assertEqual(services.reload_cannot_apply("harness-reins.service", unit, proc=proc), [],
                                  "a service loaded from another unit file is not compared")
 
+    def test_a_reload_cannot_apply_a_new_daemon_command(self):
+        import json
+        from harness_reins.store import install_record
+
+        launcher = install_record.launcher_path()
+        launcher.parent.mkdir(parents=True)
+        launcher.write_text("#!/bin/sh\n", encoding="utf-8")
+        new = ["/opt/reins-0.13.1/bin/python3", "/opt/reins-0.13.1/harness_reins/_entry.py"]
+        install_record.record_path().write_text(json.dumps({"schema": install_record.INSTALL_SCHEMA, "command": new}),
+                                                encoding="utf-8")
+        unit = self.root / "harness-reins.service"
+        args = self.service_args(exec_start=str(launcher), resume_timeout=0.0)
+        unit.write_text(services.systemd_service_text(args), encoding="utf-8")
+        parsed = service_sandbox.read_unit(unit)
+        main_pid = mock.Mock(stdout=f"MainPID=4242\nFragmentPath={unit}\n")
+        proc = self.running_daemon(no_new_privs=True, environment=parsed["environment"])
+
+        def running(command: list[str]) -> None:
+            (proc / "4242" / "cmdline").write_bytes(b"\0".join(part.encode() for part in command) + b"\0")
+
+        daemon = parsed["exec_start"][1:]
+        with mock.patch.object(services.sys, "platform", "linux"), \
+                mock.patch.object(services.subprocess, "run", return_value=main_pid):
+            running([*new, *daemon])
+            self.assertEqual(services.reload_cannot_apply("harness-reins.service", unit, proc=proc), [])
+            # Upgraded into another installation: a reload would re-execute the old interpreter.
+            running(["/opt/reins-0.12.0/bin/python3", "/opt/reins-0.12.0/harness_reins/_entry.py", *daemon])
+            self.assertEqual(services.reload_cannot_apply("harness-reins.service", unit, proc=proc), ["daemon command"])
+            # Same installation, new flags: a reload would keep the old --resume-timeout.
+            old_flags = [part if part != "0.0" else "3600.0" for part in daemon]
+            self.assertNotEqual(old_flags, daemon)
+            running([*new, *old_flags])
+            self.assertEqual(services.reload_cannot_apply("harness-reins.service", unit, proc=proc), ["daemon command"])
+
     def test_setup_restarts_when_a_reload_cannot_apply_the_unit_and_defers_during_delivery(self):
         args = self.service_args(now=True, enable=False)
         for running, expected in ((False, ["restart", "harness-reins.service"]), (True, None)):

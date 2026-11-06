@@ -9,6 +9,7 @@ records with ``--version`` in a transient unit that carries the same properties.
 from __future__ import annotations
 
 import os
+import shlex
 from pathlib import Path
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from ..harness.claude.adapter import CLAUDE_BIN_ENV
 from ..harness.dsh.adapter import DSH_BIN_ENV
 from ..harness.pi.adapter import PI_BIN_ENV
 from ..owners import linux as linux_platform
+from ..store import install_record
 
 HARDENING = ("NoNewPrivileges=yes",)
 OPT_OUT_FLAG = "--allow-privilege-escalation"
@@ -133,10 +135,16 @@ def read_unit(path: Path) -> dict[str, object] | None:
     except (OSError, UnicodeDecodeError):
         return None
     environment: dict[str, str] = {}
+    exec_start: list[str] = []
     for line in lines:
         if line.startswith("Environment="):
             name, _, value = _unquote(line.removeprefix("Environment=")).partition("=")
             environment[name] = value
+        elif line.startswith("ExecStart=") and not exec_start:
+            try:
+                exec_start = shlex.split(line.removeprefix("ExecStart="))
+            except ValueError:
+                exec_start = []
     hardening = tuple(item for item in HARDENING if item in lines)
     dropin = dropin_overrides(path).get("NoNewPrivileges")
     if dropin in ("no", "false", "0", "off"):
@@ -145,10 +153,41 @@ def read_unit(path: Path) -> dict[str, object] | None:
         hardening += ("NoNewPrivileges=yes",)
     return {
         "environment": environment,
+        "exec_start": exec_start,
         "hardening": hardening,
         "allows_privilege_escalation": OPT_OUT_COMMENT in lines,
         "dropin_disables_hardening": dropin in ("no", "false", "0", "off"),
     }
+
+
+def launched_command(exec_start: list[str]) -> list[str]:
+    """What a service's command line ends up running, through the launcher ``reins setup`` writes.
+
+    A hot reload re-executes the running daemon's own command, so a service whose
+    command changed (an upgrade into another installation, new daemon flags) needs
+    a restart; comparing this with the running process tells which.
+    """
+    if not exec_start:
+        return []
+    record = install_record.read()
+    try:
+        through_launcher = Path(exec_start[0]).resolve() == install_record.launcher_path().resolve()
+    except OSError:
+        through_launcher = False
+    if through_launcher and record is not None:
+        return [*record["command"], *exec_start[1:]]
+    return list(exec_start)
+
+
+def same_command(expected: list[str], running: list[str]) -> bool:
+    """Equal argument for argument, a path also when both resolve to the same file."""
+    if len(expected) != len(running):
+        return False
+    for want, have in zip(expected, running):
+        if want != have and not (os.path.isabs(want) and os.path.isabs(have)
+                                 and os.path.realpath(want) == os.path.realpath(have)):
+            return False
+    return True
 
 
 def recorded_binaries(environment: dict[str, str]) -> dict[str, str]:

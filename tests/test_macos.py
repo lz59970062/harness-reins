@@ -217,10 +217,43 @@ class MacOSContracts(unittest.TestCase):
             macos, "launchctl", return_value=subprocess.CompletedProcess([], 0)
         ) as control, mock.patch.object(macos, "job_status", return_value=(OwnerState.ALIVE, 1234, True)), mock.patch.object(
             tower, "send_standalone_reload", return_value=True
-        ) as reload, contextlib.redirect_stdout(io.StringIO()):
+        ) as reload, mock.patch.object(launchd_service, "running_command", return_value=None), \
+                contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(launchd_service.install(self.arguments()), 0)
         reload.assert_called_once_with(1234, expected_queue=self.queue)
         control.assert_called_once_with(["enable", f"{macos.gui_domain()}/reins-test"])
+
+    def install_with_running(self, running, *, delivering=False):
+        if delivering:
+            (self.queue / "running").mkdir(parents=True, exist_ok=True)
+            (self.queue / "running" / "cb-1.json").write_text("{}", encoding="utf-8")
+        with mock.patch.object(launchd_service, "agent_directory", return_value=self.directory / "agents"), mock.patch.object(
+            layout, "daemon_state_dir", return_value=self.directory / "state"
+        ), mock.patch.object(tower_environment, "configure_proxy_environment"), mock.patch.object(
+            macos, "launchctl", return_value=subprocess.CompletedProcess([], 0)
+        ) as control, mock.patch.object(macos, "job_status", return_value=(OwnerState.ALIVE, 1234, True)), mock.patch.object(
+            tower, "send_standalone_reload", return_value=True
+        ) as reload, mock.patch.object(launchd_service, "running_command", return_value=running), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as errors:
+            self.assertEqual(launchd_service.install(self.arguments()), 0)
+        return [call.args[0][0] for call in control.call_args_list], reload, errors.getvalue()
+
+    def test_a_coordinator_already_running_the_new_command_is_only_reloaded(self):
+        expected = " ".join(launchd_service.program_arguments(self.arguments()))
+        calls, reload, _ = self.install_with_running(expected)
+        self.assertEqual(calls, ["enable"])
+        reload.assert_called_once()
+
+    def test_a_coordinator_running_an_older_command_is_restarted(self):
+        calls, reload, _ = self.install_with_running("/old/python /old/_entry.py daemon --resume-timeout 3600.0")
+        self.assertEqual(calls, ["enable", "bootout", "bootstrap"])
+        reload.assert_not_called()
+
+    def test_an_older_coordinator_is_not_restarted_while_it_delivers(self):
+        calls, reload, errors = self.install_with_running("/old/python /old/_entry.py daemon", delivering=True)
+        self.assertEqual(calls, ["enable"])
+        reload.assert_called_once()
+        self.assertIn("keeps its old flags", errors)
 
     def test_mac_screen_uses_system_compatible_logging_with_literal_arguments(self):
         argv = [str(self.directory / "literal python"), "entry.py", "--task-file", "/tmp/$value;literal"]

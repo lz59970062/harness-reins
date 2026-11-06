@@ -1,6 +1,17 @@
 # Changelog
 
-## 0.13.0 — 2026-11-06
+## 0.13.1 — 2026-11-06
+
+- `reins setup --now` restarts the daemon when the service now runs a different
+  command, as after an upgrade into another installation or with new daemon flags.
+  A reload re-executes the running daemon's own interpreter and arguments, so
+  upgrading to 0.13.0 and running `reins setup` kept the old installation and the old
+  `--resume-timeout 3600`. Linux compares the running process with the unit, macOS
+  with the LaunchAgent. While a callback is being delivered the daemon is not
+  restarted: Linux setup says so and leaves it, macOS reloads it and asks you to run
+  `reins setup --now` again later.
+
+## 0.13.0 — 2026-11-06 (tagged; publish 0.13.1 instead)
 
 - A callback that comes due while a headless Claude Code resume is running now goes
   into that process through Claude Code's streaming input, instead of waiting for it

@@ -236,9 +236,11 @@ def process_goal_reminders(root: Path) -> bool:
             sequence = int(goal.get("reminder_sequence", 0)) + 1
             goal["reminder_sequence"] = sequence
             write_goal(root, goal)
+            # A goal started before 0.13.0 has no route and keeps the CLI one it always had.
+            route = goal.get("route") if isinstance(goal.get("route"), dict) else {"callback_mode": "cli"}
             request = {
                 "schema": records.CALLBACK_SCHEMA, "id": ids.callback_id(ids.goal_root(goal_id), sequence),
-                "created_at": now, "cwd": goal["cwd"], "callback_mode": "cli", "requires": [capabilities.CLI_RESUME],
+                "created_at": now, "cwd": goal["cwd"], **route, "requires": capabilities.required_for(route),
                 "agent": goal.get("agent", "codex"),
                 "target": goal["target"],
                 "origin": targets.origin(goal.get("agent", "codex"), str(targets.session_of(goal["target"])), goal["cwd"],

@@ -25,6 +25,8 @@ Reins resumes this thread with the permissions recorded when you submit (`worksp
 
 - Reliably done within 60 seconds → run it in the foreground once. No Reins.
 - About a minute or longer, uncertain duration, or might need a second check → `reins run` from the start.
+- More than one job or turn to finish (train → evaluate → report, several benchmark runs, build →
+  test → publish), or left to run unattended → start a goal before the first job, see below.
 - Waiting for time to pass (a real-time clock, a schedule, a cooldown) is a long job too: submit the
   wait, `reins run --cwd "$PWD" --task "wait for hour 12" -- sleep 900`.
 - Never wait inside this turn: no `sleep` longer than about a minute, no loops of `sleep` plus a
@@ -71,6 +73,34 @@ Reins resumes this thread with the permissions recorded when you submit (`worksp
 
 4. **Stop a task early** by killing its process (`pkill -f '<its command>'`); `reins cancel` cancels
    only the callback, not the workload. The callback still arrives with the exit status; ACK it.
+
+## Several steps: start a goal
+
+Most real requests are more than one job: train then evaluate, a sweep of runs, build then test then
+publish, anything the user leaves running overnight. Start a goal for them, before the first
+`reins run`. It costs two commands and is the safety net for unattended work:
+
+- If no callback has arrived for 3 hours, Reins sends {'claude': 'you', 'codex': 'this thread', 'pi': 'this session', 'dsh': 'this session'} a `[goal-inactivity-reminder]` naming the
+  plan's current item. A job that died quietly, or a step that was never started, is noticed even
+  when nothing else would wake {'claude': 'you', 'codex': 'this thread', 'pi': 'this session', 'dsh': 'this session'}.
+- The YAML plan carries the path across turns and resumes: a resumed session reads what is done and
+  what comes next instead of guessing.
+
+```bash
+mkdir -p .reins/goals    # write .reins/goals/<goal-id>.yaml: version, revision, goal, path, amendments
+reins goal start --id <goal-id> --session "$CODEX_THREAD_ID" --cwd "$PWD" \
+  --task "what the user asked for" --plan-file .reins/goals/<goal-id>.yaml
+reins run --goal-id <goal-id> --cwd "$PWD" --task "step 1" -- ...
+```
+
+- Bind every job of the goal with `--goal-id <goal-id>`, and update the YAML after each item.
+- On a reminder: `reins goal check --id <goal-id>`, compare the plan with the real work and files,
+  then continue with the current item.
+- Done: `reins goal check`, then `reins goal ack --id <goal-id> --state completed --plan-sha256 <sha>`.
+  Waiting on something only the user can give: `reins goal ack --id <goal-id> --state blocked_conditions
+  --condition "..."`. A callback ACK never completes a goal.
+- Skip the goal only when one job's result finishes the whole request. The plan schema and the
+  remaining commands are in REFERENCE.md ("Goal acknowledgement").
 
 ## Other entry points
 

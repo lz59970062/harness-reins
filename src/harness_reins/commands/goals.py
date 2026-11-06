@@ -11,6 +11,7 @@ from ..store import layout
 from ..store import records as queue_store
 from ..engine import dispatch
 from ..engine import goals
+from ..engine import routes
 
 
 def goal_start(args: argparse.Namespace) -> int:
@@ -33,6 +34,13 @@ def goal_start(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"reins: error: {exc}", file=sys.stderr)
         return 2
+    try:
+        # Reminders go the way this session's job results go: a Codex Desktop thread through its
+        # queue, a Pi session through its channel, the rest through the CLI.
+        route = routes.selection(args)
+    except ValueError as exc:
+        print(f"reins: error: {exc}", file=sys.stderr)
+        return 2
     lock = queue_store.acquire_owner_lock(root, layout.goal_lock_id(goal_id), blocking=True)
     try:
         if path.exists():
@@ -43,7 +51,7 @@ def goal_start(args: argparse.Namespace) -> int:
                           "target_source": source, "agent": dispatch.resolve_agent(args), "state": "active", "created_at": now,
                           "last_external_callback_at": now, "idle_seconds": args.idle_seconds,
                           "plan_file": str(plan_path), "plan_goal": plan["goal"],
-                          "plan_sha256_at_start": plan_digest})
+                          "plan_sha256_at_start": plan_digest, "route": route})
     finally:
         queue_store.release_owner_lock(lock, remove=False)
     print(goal_id)

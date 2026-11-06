@@ -14,6 +14,9 @@ from types import SimpleNamespace
 from unittest import mock
 
 from harness_reins.commands import callbacks
+from harness_reins.commands import goals as goal_commands
+from harness_reins.core import capabilities
+from harness_reins.engine import goals
 from harness_reins.engine import delivery as delivery_engine
 from harness_reins.engine import dispatch
 from harness_reins.engine import messages as message_engine
@@ -191,6 +194,53 @@ class OrphanWaiterTests(LiveCase):
                 mock.patch.object(claude_session, "open_window", return_value=None), \
                 contextlib.redirect_stderr(stderr):
             self.assertEqual(claude_session.wait(args), 3)
+
+
+class GoalRouteTests(LiveCase):
+    PLAN = ("version: 1\nrevision: 1\ngoal: Ship it\npath:\n  - id: build\n    title: Build\n    status: pending\n"
+            "amendments:\n  - revision: 1\n    reason: Initial path\n")
+
+    def start_goal(self, agent: str) -> dict[str, object]:
+        plan = self.directory / "plan.yaml"
+        plan.write_text(self.PLAN, encoding="utf-8")
+        args = argparse.Namespace(queue_dir=str(self.root), id="g1", session="thread-1", agent=agent, last=False,
+                                  cwd=str(self.directory), task="ship it", plan_file=str(plan), idle_seconds=60.0)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(goal_commands.goal_start(args), 0)
+        goal = goals.load_goal(self.root, "g1")
+        goal["last_external_callback_at"] = time.time() - 120
+        goals.write_goal(self.root, goal)
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertTrue(goals.process_goal_reminders(self.root))
+        (reminder,) = (self.root / "pending").glob("*.json")
+        return dispatch.load_request(reminder)
+
+    def test_a_reminder_takes_the_route_the_sessions_results_take(self) -> None:
+        with mock.patch.dict(os.environ, {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}):
+            reminder = self.start_goal("codex")
+        self.assertEqual(reminder["callback_mode"], "codex-queue")
+        self.assertIn(capabilities.CODEX_QUEUE, reminder["requires"])
+
+    def test_a_cli_session_keeps_the_cli_route(self) -> None:
+        reminder = self.start_goal("claude")
+        self.assertEqual(reminder["callback_mode"], "cli")
+        self.assertEqual(reminder["requires"], [capabilities.CLI_RESUME])
+
+    def test_a_goal_from_before_routes_were_recorded_still_reminds_through_the_cli(self) -> None:
+        plan = self.directory / "plan.yaml"
+        plan.write_text(self.PLAN, encoding="utf-8")
+        args = argparse.Namespace(queue_dir=str(self.root), id="g1", session="thread-1", agent="codex", last=False,
+                                  cwd=str(self.directory), task="ship it", plan_file=str(plan), idle_seconds=60.0)
+        with contextlib.redirect_stdout(io.StringIO()):
+            goal_commands.goal_start(args)
+        goal = goals.load_goal(self.root, "g1")
+        goal.pop("route")
+        goal["last_external_callback_at"] = time.time() - 120
+        goals.write_goal(self.root, goal)
+        with contextlib.redirect_stderr(io.StringIO()):
+            goals.process_goal_reminders(self.root)
+        (reminder,) = (self.root / "pending").glob("*.json")
+        self.assertEqual(dispatch.load_request(reminder)["callback_mode"], "cli")
 
 
 class StatusTests(LiveCase):

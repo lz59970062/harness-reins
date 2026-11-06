@@ -39,7 +39,7 @@ reins goal start --id baseline-report --agent codex --session "$CODEX_THREAD_ID"
 reins run --goal-id baseline-report --cwd "$PWD" --task "训练基线" -- python train.py
 ```
 
-任务结束后，Agent 读取结果、确认回调并更新计划文件。活跃目标默认每三小时收到一次进度询问，帮助原会话继续处理当前步骤。
+任务结束后，Agent 读取结果、确认回调并更新计划文件。活跃目标默认每三小时收到一次进度询问，帮助原会话继续处理当前步骤。询问和作业结果走同一条路线，Codex Desktop 线程和 Pi 会话也能收到。
 
 ## 完成目标
 

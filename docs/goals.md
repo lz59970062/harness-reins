@@ -71,6 +71,8 @@ the final check and completion ACK.
 Callback ACK never completes the goal. While an active goal has no newly queued ordinary callback,
 the daemon automatically asks the same conversation for its status every three hours by default.
 The agent must continue, ACK the goal as completed, or record the exact blocked condition. This
-inquiry behavior also applies after reboot recovery.
+inquiry behavior also applies after reboot recovery. The inquiry reaches the conversation the same
+way its job results do: through the queue of a Codex Desktop thread, the channel of a Pi session,
+the hook or a resume for Claude Code. The route is recorded when the goal starts.
 
 Bind a submitted task or an external completion callback with `--goal-id <goal-id>`.

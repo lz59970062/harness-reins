@@ -37,6 +37,12 @@
   again. The hook now leaves before then: if a task from that session is still running,
   it has an active goal or it has a name, it wakes the window once with a note that needs no reply,
   which starts it again; otherwise it exits quietly.
+- A goal's 3-hour inactivity reminder now reaches the session the way its job results
+  do: a Codex Desktop thread through its queue, a Pi session through its channel. It
+  always used the CLI route, which an open Desktop thread refuses. Goals started
+  earlier keep the CLI route.
+- The skills ask agents to start a goal before the first job of any request that needs
+  several jobs or turns, or runs unattended, and Codex and Pi now explain goals at all.
 - `reins status` lists failed callbacks too, with the retry and cancel commands. They
   are where automatic delivery gave up, and were hidden before.
 - `reins run` and message envelopes no longer ask for `reins wait` where the hook is

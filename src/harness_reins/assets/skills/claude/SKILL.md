@@ -18,6 +18,8 @@ differs from this page about callback delivery, this page applies to Claude Code
 
 - Reliably done within 60 seconds → run it in the foreground once. No Reins.
 - About a minute or longer, uncertain duration, or might need a second check → `reins run` from the start.
+- More than one job or turn to finish (train → evaluate → report, several benchmark runs, build →
+  test → publish), or left to run unattended → start a goal before the first job, see below.
 - Never keep a job alive by polling it with `sleep`/`tail`, and never leave a long job owned by a
   `run_in_background` Bash shell: it dies with the session and is not recovered.
 - Never start a long job, or a script that waits for one, with `nohup ... &`, `setsid`, `disown` or
@@ -73,6 +75,34 @@ differs from this page about callback delivery, this page applies to Claude Code
    background `reins wait --task <new-id>`. Inspect existing processes and outputs first: delivery is
    at-least-once.
 
+## Several steps: start a goal
+
+Most real requests are more than one job: train then evaluate, a sweep of runs, build then test then
+publish, anything the user leaves running overnight. Start a goal for them, before the first
+`reins run`. It costs two commands and is the safety net for unattended work:
+
+- If no callback has arrived for 3 hours, Reins sends {'claude': 'you', 'codex': 'this thread', 'pi': 'this session', 'dsh': 'this session'} a `[goal-inactivity-reminder]` naming the
+  plan's current item. A job that died quietly, or a step that was never started, is noticed even
+  when nothing else would wake {'claude': 'you', 'codex': 'this thread', 'pi': 'this session', 'dsh': 'this session'}.
+- The YAML plan carries the path across turns and resumes: a resumed session reads what is done and
+  what comes next instead of guessing.
+
+```bash
+mkdir -p .reins/goals    # write .reins/goals/<goal-id>.yaml: version, revision, goal, path, amendments
+reins goal start --id <goal-id> --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD" \
+  --task "what the user asked for" --plan-file .reins/goals/<goal-id>.yaml
+reins run --goal-id <goal-id> --cwd "$PWD" --task "step 1" -- ...
+```
+
+- Bind every job of the goal with `--goal-id <goal-id>`, and update the YAML after each item.
+- On a reminder: `reins goal check --id <goal-id>`, compare the plan with the real work and files,
+  then continue with the current item.
+- Done: `reins goal check`, then `reins goal ack --id <goal-id> --state completed --plan-sha256 <sha>`.
+  Waiting on something only the user can give: `reins goal ack --id <goal-id> --state blocked_conditions
+  --condition "..."`. A callback ACK never completes a goal.
+- Skip the goal only when one job's result finishes the whole request. The plan schema and the
+  remaining commands are in REFERENCE.md ("Goal acknowledgement").
+
 ## Other entry points
 
 - **Fresh child agent** (independent review, test authoring, a parallel fix):
@@ -125,8 +155,7 @@ differs from this page about callback delivery, this page applies to Claude Code
   never touches callbacks bound to other agents.
 - **Do not** call `claude -p --resume` yourself, add `--via-daemon`, or invent launch flags. Callback
   problems never change the task's own exit code unless the user asks for `--strict`.
-- **Long objectives with several stages**: use `reins goal start|check|ack` with a YAML plan file, see
-  REFERENCE.md ("Goal acknowledgement"). Callback ACK never completes a goal.
+- **Several stages or unattended work**: start a goal first ("Several steps: start a goal").
 
 ## Messages from other sessions
 

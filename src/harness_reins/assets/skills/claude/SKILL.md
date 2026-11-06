@@ -79,11 +79,11 @@ differs from this page about callback delivery, this page applies to Claude Code
 
 Most real requests are more than one job: train then evaluate, a sweep of runs, build then test then
 publish, anything the user leaves running overnight. Start a goal for them, before the first
-`reins run`. It costs two commands and is the safety net for unattended work:
+`reins run`. It takes a minute and is the safety net for unattended work:
 
-- If no callback has arrived for 3 hours, Reins sends {'claude': 'you', 'codex': 'this thread', 'pi': 'this session', 'dsh': 'this session'} a `[goal-inactivity-reminder]` naming the
+- If no callback has arrived for 3 hours, Reins sends you a `[goal-inactivity-reminder]` naming the
   plan's current item. A job that died quietly, or a step that was never started, is noticed even
-  when nothing else would wake {'claude': 'you', 'codex': 'this thread', 'pi': 'this session', 'dsh': 'this session'}.
+  when nothing else would wake you.
 - The YAML plan carries the path across turns and resumes: a resumed session reads what is done and
   what comes next instead of guessing.
 

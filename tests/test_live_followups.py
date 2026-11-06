@@ -265,6 +265,17 @@ class HookWordingTests(LiveCase):
         self.assertFalse(claude_session.hook_delivers("dsh"))
 
 
+class SkillTextTests(unittest.TestCase):
+    def test_every_skill_names_its_own_session_and_has_no_unfilled_placeholder(self) -> None:
+        skills_dir = Path(skills.__file__).parents[1] / "assets" / "skills"
+        for agent, variable in (("claude", "CLAUDE_CODE_SESSION_ID"), ("codex", "CODEX_THREAD_ID"),
+                                ("pi", "PI_SESSION_ID"), ("dsh", "DSH_SESSION_ID")):
+            text = (skills_dir / agent / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("## Several steps: start a goal", text, agent)
+            self.assertIn(f'--session "${variable}"', text, agent)
+            self.assertNotIn("{'", text, agent)
+
+
 class WindowsReadRetryTests(unittest.TestCase):
     def test_a_read_during_a_replace_is_retried(self) -> None:
         attempts = []

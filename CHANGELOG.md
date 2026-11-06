@@ -1,19 +1,49 @@
 # Changelog
 
-## 0.13.0 — 2026-11-05
+## 0.13.0 — 2026-11-06
 
 - A callback that comes due while a headless Claude Code resume is running now goes
   into that process through Claude Code's streaming input, instead of waiting for it
   to exit. There is still one process per session and no fork. Verified with Claude
   Code 2.1.318 on Linux.
 - A long resume no longer holds up other sessions, or the daemon's own work: each
-  resume runs on its own. Running several at once also uses more model quota.
+  resume runs on its own. Up to eight wait for their ACK at once (`--max-resumes`, 0
+  for no cap), so a burst of results does not start a model session for each at the
+  same moment; the rest wait for a slot. A resume that has ACKed and works on takes no
+  slot, and ACKed callbacks are still finished at once.
 - Resumes have no time limit by default, for Codex and Pi as well as Claude, so
   unattended work is not killed at one hour. `--resume-timeout` still sets a limit.
   A service installed earlier keeps its limit until `reins setup` runs again. Waiting
   for a Pi or Codex process that Reins did not start still gives up after one hour.
+- A streamed Claude resume that stops making progress is ended and retried: no stream
+  event for 30 minutes while it waits on the model or fails to exit after its input
+  closes, or 4 hours while a foreground tool runs (`--resume-stall`, 0 to turn it off).
+  A background task may run quiet as long as it needs. Codex and Pi resumes, and a
+  Claude CLI too old for streaming input, have no such check; give them
+  `--resume-timeout` if one can hang.
 - A callback that went into a resume without being ACKed is due again as soon as that
-  resume ends, rather than after 30 minutes.
+  resume ends, rather than after 30 minutes. The same holds for one the hook or
+  `reins wait` showed to a window that then closed. The daemon checks for an open
+  window again just before it resumes, so a window closed and reopened in between
+  is not forked.
+- The hook raises a callback that stays unACKed in an open window again after 30
+  minutes, at most twice.
+- A background `reins wait` whose window has closed exits within seconds. Before, a
+  shell left behind by the window kept it alive, its lock kept the daemon from
+  resuming the session, and the callback reached no one.
+- The Claude Code skill forbids starting long work with `nohup ... &`, `setsid` or
+  `disown`, which nothing tracks: such a job ends unseen.
+- Claude Code stops a hook after a week, and only the window's next turn starts it
+  again. The hook now leaves before then: if a task from that session is still running
+  or the session has a name, it wakes the window once with a note that needs no reply,
+  which starts it again; otherwise it exits quietly.
+- `reins status` lists failed callbacks too, with the retry and cancel commands. They
+  are where automatic delivery gave up, and were hidden before.
+- `reins run` and message envelopes no longer ask for `reins wait` where the hook is
+  installed and the session is an open window.
+- Windows: a read of a task or callback record that lands while it is being replaced,
+  and a replace that lands while it is being read, are retried for up to 2 seconds
+  instead of failing with `PermissionError`.
 
 ## 0.12.0 — 2026-11-05 (tagged, not published to npm)
 
@@ -50,7 +80,9 @@
   channel or waiter, one now waits for the window instead of being handled beside it.
 - `reins setup` adds a Claude Code hook that delivers into the open window and wakes
   it when idle, with no `reins wait`. Verified in the terminal with Claude Code
-  2.1.318; the desktop app has not been tested yet.
+  2.1.318 and in the desktop app (Linux over SSH, CLI 2.1.309): results and
+  messages reach the open window within a second, with no headless resume and no
+  fork. Resuming a closed desktop session has not been tested yet.
   `--no-claude-hook` skips it; `reins install-claude-hook [--remove]` manages it.
 
 ## 0.11.0 — 2026-11-03

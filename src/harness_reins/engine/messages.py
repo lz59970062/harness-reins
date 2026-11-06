@@ -10,6 +10,7 @@ rather than a reply that could become the next turn of the same conversation.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
@@ -24,6 +25,7 @@ from ..harness.claude import session as claude_session
 from ..harness.claude.adapter import CLAUDE_PERMISSION_MODE_ENV
 from ..harness.pi import channel as pi_channel
 from ..store import layout, link
+from ..system import files
 from ..store import records as queue_store
 from . import dispatch, native_queue, recovery, resume_environment, routes
 
@@ -50,6 +52,25 @@ def name_of(queue: Path, harness: str, session: str) -> Optional[str]:
         if record.get("harness") == harness and record.get("session") == session:
             return str(record["name"])
     return None
+
+
+ACTIVE_TASK_STATES = ("submitted", "launching", "running")
+
+
+def expects_callbacks(queue: Path, harness: str, session: str) -> bool:
+    """Whether something may still call back into this session: a task it started, or a name messages reach."""
+    if name_of(queue, harness, session) is not None:
+        return True
+    for path in layout.managed_tasks_root(queue).glob("*/task.json"):
+        try:
+            task = json.loads(files.read_text(path))
+        except (OSError, ValueError):
+            continue
+        target = task.get("target") if isinstance(task, dict) else None
+        if (isinstance(target, dict) and target.get("session") == session
+                and task.get("agent") == harness and task.get("state") in ACTIVE_TASK_STATES):
+            return True
+    return False
 
 
 def _route(harness: str) -> dict[str, object]:
@@ -309,7 +330,7 @@ def _queue_callback(queue: Path, message: Mapping[str, object], environment: Opt
     prompt = envelope.render_message(
         message, callback, details, dispatch.ack_command(queue, callback),
         (dispatch.session_command(queue, "reply", message_id) + ' --message "..."') if replyable else None,
-        keep_listening=claude_session.live_wait_agent(harness) is not None)
+        keep_listening=claude_session.live_wait_agent(harness) is not None and not claude_session.hook_delivers(harness))
     sender = message["from"]
     request: dict[str, object] = {
         "schema": records.CALLBACK_SCHEMA, "id": callback, "created_at": time.time(), "cwd": str(local["cwd"]),

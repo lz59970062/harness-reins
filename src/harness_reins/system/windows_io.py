@@ -229,15 +229,25 @@ def open_private_text(path: Path) -> TextIO:
     return _file_from_handle(handle, writable_only=True)
 
 
+# A reader holds a record only for the moment it takes to read it.
+SHARING_RETRY_SECONDS = 2.0
+_SHARING_ERRORS = (5, 32)  # ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION
+
+
 def replace_file(source: Path, destination: Path) -> None:
     """Replace within a volume without copy fallback; request write-through.
 
-    Open readers that deny FILE_SHARE_DELETE can cause a sharing violation.
-    Failure is reported to the caller and does not remove the old destination.
+    Open readers that deny FILE_SHARE_DELETE cause a sharing violation; it is
+    retried briefly. Failure is reported to the caller and does not remove the
+    old destination.
     """
     require_windows("Windows atomic publication")
-    if not _kernel.MoveFileExW(_path(source), _path(destination), 0x1 | 0x8):
-        raise _winerror()
+    deadline = time.monotonic() + SHARING_RETRY_SECONDS
+    while not _kernel.MoveFileExW(_path(source), _path(destination), 0x1 | 0x8):
+        code = ctypes.get_last_error()
+        if code not in _SHARING_ERRORS or time.monotonic() >= deadline:
+            raise _winerror(code)
+        time.sleep(0.02)
 
 
 def fsync_directory(path: Path) -> None:

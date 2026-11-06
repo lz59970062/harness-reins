@@ -636,6 +636,8 @@ def setup(args: argparse.Namespace) -> int:
         retry_delay=args.retry_delay,
         retry_backoff=args.retry_backoff,
         resume_timeout=getattr(args, "resume_timeout", delivery_engine.DEFAULT_RESUME_TIMEOUT),
+        resume_stall=getattr(args, "resume_stall", delivery_engine.DEFAULT_RESUME_STALL),
+        max_resumes=getattr(args, "max_resumes", delivery_engine.DEFAULT_MAX_RESUMES),
         restart_sec=args.restart_sec,
         exec_start=args.exec_start,
         codex_bin=args.codex_bin,

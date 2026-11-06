@@ -74,20 +74,33 @@ the callback went to a headless resume of this session (see below) and is handle
 - The waiter claims a callback with the same atomic `pending → running` move the daemon uses, so a
   callback is never delivered by both at once.
 - After printing, the callback returns to `pending` and the daemon waits 30 minutes for the ACK
-  before resuming its normal retries. `reins ack` moves it straight to `done`.
+  before resuming its normal retries, or less if the window closes first: then it is due at once.
+  `reins ack` moves it straight to `done`.
+- A waiter whose window has closed exits within seconds, so a shell the window left behind cannot
+  keep the daemon away. Where Reins cannot see the window (no `~/.claude/sessions` record), the waiter
+  runs until it is killed or finds a callback.
 - All of this lives in `src/harness_reins/harness/claude/session.py`; the shared CLI only calls into it.
 
 ## The Reins hook
 
 `reins setup` adds one entry to `SessionStart` and one to `Stop` in `${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json`,
 keeping everything else in that file. Each runs `reins _claude-hook` in the background with `asyncRewake`:
-when a callback is ready it exits 2, and Claude Code wakes the model in that same window, idle or not. The next
-`Stop` starts it again. It needs no launch flag. It is verified in the terminal with Claude Code 2.1.318; the desktop app has not been tested yet.
+when a callback is ready it exits 2, and Claude Code wakes the model in that same window. An idle window gets it
+within a second; during a turn it arrives when that turn ends, together with anything else that came meanwhile.
+The next `Stop` starts it again. It needs no launch flag. It is verified in the terminal with Claude Code 2.1.318
+and in the desktop app (Linux over SSH, CLI 2.1.309), where the app labels each delivery "Stop hook blocking error"
+although nothing failed. Resuming a closed desktop session has not been tested yet.
 
 - The hook holds the same live-watcher lock as `reins wait` (`hook-*.lock`). `reins wait` steps aside while it runs.
-- A delivered callback is not repeated in that window, so a turn that does not ACK cannot wake the model in a
-  loop. If it is still unacknowledged when the window closes, the daemon resumes it.
+- A delivered callback is raised again only after 30 minutes without an ACK, at most twice, so a turn that does not
+  ACK cannot wake the model in a loop. If it is still unacknowledged when the window closes, the daemon resumes it
+  at once.
 - It leaves at once in a headless run (`claude -p` does not exit while it lives) and when its window closes.
+- Claude Code stops a hook after its one-week timeout, and only the next turn starts it again. Six hours before
+  then the hook leaves. If a task started from that session is still running, or the session has a name, it wakes
+  the window once with a note that asks for no reply, and that turn starts it again; otherwise it exits quietly.
+- Where the hook is installed, `reins run` in an open window says the result arrives through the hook, and no
+  `reins wait` is needed.
 - `reins setup --no-claude-hook` skips it. `reins install-claude-hook [--remove]` adds or removes it on its own.
   Windows already open pick up the change after their next turn.
 
@@ -109,13 +122,21 @@ command that is still running. Nothing queues for a second process, so nothing f
 - The process stays while a turn or a background task is running, and takes new callbacks until then. Reins then
   closes its stdin and it exits.
 - A resume has no time limit by default, so unattended work can run for hours. `--resume-timeout SECONDS` on
-  `reins daemon` or `reins setup` sets one. Without one, a stuck process keeps that session's callbacks unanswered
-  until you stop it; `reins status` shows them. An upgrade keeps a limit already in a service definition until
+  `reins daemon` or `reins setup` sets one. An upgrade keeps a limit already in a service definition until
   `reins setup` runs again.
-- Sessions do not wait for each other: each resume runs on its own, and all of them count toward your usage.
+- A stuck process is found from its stream instead and ended, and the callback is retried: no event for 30 minutes
+  while it waits on the model or fails to exit after its input closes, or for 4 hours while a foreground tool runs.
+  A background task may stay quiet as long as it runs. `--resume-stall SECONDS` changes the 30 minutes; 0 turns
+  the check off.
+- Sessions do not wait for each other, and all resumes count toward your usage. Up to eight deliveries wait for
+  their ACK at once (`--max-resumes`, 0 for no cap); more results wait for a slot. A resume that has ACKed and keeps
+  working takes no slot.
 - A callback that went in but has no ACK when the process ends is due again at once, within the usual retry limit.
 - A CLI that refuses the streaming flags gets the callback as a plain prompt, and later callbacks wait for it to
-  exit. `claude -p` drops channel events, so the channel plays no part here.
+  exit. That path has no stall check, so set `--resume-timeout` if such a CLI can hang. `claude -p` drops channel
+  events, so the channel plays no part here.
+- Just before it starts `claude -p --resume`, the daemon checks once more that no window has the session open, so a
+  window closed and opened again in between gets no resume beside it.
 
 ## Reins channel (research preview)
 

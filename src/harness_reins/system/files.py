@@ -12,10 +12,26 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import time
 from typing import Callable
 import uuid
 
 from . import posix, windows_io
+
+
+def read_text(path: Path) -> str:
+    """Read a published record. On Windows a reader that opens it while it is
+    being replaced gets PermissionError for a moment; that is retried briefly."""
+    if os.name != "nt":
+        return path.read_text(encoding="utf-8")
+    deadline = time.monotonic() + windows_io.SHARING_RETRY_SECONDS
+    while True:
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.02)
 
 
 def write_private_text(

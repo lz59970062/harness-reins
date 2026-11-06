@@ -298,6 +298,8 @@ def main() -> int:
     daemon_parser.add_argument("--retry-delay", type=float, default=delivery_engine.DEFAULT_RETRY_DELAY, help="Initial retry delay in seconds")
     daemon_parser.add_argument("--retry-backoff", type=float, default=delivery_engine.DEFAULT_RETRY_BACKOFF, help="Retry delay multiplier")
     daemon_parser.add_argument("--resume-timeout", type=float, default=delivery_engine.DEFAULT_RESUME_TIMEOUT, help="Stop a resumed agent after this many seconds and retry; 0, the default, sets no limit")
+    daemon_parser.add_argument("--resume-stall", type=float, default=delivery_engine.DEFAULT_RESUME_STALL, help="End a streamed Claude resume that shows no progress for this many seconds and retry; 0 turns it off")
+    daemon_parser.add_argument("--max-resumes", type=int, default=delivery_engine.DEFAULT_MAX_RESUMES, help="Resumes still waiting for their ACK that run at once; 0 sets no limit")
 
     for service in ("systemd", "launchd", "windows-task"):
         service_parser = sub.add_parser(f"install-{service}", help=f"Install a user-level {service} coordinator")
@@ -308,6 +310,8 @@ def main() -> int:
         service_parser.add_argument("--retry-delay", type=float, default=delivery_engine.DEFAULT_RETRY_DELAY)
         service_parser.add_argument("--retry-backoff", type=float, default=delivery_engine.DEFAULT_RETRY_BACKOFF)
         service_parser.add_argument("--resume-timeout", type=float, default=delivery_engine.DEFAULT_RESUME_TIMEOUT)
+        service_parser.add_argument("--resume-stall", type=float, default=delivery_engine.DEFAULT_RESUME_STALL)
+        service_parser.add_argument("--max-resumes", type=int, default=delivery_engine.DEFAULT_MAX_RESUMES)
         service_parser.add_argument("--restart-sec", type=float, default=5.0, help="Restart delay in seconds")
         service_parser.add_argument("--exec-start", help="Path to Reins executable")
         service_parser.add_argument("--codex-bin", help="Path to codex executable used by the daemon")
@@ -413,6 +417,8 @@ def main() -> int:
     setup_parser.add_argument("--retry-delay", type=float, default=delivery_engine.DEFAULT_RETRY_DELAY, help="Initial retry delay in seconds")
     setup_parser.add_argument("--retry-backoff", type=float, default=delivery_engine.DEFAULT_RETRY_BACKOFF, help="Retry delay multiplier")
     setup_parser.add_argument("--resume-timeout", type=float, default=delivery_engine.DEFAULT_RESUME_TIMEOUT, help="Stop a resumed agent after this many seconds and retry; 0, the default, sets no limit")
+    setup_parser.add_argument("--resume-stall", type=float, default=delivery_engine.DEFAULT_RESUME_STALL, help="End a streamed Claude resume that shows no progress for this many seconds and retry; 0 turns it off")
+    setup_parser.add_argument("--max-resumes", type=int, default=delivery_engine.DEFAULT_MAX_RESUMES, help="Resumes still waiting for their ACK that run at once; 0 sets no limit")
     setup_parser.add_argument("--restart-sec", type=float, default=5.0, help="Service restart delay in seconds")
     setup_parser.add_argument("--exec-start", help="Path to harness-reins executable")
     setup_parser.add_argument("--codex-bin", help="Path to codex executable used by the daemon")
@@ -686,7 +692,9 @@ def main() -> int:
         from .harness.claude import channel as claude_channel
         return claude_channel.launch(args)
     if args.mode == "_claude-hook":
-        return claude_session.hook(args)
+        from .engine import messages as message_engine
+
+        return claude_session.hook(args, lambda queue, session: message_engine.expects_callbacks(queue, "claude", session))
     if args.mode == "install-claude-hook":
         return skill_install.install_claude_hook(args)
     if args.mode == "_claude-channel":

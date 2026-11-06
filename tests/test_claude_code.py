@@ -438,9 +438,12 @@ class LiveWaiterTests(unittest.TestCase):
         # A turn that did not ACK ends, Stop starts the hook, and it must not wake the model again.
         with mock.patch.object(claude_session, "open_window", return_value=None):
             self.assertEqual(self.run_hook(), (0, ""))
+        # Left unacknowledged for the reminder interval, it is raised once more.
         request = json.loads(layout.request_path(self.root, "pending", "cb-hook").read_text(encoding="utf-8"))
-        request["live_delivered_at"] = time.time() - claude_session.LIVE_ACK_GRACE_SECONDS - 1
+        request["live_delivered_at"] = time.time() - claude_session.LIVE_REMIND_SECONDS - 1
         queue_store.write_request(layout.request_path(self.root, "pending", "cb-hook"), request)
+        with mock.patch.object(claude_session, "open_window", return_value=None):
+            self.assertEqual(self.run_hook()[0], 2)
         with mock.patch.object(claude_session, "open_window", return_value=None):
             self.assertEqual(self.run_hook(), (0, ""))
 

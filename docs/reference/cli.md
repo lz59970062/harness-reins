@@ -43,7 +43,7 @@ reins agent --help
 
 | 命令 | 用途 |
 | --- | --- |
-| `reins status` | 查看待处理回调 |
+| `reins status` | 查看待处理、进行中和投递失败的回调 |
 | `reins status --state failed` | 查看投递失败的回调 |
 | `reins ack <回调ID>` | 确认已经读取结果 |
 | `reins cancel --id <回调ID>` | 撤销这条回调的投递 |

@@ -37,6 +37,17 @@ FAKE_CLAUDE = textwrap.dedent("""\
         if scenario == "silent":
             continue
         emit(type="system", subtype="init")
+        if scenario == "model-hang":
+            emit(type="assistant", message={"content": [{"type": "text", "text": "thinking"}]})
+            time.sleep(30)
+        if scenario == "tool-quiet":
+            emit(type="assistant", message={"content": [{"type": "tool_use", "id": "t1", "name": "Bash"}]})
+            time.sleep(1.0)
+            emit(type="user", message={"content": [{"type": "tool_result", "tool_use_id": "t1"}]})
+        if scenario == "background-quiet":
+            emit(type="system", subtype="background_tasks_changed", tasks=[{"task_id": "b1"}])
+            time.sleep(1.0)
+            emit(type="system", subtype="background_tasks_changed", tasks=[])
         if scenario == "background":
             emit(type="system", subtype="background_tasks_changed", tasks=[{"task_id": "b1"}])
             emit(type="result", subtype="success", result="started")
@@ -97,10 +108,11 @@ class StreamCase(unittest.TestCase):
         with contextlib.suppress(OSError):
             process.stdin.close()
 
-    def supervise(self, process: subprocess.Popen[str], timeout: float | None = 30.0) -> int | None:
+    def supervise(self, process: subprocess.Popen[str], timeout: float | None = 30.0,
+                  stall: float | None = None) -> int | None:
         with mock.patch.dict(os.environ, {claude_session.RESUMED_TARGET_ENV: f"session:{SESSION}"}), \
                 contextlib.redirect_stderr(io.StringIO()):
-            return claude_stream.supervise(process, "first callback", self.root, SESSION, timeout)
+            return claude_stream.supervise(process, "first callback", self.root, SESSION, timeout, stall)
 
     def logged(self) -> list[str]:
         return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
@@ -170,6 +182,37 @@ class SuperviseTests(StreamCase):
             self.supervise(process, timeout=0.2)
 
 
+class StallTests(StreamCase):
+    def test_waiting_on_the_model_with_no_event_is_a_stall(self) -> None:
+        with self.assertRaises(claude_stream.Stalled):
+            self.supervise(self.start("model-hang"), stall=0.3)
+
+    def test_a_quiet_foreground_tool_gets_the_longer_limit(self) -> None:
+        with mock.patch.object(claude_stream, "TOOL_STALL_SECONDS", 5.0):
+            self.assertEqual(self.supervise(self.start("tool-quiet"), stall=0.3), 0)
+        with mock.patch.object(claude_stream, "TOOL_STALL_SECONDS", 0.4):
+            with self.assertRaises(claude_stream.Stalled):
+                self.supervise(self.start("tool-quiet"), stall=0.3)
+
+    def test_a_quiet_background_task_is_not_a_stall(self) -> None:
+        self.assertEqual(self.supervise(self.start("background-quiet"), stall=0.3), 0)
+
+    def test_a_process_that_does_not_exit_after_its_input_closes_is_a_stall(self) -> None:
+        process = subprocess.Popen([sys.executable, "-c", textwrap.dedent("""\
+            import json, sys, time
+            sys.stdin.readline()
+            print(json.dumps({"type": "result", "subtype": "success"}), flush=True)
+            time.sleep(30)
+            """)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.addCleanup(self.finish, process)
+        with self.assertRaises(claude_stream.Stalled):
+            self.supervise(process, stall=0.5)
+
+    def test_no_stall_limit_means_none_is_applied(self) -> None:
+        self.assertIsNone(claude_stream._Progress().stalled(None))
+        self.assertEqual(delivery_engine.DEFAULT_RESUME_STALL, 1800.0)
+
+
 @unittest.skipIf(os.name == "nt", "the fixture is a shebang script")
 class WorkerTests(StreamCase):
     def test_the_worker_resumes_through_the_stream_and_finishes_both_callbacks(self) -> None:
@@ -204,6 +247,31 @@ class WorkerTests(StreamCase):
         lines = self.log.read_text(encoding="utf-8").splitlines()
         self.assertIn("--input-format stream-json", lines[0])
         self.assertEqual(lines[1:], ["got cb-first", "got cb-second"])
+
+
+    def test_a_window_that_opened_after_selection_gets_no_resume_beside_it(self) -> None:
+        from harness_reins.tower import main as tower
+
+        claude = self.directory / "claude-bin"
+        claude.write_text(f"#!{sys.executable}\nimport pathlib\npathlib.Path({str(self.log)!r}).write_text('ran')\n",
+                          encoding="utf-8")
+        claude.chmod(0o755)
+        path = self.enqueue("cb-first")
+        identity = tower.daemon_process_identity(os.getpid()) or {}
+        sessions = self.directory / "claude" / "sessions"
+        sessions.mkdir(parents=True)
+        (sessions / f"{os.getpid()}.json").write_text(json.dumps({
+            "pid": os.getpid(), "sessionId": SESSION, "entrypoint": "cli",
+            "procStart": str(identity.get("start_ticks", "")),
+        }), encoding="utf-8")
+        args = argparse.Namespace(resume_timeout=0, retries=3, retry_delay=0, retry_backoff=1)
+        environment = {"REINS_CLAUDE_BIN": str(claude), "PYTHONPATH": str(Path(delivery_engine.__file__).parents[2])}
+        with mock.patch.dict(os.environ, environment), contextlib.redirect_stderr(io.StringIO()), \
+                mock.patch.object(delivery_engine, "resume_cwd", return_value=str(self.directory)):
+            self.assertTrue(delivery_engine.process_selected(self.root, args, path))
+        self.assertFalse(self.log.exists())
+        request = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(request["attempts"], 0)
 
 
 class ParallelDeliveryTests(StreamCase):
@@ -251,6 +319,23 @@ class ParallelDeliveryTests(StreamCase):
         self.wait_for("cb-a2")
         self.drain()
 
+    def test_resumes_past_the_cap_wait_but_an_acknowledged_callback_is_still_finished(self) -> None:
+        self.enqueue("cb-a1")
+        self.enqueue("cb-b1", session=OTHER_SESSION)
+        self.enqueue("cb-c1", session="9c1d-third-session")
+        layout.ack_path(self.root, "cb-c1").write_text("{}", encoding="utf-8")
+        args = argparse.Namespace(max_resumes=1)
+        self.assertTrue(delivery_engine.start_one(self.root, args))
+        self.wait_for("cb-a1")
+        self.assertTrue(delivery_engine.start_one(self.root, args))
+        self.wait_for("cb-c1")
+        self.assertFalse(delivery_engine.start_one(self.root, args))
+        self.assertNotIn("cb-b1", self.started)
+        self.drain()
+        self.assertTrue(delivery_engine.start_one(self.root, args))
+        self.wait_for("cb-b1")
+        self.drain()
+
     def test_recovery_leaves_a_callback_alone_while_its_thread_owns_it(self) -> None:
         path = self.enqueue("cb-a1")
         running = queue_store.move_request(path, self.root / "running")
@@ -268,6 +353,11 @@ class ResumeLimitTests(unittest.TestCase):
         self.assertIsNone(delivery_engine.resume_limit(None))
         self.assertEqual(delivery_engine.resume_limit(90), 90.0)
         self.assertEqual(delivery_engine.resume_limit(0.1), 1.0)
+
+    def test_resume_slots(self) -> None:
+        self.assertEqual(delivery_engine.DEFAULT_MAX_RESUMES, 8)
+        self.assertIsNone(delivery_engine.resume_slots(0))
+        self.assertEqual(delivery_engine.resume_slots(2), 2)
 
 
 if __name__ == "__main__":

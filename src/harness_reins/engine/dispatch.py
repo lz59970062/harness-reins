@@ -20,6 +20,7 @@ from ..harness.base import DEFAULT_APPROVALS_REVIEWER, DEFAULT_APPROVAL_POLICY, 
 from ..harness.claude.adapter import CLAUDE_PERMISSION_MODE_ENV
 from ..owners import macos as macos_platform
 from ..store import install_record, layout
+from ..system import files
 from ..owners import host
 from .. import runtime as reins_runtime
 from ..store import records as queue_store
@@ -317,7 +318,7 @@ def queue_callback(args: argparse.Namespace, prompt: str) -> int:
 
 
 def load_request(path: Path) -> dict[str, object]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(files.read_text(path))
     if not isinstance(data, dict):
         raise ValueError("request must be a JSON object")
     if not records.is_callback(data):
@@ -569,9 +570,9 @@ def submit_managed_run(args: argparse.Namespace) -> int:
         if claude_session.channel_is_held(str(target.get("session"))):
             print("reins: Claude Code live callback: arrives through the reins channel; no `reins wait` needed",
                   file=sys.stderr)
-        elif claude_session.hook_is_held(str(target.get("session"))):
-            print("reins: Claude Code live callback: arrives through the Reins hook; no `reins wait` needed",
-                  file=sys.stderr)
+        elif claude_session.hook_is_held(str(target.get("session"))) or claude_session.hook_delivers():
+            print("reins: Claude Code live callback: arrives through the Reins hook when this window is idle or "
+                  "its turn ends; no `reins wait` needed", file=sys.stderr)
         elif claude_session.background_tasks_disabled(os.environ):
             print("reins: Claude Code background tasks are disabled here, so do not run `reins wait`: end your turn; "
                   "Reins delivers the callback through its hook if `reins setup` installed one, and otherwise "

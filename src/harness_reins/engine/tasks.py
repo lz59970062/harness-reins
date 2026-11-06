@@ -17,6 +17,7 @@ from ..owners import LaunchError, OwnerState, ScreenBackend, SystemdUserBackend,
 from ..owners.windows import WindowsBackend
 from ..core import capabilities, ids, records, results, targets
 from ..store import layout
+from ..system import files
 from ..owners import host
 from ..store import records as queue_store
 from . import delivery as delivery_engine
@@ -104,7 +105,7 @@ def write_managed_task(root: Path, task: dict[str, object]) -> None:
 
 
 def load_managed_task(path: Path) -> dict[str, object]:
-    task = json.loads(path.read_text(encoding="utf-8"))
+    task = json.loads(files.read_text(path))
     if not isinstance(task, dict) or task.get("schema") != records.TASK_SCHEMA:
         raise ValueError(f"not an {records.TASK_SCHEMA} record; tasks from Long Task Callback need reins migrate")
     if task.get("id") != path.parent.name:

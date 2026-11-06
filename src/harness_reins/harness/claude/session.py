@@ -216,6 +216,17 @@ def resume_cwd(request: Mapping[str, object], environment: Mapping[str, str]) ->
 # live-wait agents are touched here; other agents keep the normal daemon route.
 
 LIVE_ACK_GRACE_SECONDS = 30 * 60.0
+# The hook raises a callback that stays unacknowledged in an open window again
+# after this long, at most this many times; the window closing makes it due at once.
+LIVE_REMIND_SECONDS = LIVE_ACK_GRACE_SECONDS
+LIVE_REMINDERS = 2
+# Claude Code ends a hook at its timeout and only a Stop starts it again, so the
+# hook leaves this long before then. It wakes the window to be started again only
+# when this session still has work out or a name that can receive messages.
+HOOK_RENEW_MARGIN_SECONDS = 6 * 3600.0
+# What `reins setup` puts in Claude Code's settings: the command, and how long an idle window can wait.
+HOOK_COMMAND = "_claude-hook"
+HOOK_TIMEOUT_SECONDS = 7 * 86400
 LIVE_WATCHER_DIR_NAME = "live-watchers"
 # Agents that wake a live session when a background ``reins wait`` exits. DSH
 # runs one through its own job system; a DSH callback has no headless fallback.
@@ -241,6 +252,8 @@ RESUMED_TARGET_ENV = "REINS_RESUMED_TARGET"
 # How long a waiter sees its callback held by a headless resume before saying so.
 HEADLESS_NOTICE_SECONDS = 3.0
 HEADLESS_EXIT_CODE = 4
+# How often a `reins wait` checks that the window it serves is still open.
+WAIT_WINDOW_CHECK_SECONDS = 5.0
 
 
 def live_wait_agent(agent: object) -> str | None:
@@ -393,6 +406,30 @@ def hook_is_held(session: str) -> bool:
     return _held("claude", session, HOOK_WATCHER_PREFIX)
 
 
+def hook_delivers(agent: str = "claude", environment: Mapping[str, str] = os.environ) -> bool:
+    """Whether the Reins hook brings callbacks into open Claude Code windows, so no `reins wait` is needed.
+
+    It runs between turns, so it is not held while this turn runs; its settings entry is what counts.
+    A headless resume takes later callbacks through its input instead.
+    """
+    return (agent == "claude" and environment.get(ENTRYPOINT_ENV, "").strip() != HEADLESS_ENTRYPOINT
+            and hook_installed(config_dir(environment) / "settings.json"))
+
+
+def hook_installed(settings_path: Path) -> bool:
+    """Whether these Claude Code settings start the Reins hook on Stop."""
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    hooks = settings.get("hooks") if isinstance(settings, dict) else None
+    groups = hooks.get("Stop") if isinstance(hooks, dict) else None
+    return any(isinstance(entry, dict) and HOOK_COMMAND in str(entry.get("command", ""))
+               for group in (groups if isinstance(groups, list) else [])
+               for entry in (group.get("hooks") if isinstance(group, dict) and isinstance(group.get("hooks"), list)
+                             else []))
+
+
 def open_window(session: str, environment: Mapping[str, str]) -> Optional[int]:
     """The process of a Claude Code window that has this session open, from its session record."""
     from ...tower import main as tower
@@ -471,8 +508,14 @@ def _claim(root: Path, path: Path) -> str | None:
                    "request": request, "queue_dir": str(root)}
         prompt = reminder_policy.select_delivery_prompt(payload)
         now = time.time()
+        if "live_delivered_at" in request:
+            request["live_reminders"] = int(request.get("live_reminders") or 0) + 1
         request["live_delivered_at"] = now
         request["next_attempt_at"] = now + LIVE_ACK_GRACE_SECONDS
+        target = _target_of(request)
+        if target is not None and target[0] == "claude":
+            # Only a window Reins could see can be seen to close; otherwise the grace above applies.
+            request["live_window_pid"] = open_window(target[1], os.environ)
         request["last_deferred_reason"] = "delivered to the live session by reins wait; awaiting ACK"
         queue_store.write_request(running, request)
         return prompt
@@ -562,12 +605,21 @@ def _claim_pending(root: Path, agent: str, session: str, task: str | None,
             if (not isinstance(request, dict) or not _matches(request, agent, session, task)
                     or layout.ack_path(root, path.stem).exists()):
                 continue
-            if skip_delivered and "live_delivered_at" in request:
+            if skip_delivered and not _due_for_reminder(request):
                 continue
             prompt = _claim(root, path)
             if prompt is not None:
                 prompts.append(prompt)
     return prompts
+
+
+def _due_for_reminder(request: Mapping[str, object], now: Optional[float] = None) -> bool:
+    """Whether the hook may raise this callback: never shown, or ignored long enough, a bounded number of times."""
+    delivered = request.get("live_delivered_at")
+    if not isinstance(delivered, (int, float)):
+        return "live_delivered_at" not in request
+    return (int(request.get("live_reminders") or 0) < LIVE_REMINDERS
+            and (time.time() if now is None else now) - delivered >= LIVE_REMIND_SECONDS)
 
 
 def claim_for_resume(root: Path, session: str) -> list[tuple[str, str]]:
@@ -613,7 +665,8 @@ def release_resume_claims(root: Path, callback_ids: list[str]) -> None:
             queue_store.release_owner_lock(lock, remove=False)
 
 
-def hook(args: argparse.Namespace) -> int:
+def hook(args: argparse.Namespace,
+         expects_callbacks: Optional[Callable[[Path, str], bool]] = None) -> int:
     """Hidden `reins _claude-hook`: Claude Code runs it in the background on SessionStart and Stop.
 
     Exit code 2 wakes the model in the open window with what is on stderr, even
@@ -621,6 +674,7 @@ def hook(args: argparse.Namespace) -> int:
     waiting for its ACK is not repeated in this window: the turn that did not
     ACK it would end, start this hook, and wake the model again without end.
     If it is still unacknowledged when the window closes, the daemon resumes it.
+    ``expects_callbacks`` says whether the session still has work out; see HOOK_RENEW_MARGIN_SECONDS.
     """
     from ...store import records as queue_store
     from ...store import layout
@@ -650,9 +704,16 @@ def hook(args: argparse.Namespace) -> int:
                       + "\n\n".join(prompts),
                       file=sys.stderr, flush=True)
                 return 2
-            if (open_window(session, os.environ) is None
-                    and time.monotonic() - started >= WINDOW_RECORD_GRACE_SECONDS):
+            elapsed = time.monotonic() - started
+            if open_window(session, os.environ) is None and elapsed >= WINDOW_RECORD_GRACE_SECONDS:
                 return 0  # The window closed or moved to another session; the daemon takes over.
+            if elapsed >= HOOK_TIMEOUT_SECONDS - HOOK_RENEW_MARGIN_SECONDS:
+                if expects_callbacks is None or not expects_callbacks(root, session):
+                    return 0  # Nothing can arrive; the next turn's Stop starts the hook again.
+                print("Harness Reins restarts its hook in this window, which Claude Code would otherwise stop "
+                      "after a week, because work started here can still report back. Nothing arrived and "
+                      "there is nothing to do: end this turn without a reply.", file=sys.stderr, flush=True)
+                return 2
             time.sleep(max(0.05, args.poll_interval))
     finally:
         release_live_watcher(watcher)
@@ -709,6 +770,10 @@ def wait(args: argparse.Namespace) -> int:
         print("reins wait: the Reins hook delivers this session's callbacks, so no waiter is needed", file=sys.stderr)
         return 0
     deadline = time.monotonic() + args.timeout if args.timeout else None
+    # A wait outlives its window when the shell running it is not ended with it, and its lock
+    # would then keep the daemon away for good. One that saw its window leaves when it goes.
+    window = open_window(session, os.environ) if agent == "claude" else None
+    window_checked = time.monotonic()
     watcher = register_live_watcher(session, agent=agent)
     print(f"reins wait: watching {'DeepSeek Harness' if agent == 'dsh' else 'Claude Code'} session {session}",
           file=sys.stderr)
@@ -743,6 +808,12 @@ def wait(args: argparse.Namespace) -> int:
             if deadline is not None and time.monotonic() >= deadline:
                 print("reins wait: timed out; the callback will still be delivered when it arrives", file=sys.stderr)
                 return 3
+            if window is not None and time.monotonic() - window_checked >= WAIT_WINDOW_CHECK_SECONDS:
+                window_checked = time.monotonic()
+                if open_window(session, os.environ) is None:
+                    print(f"reins wait: the Claude Code window for session {session} has closed; the daemon "
+                          "delivers its callbacks from here", file=sys.stderr)
+                    return 0
             time.sleep(max(0.05, args.poll_interval))
     except KeyboardInterrupt:
         return 130

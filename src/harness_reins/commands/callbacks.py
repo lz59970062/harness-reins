@@ -150,7 +150,8 @@ def queued_items(root: Path, states: list[str]) -> list[tuple[str, Path, dict[st
 
 def status(args: argparse.Namespace) -> int:
     root = layout.queue_dir(args)
-    states = args.state or ["pending", "running"]
+    # failed/ is where automatic delivery gave up, so it is shown unless a state is named.
+    states = args.state or ["pending", "running", "failed"]
     items = queued_items(root, states)
     alerts = messages.alerts(root)
     if alerts:
@@ -177,11 +178,15 @@ def status(args: argparse.Namespace) -> int:
             line += " | in the Codex queue; waiting for the thread to ACK"
         if state == "running" and layout.ack_path(root, request_id).exists():
             line += " | acknowledged; resumed Codex process still active"
+        if state == "pending" and isinstance(request.get("live_delivered_at"), (int, float)):
+            line += " | shown to its window; waiting for the ACK"
         error = request.get("last_error")
         if isinstance(error, str) and error:
             line += f" | {error}"
+        if state == "failed":
+            line += f" | retry: reins retry --id {request_id}; drop: reins cancel --id {request_id}"
         print(line)
     if len(items) > limit:
         print(f"  ... {len(items) - limit} more item(s)")
-    print("  Inspect: reins status --state pending --state running")
+    print("  Inspect: reins status --state pending --state running --state failed")
     return 0

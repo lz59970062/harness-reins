@@ -43,7 +43,7 @@ Put submission options before `--`:
 
 | Command | Purpose |
 | --- | --- |
-| `reins status` | Inspect outstanding callbacks |
+| `reins status` | Inspect pending, running and failed callbacks |
 | `reins status --state failed` | Inspect failed deliveries |
 | `reins ack <callback-id>` | Confirm that you have read the result |
 | `reins cancel --id <callback-id>` | Cancel delivery of this callback |

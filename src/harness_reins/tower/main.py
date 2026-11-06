@@ -47,6 +47,10 @@ def daemon_arguments(args: argparse.Namespace) -> list[str]:
         str(args.retry_backoff),
         "--resume-timeout",
         str(getattr(args, "resume_timeout", delivery_engine.DEFAULT_RESUME_TIMEOUT)),
+        "--resume-stall",
+        str(getattr(args, "resume_stall", delivery_engine.DEFAULT_RESUME_STALL)),
+        "--max-resumes",
+        str(getattr(args, "max_resumes", delivery_engine.DEFAULT_MAX_RESUMES)),
     ]
     if args.queue_dir:
         command.extend(["--queue-dir", str(Path(args.queue_dir).expanduser())])

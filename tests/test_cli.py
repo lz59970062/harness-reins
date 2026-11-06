@@ -1304,7 +1304,7 @@ class CliTests(unittest.TestCase):
                 self.assertTrue(delivery_engine.process_one(root, args))
 
             request = json.loads((root / "pending" / "stuck.json").read_text(encoding="utf-8"))
-            self.assertEqual(request["last_error"], "agent resume timed out")
+            self.assertEqual(request["last_error"], "agent resume timed out or stopped making progress")
 
     def test_daemon_recovers_stale_running_requests(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

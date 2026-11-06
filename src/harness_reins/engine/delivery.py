@@ -23,6 +23,7 @@ from ..harness import get_agent
 from ..harness.base import DEFAULT_CLAUDE_PERMISSION_MODE
 from ..harness.claude.adapter import CLAUDE_BIN_ENV, CLAUDE_PERMISSION_MODE_ENV
 from ..runtime import worker_command
+from ..system import files
 from ..system import windows_process
 from ..store import layout
 from ..store import records as queue_store
@@ -37,7 +38,13 @@ from ..harness.codex import app_server
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_DELAY = 30.0
 DEFAULT_RETRY_BACKOFF = 2.0
-DEFAULT_RESUME_TIMEOUT = 0.0  # No limit: unattended work may run for hours, and a stuck one only holds its session.
+DEFAULT_RESUME_TIMEOUT = 0.0  # No limit: unattended work may run for hours.
+# A streamed Claude resume that shows no progress this long is ended and retried (see claude/stream.py).
+DEFAULT_RESUME_STALL = 1800.0
+# Deliveries still waiting for their ACK that the daemon runs at once, so a burst of results does not
+# start a model session for each at the same moment. A resume that has ACKed and works on takes no slot,
+# or a few long unattended sessions would hold every other session's results back.
+DEFAULT_MAX_RESUMES = 8
 # How long to wait for an answer from a process Reins did not start, which a limit of its own cannot end.
 PUBLISHED_ACK_TIMEOUT = 3600.0
 # Codex refuses a second writer for a thread whose original process still runs.
@@ -129,6 +136,11 @@ def claude_resume_command(request: dict[str, object]) -> list[str]:
 def resume_limit(value: object) -> float | None:
     seconds = float(value or 0)
     return None if seconds <= 0 else max(1.0, seconds)
+
+
+def resume_slots(value: object) -> int | None:
+    count = int(value or 0)
+    return None if count <= 0 else count
 
 
 def next_attempt_at(path: Path) -> float:
@@ -396,12 +408,22 @@ def waits_for_open_window(root: Path, request: dict[str, object], request_id: st
     return claude_session.open_window(target["session"], environment) is not None
 
 
-def select_pending(root: Path, now: float) -> Path | None:
+def live_hold_ended(root: Path, request: Mapping[str, object], request_id: str) -> bool:
+    """A callback shown to a Claude Code window is due at once when that window has closed without its ACK."""
+    return ("live_delivered_at" in request and isinstance(request.get("live_window_pid"), int)
+            and dispatch.request_agent(dict(request)) == "claude"
+            and not layout.ack_path(root, request_id).exists()
+            and not claude_session.live_watcher_is_held(request)
+            and not waits_for_open_window(root, dict(request), request_id))
+
+
+def select_pending(root: Path, now: float, may_start: bool = True) -> Path | None:
+    """The next callback to deliver. Without ``may_start`` only one that needs no process is returned."""
     for path in sorted((root / "pending").glob("*.json")):
-        if path.stem in _ACTIVE_DELIVERIES or next_attempt_at(path) > now:
+        if path.stem in _ACTIVE_DELIVERIES:
             continue
         try:
-            request = json.loads(path.read_text(encoding="utf-8"))
+            request = json.loads(files.read_text(path))
         except Exception:
             return path
         if isinstance(request, dict) and capabilities.unsupported(request.get("requires")) and records.is_callback(request):
@@ -410,8 +432,15 @@ def select_pending(root: Path, now: float) -> Path | None:
             layout.ack_path(root, path.stem).exists() or queue_store.is_canceled(root, path.stem)
         ):
             # Finalize an ACKed/canceled callback even when its delivery route
-            # never lets the daemon start a resume (for example live-only DSH).
+            # never lets the daemon start a resume (for example live-only DSH),
+            # and even while a hold is still set on it.
             return path
+        hold = request.get("next_attempt_at") if isinstance(request, dict) else None
+        if (isinstance(hold, (int, float)) and hold > now
+                and not (isinstance(request, dict) and _safe(live_hold_ended, root, request, path.stem))):
+            continue
+        if not may_start:
+            continue
         if isinstance(request, dict) and (request.get("callback_mode") == "manual"
                                          or (request.get("delivery_state") == "queued_awaiting_ack"
                                              and not layout.ack_path(root, path.stem).exists())
@@ -423,6 +452,13 @@ def select_pending(root: Path, now: float) -> Path | None:
             continue
         return path
     return None
+
+
+def _safe(check, *arguments) -> bool:
+    try:
+        return bool(check(*arguments))
+    except Exception:
+        return False  # A malformed record keeps its hold; the worker reports it when it is due.
 
 
 def retry_delay(args: argparse.Namespace, attempt: int) -> float:
@@ -665,6 +701,10 @@ def wait_for_remote_delivery(payload: dict, delivery, timeout: float) -> dict:
     return result
 
 
+class _WindowOpened(Exception):
+    """The session's Claude Code window is open again; the callback waits for it instead."""
+
+
 def delivery_worker_main() -> int:
     """Own one callback delivery and keep its locks out of agent children."""
     encoded_fds = os.environ.get("CODEX_LONG_TASK_DELIVERY_LOCK_FDS")
@@ -684,6 +724,7 @@ def delivery_worker_main() -> int:
     if not (Path(str(payload["ack_path"])).exists() or Path(str(payload["canceled_path"])).exists()):
         prompt = reminder_policy.select_delivery_prompt(payload)
     timeout = resume_limit(payload["timeout"])
+    stall = resume_limit(payload.get("stall", DEFAULT_RESUME_STALL))
     result: dict[str, object] = {"returncode": 127}
     process: subprocess.Popen[str] | None = None
     desktop_delivery: app_server.DesktopAppServerDelivery | None = None
@@ -767,11 +808,16 @@ def delivery_worker_main() -> int:
 
                 try:
                     stream_code = None
+                    if (dispatch.request_agent(request) == "claude"
+                            and waits_for_open_window(Path(str(payload["queue_dir"])), request, str(request.get("id")))):
+                        # A window opened on the session after this callback was selected,
+                        # most often one closed and opened again; a resume now would fork it.
+                        raise _WindowOpened()
                     if target_key is not None and dispatch.request_agent(request) == "claude":
                         os.environ[claude_session.RESUMED_TARGET_ENV] = target_key  # Its own claims pass the lock it holds.
                         process = start_resume(claude_stream.ARGUMENTS, subprocess.PIPE)
                         stream_code = claude_stream.supervise(process, prompt, Path(str(payload["queue_dir"])),
-                                                              str(request["target"]["session"]), timeout)
+                                                              str(request["target"]["session"]), timeout, stall)
                     if stream_code is not None:
                         result = {"returncode": stream_code}
                     else:
@@ -784,6 +830,11 @@ def delivery_worker_main() -> int:
                         result = {"returncode": int(process.returncode)}
                         if codex_resume and process.returncode != 0 and CODEX_ACTIVE_WRITER in (errors or ""):
                             result = {"returncode": 123, "delivery_state": "waiting_for_idle"}
+                except _WindowOpened:
+                    result = {"returncode": 123, "delivery_state": "waiting_for_window"}
+                except claude_stream.Stalled:
+                    terminate_process_group(process)
+                    result = {"returncode": 124, "stalled": True}
                 except subprocess.TimeoutExpired:
                     terminate_process_group(process)
                     result = {"returncode": 124, "timed_out": True}
@@ -909,6 +960,7 @@ def run_resume_until_exit_or_ack(
         "request": request,
         "queue_dir": str(root),
         "timeout": timeout,
+        "stall": resume_limit(getattr(args, "resume_stall", DEFAULT_RESUME_STALL)),
         "ack_path": str(layout.ack_path(root, request_id)),
         "canceled_path": str(layout.request_path(root, "canceled", request_id)),
         # The submitting session's environment; the worker resumes with it on top of its own.
@@ -991,10 +1043,18 @@ def process_one(root: Path, args: argparse.Namespace) -> bool:
     return False if path is None else process_selected(root, args, path)
 
 
+def deliveries_awaiting_ack() -> int:
+    return len(_ACTIVE_DELIVERIES)
+
+
 def start_one(root: Path, args: argparse.Namespace) -> bool:
-    """Start the next due callback on its own thread, so a long resume holds only its session."""
+    """Start the next due callback on its own thread, so a long resume holds only its session.
+
+    At ``--max-resumes`` only callbacks that need no process are finalized; the rest wait for a slot.
+    """
     queue_store.ensure_daemon_dirs(root)
-    path = select_pending(root, time.time())
+    slots = resume_slots(getattr(args, "max_resumes", DEFAULT_MAX_RESUMES))
+    path = select_pending(root, time.time(), may_start=slots is None or deliveries_awaiting_ack() < slots)
     if path is None:
         return False
     try:
@@ -1043,7 +1103,8 @@ def process_selected(root: Path, args: argparse.Namespace, path: Path) -> bool:
             queue_store.move_request(running, root / "done")
             return True
         deferred_until = request.get("next_attempt_at")
-        if isinstance(deferred_until, (int, float)) and deferred_until > time.time():
+        if (isinstance(deferred_until, (int, float)) and deferred_until > time.time()
+                and not _safe(live_hold_ended, root, request, request_id)):
             # select_pending saw it due, but it was deferred before this claim:
             # `reins wait` can deliver it to the live session and exit in between.
             # Delivering it now would duplicate that delivery.
@@ -1052,6 +1113,10 @@ def process_selected(root: Path, args: argparse.Namespace, path: Path) -> bool:
         attempts = int(request.get("attempts", 0)) + 1
         request["attempts"] = attempts
         request.pop("next_attempt_at", None)
+        if dispatch.request_agent(request) == "claude":
+            # The daemon owns it now. Its marks from a window must not let a later retry hold be skipped.
+            for mark in ("live_delivered_at", "live_window_pid", "live_reminders"):
+                request.pop(mark, None)
         queue_store.write_request(running, request)
         try:
             result, acked, resume_still_running = run_resume_until_exit_or_ack(root, request_id, request, args)
@@ -1094,13 +1159,13 @@ def process_selected(root: Path, args: argparse.Namespace, path: Path) -> bool:
             request["attempts"] = max(0, attempts - 1)
             request["next_attempt_at"] = time.time() + 10
             request["last_deferred_reason"] = ("session is closed; the message stays in its inbox" if request.get("wake") == "never"
-                                               else "original session has an active turn")
+                                               else "the original session is open in a window or has an active turn")
             if running.exists() and not queue_store.is_canceled(root, request_id):
                 queue_store.write_request(running, request)
                 queue_store.move_request(running, root / "pending")
             return True
         if result.returncode == 124 and not acked:
-            request["last_error"] = "agent resume timed out"
+            request["last_error"] = "agent resume timed out or stopped making progress"
             print(
                 f"reins: warning: daemon callback {running.name} timed out",
                 file=sys.stderr,

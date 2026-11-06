@@ -10,6 +10,7 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
+from ..harness.claude import session as claude_session
 from ..harness.pi import channel as pi_channel
 from .. import template_registration
 from ..store import layout
@@ -20,9 +21,9 @@ from ..system import shell
 SHELL_HOOK_BEGIN = "# >>> harness-reins pending status >>>"
 SHELL_HOOK_END = "# <<< harness-reins pending status <<<"
 SKILL_TARGETS = ("codex", "claude", "pi", "dsh", "both", "all")
-CLAUDE_HOOK_COMMAND = "_claude-hook"
+CLAUDE_HOOK_COMMAND = claude_session.HOOK_COMMAND
 CLAUDE_HOOK_EVENTS = ("SessionStart", "Stop")
-CLAUDE_HOOK_TIMEOUT_SECONDS = 7 * 86400  # An idle window can wait this long; its next Stop starts the hook again.
+CLAUDE_HOOK_TIMEOUT_SECONDS = claude_session.HOOK_TIMEOUT_SECONDS
 
 
 def install_skill_tree(target: Path, *, include_codex_plugin: bool, force: bool, keep_existing: bool = False,

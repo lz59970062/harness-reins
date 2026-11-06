@@ -34,8 +34,8 @@
 - The Claude Code skill forbids starting long work with `nohup ... &`, `setsid` or
   `disown`, which nothing tracks: such a job ends unseen.
 - Claude Code stops a hook after a week, and only the window's next turn starts it
-  again. The hook now leaves before then: if a task from that session is still running
-  or the session has a name, it wakes the window once with a note that needs no reply,
+  again. The hook now leaves before then: if a task from that session is still running,
+  it has an active goal or it has a name, it wakes the window once with a note that needs no reply,
   which starts it again; otherwise it exits quietly.
 - `reins status` lists failed callbacks too, with the retry and cancel commands. They
   are where automatic delivery gave up, and were hidden before.

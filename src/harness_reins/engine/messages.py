@@ -58,9 +58,19 @@ ACTIVE_TASK_STATES = ("submitted", "launching", "running")
 
 
 def expects_callbacks(queue: Path, harness: str, session: str) -> bool:
-    """Whether something may still call back into this session: a task it started, or a name messages reach."""
+    """Whether something may still call back into this session: a task it started, an active goal and its
+    inactivity reminders, or a name messages reach."""
     if name_of(queue, harness, session) is not None:
         return True
+    for path in (queue / "goals").glob("*.json"):
+        try:
+            goal = json.loads(files.read_text(path))
+        except (OSError, ValueError):
+            continue
+        target = goal.get("target") if isinstance(goal, dict) else None
+        if (isinstance(target, dict) and target.get("session") == session
+                and goal.get("agent") == harness and goal.get("state") == "active"):
+            return True
     for path in layout.managed_tasks_root(queue).glob("*/task.json"):
         try:
             task = json.loads(files.read_text(path))

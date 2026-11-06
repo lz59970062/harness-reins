@@ -97,7 +97,7 @@ although nothing failed. Resuming a closed desktop session has not been tested y
   at once.
 - It leaves at once in a headless run (`claude -p` does not exit while it lives) and when its window closes.
 - Claude Code stops a hook after its one-week timeout, and only the next turn starts it again. Six hours before
-  then the hook leaves. If a task started from that session is still running, or the session has a name, it wakes
+  then the hook leaves. If a task started from that session is still running, it has an active goal, or it has a name, it wakes
   the window once with a note that asks for no reply, and that turn starts it again; otherwise it exits quietly.
 - Where the hook is installed, `reins run` in an open window says the result arrives through the hook, and no
   `reins wait` is needed.

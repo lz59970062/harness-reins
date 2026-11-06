@@ -156,6 +156,15 @@ class HookRenewalTests(LiveCase):
         self.assertTrue(message_engine.expects_callbacks(self.root, "claude", SESSION))
         self.assertFalse(message_engine.expects_callbacks(self.root, "claude", "another-session"))
 
+    def test_an_active_goal_counts_as_work_out(self) -> None:
+        goal = {"id": "g1", "agent": "claude", "state": "active", "target": {"kind": "session", "session": SESSION}}
+        (self.root / "goals").mkdir(exist_ok=True)
+        (self.root / "goals" / "g1.json").write_text(json.dumps(goal), encoding="utf-8")
+        self.assertTrue(message_engine.expects_callbacks(self.root, "claude", SESSION))
+        goal["state"] = "completed"
+        (self.root / "goals" / "g1.json").write_text(json.dumps(goal), encoding="utf-8")
+        self.assertFalse(message_engine.expects_callbacks(self.root, "claude", SESSION))
+
 
 class OrphanWaiterTests(LiveCase):
     def run_wait(self, windows: list[object]) -> tuple[int, str]:

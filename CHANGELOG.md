@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.13.2 — 2026-11-09
+
+- A Claude Code window that gets a new session id while it stays open keeps its
+  results. `/clear` does this, and a context continuation was seen doing it on another
+  machine. Work submitted before stayed bound to the old id, so Reins took the session
+  for closed and resumed it headless beside the window: a copy handled the result and
+  edited shared files while the window heard nothing. The daemon now watches each
+  window process and sends queued callbacks and goal reminders to the id it has now,
+  with a note saying where they came from. `/resume` into another conversation does not
+  count as a move. Once the window has closed, a result nobody acknowledged goes to the
+  conversation that can use it: the continuation, or the old id of a cleared session.
+- `reins setup --force` also refreshes a Pi or DSH skill it installed earlier. It only
+  refreshed Claude Code's and Codex's, so an upgrade left the others on old text.
+- `reins run` and `reins agent` suggest a goal when the session has run another job
+  before and has no active goal. It is one line on stderr and nothing is started for
+  you.
+- The description of every agent's skill now asks for a goal on work of several steps,
+  so an agent sees it before opening the skill.
+- The Claude Code skill no longer presents `reins wait` as the way to get a callback.
+  Where the hook is installed there is nothing to start, and the output of `reins run`
+  says which applies.
+
 ## 0.13.1 — 2026-11-06
 
 - `reins setup --now` restarts the daemon when the service now runs a different

@@ -15,6 +15,7 @@ from ..core import capabilities, ids, records, targets
 from ..store import layout
 from .. import runtime as reins_runtime
 from ..store import records as queue_store
+from ..system import files
 from . import dispatch
 
 
@@ -293,6 +294,19 @@ def process_goal_reminders(root: Path) -> bool:
             print(f"reins: warning: could not process goal reminder {path.name}: {exc}", file=sys.stderr)
         finally:
             queue_store.release_owner_lock(lock, remove=False)
+    return False
+
+
+def has_active_goal(root: Path, agent: str, session: str) -> bool:
+    for path in (root / "goals").glob("*.json"):
+        try:
+            goal = json.loads(files.read_text(path))
+        except (OSError, ValueError):
+            continue
+        target = goal.get("target") if isinstance(goal, dict) else None
+        if (isinstance(target, dict) and target.get("session") == session
+                and goal.get("agent") == agent and goal.get("state") == "active"):
+            return True
     return False
 
 

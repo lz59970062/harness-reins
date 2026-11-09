@@ -113,6 +113,20 @@ the window to close. Headless runs (`sdk-cli`) do not count as open, and a reuse
 
 The daemon's target lock keeps it to one headless resume per session; other callbacks for that session wait for it to end.
 
+### When a window gets a new session id
+
+`/clear` gives an open window a new session id. Results of work started before still reach that
+window, and so do goal reminders: the daemon watches each window process, and sends what is queued
+for the old id to the id it has now, with a note saying where it came from. New submissions bind to the
+new id even if `CLAUDE_CODE_SESSION_ID` still shows the old one. A context continuation that changes the
+id is followed the same way.
+
+`/resume` into another conversation does not count: the session it left is treated as closed. Once the
+window has closed, a result nobody acknowledged goes to the conversation that can use it: a continuation
+takes over from the old id, and a cleared session is resumed under its old id, which has the context. A
+`/clear` during a daemon outage may go unnoticed; the old id is then resumed as if its window had closed.
+A goal of a session with its own `CLAUDE_CONFIG_DIR` keeps its old id unless the daemon runs with that directory too.
+
 ## Headless resumes
 
 A closed session has at most one `claude -p --resume` at a time, and a callback that comes due while it runs goes

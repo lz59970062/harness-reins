@@ -1,6 +1,6 @@
 ---
 name: harness-reins
-description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this run, and get the result steered back into this same Pi session when they finish. Use instead of sleeping, polling logs, or blocking a tool call whenever a command or a wait for time to pass may take about a minute or longer. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results.
+description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this run, and get the result steered back into this same Pi session when they finish. Use instead of sleeping, polling logs, or blocking a tool call whenever a command or a wait for time to pass may take about a minute or longer. For work of several steps (train then evaluate, a sweep of runs, build then test then publish) or work left running unattended, start a Reins goal before the first job; it reminds this session if everything goes quiet. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results.
 ---
 
 # Harness Reins for Pi

@@ -13,6 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+import yaml
+
 from harness_reins.commands import callbacks
 from harness_reins.commands import goals as goal_commands
 from harness_reins.core import capabilities
@@ -20,7 +22,9 @@ from harness_reins.engine import goals
 from harness_reins.engine import delivery as delivery_engine
 from harness_reins.engine import dispatch
 from harness_reins.engine import messages as message_engine
+from harness_reins.engine import tasks as managed_tasks
 from harness_reins.harness.claude import session as claude_session
+from harness_reins.harness.pi import channel as pi_channel
 from harness_reins.install import skills
 from harness_reins.store import layout
 from harness_reins.store import records as queue_store
@@ -274,6 +278,105 @@ class SkillTextTests(unittest.TestCase):
             self.assertIn("## Several steps: start a goal", text, agent)
             self.assertIn(f'--session "${variable}"', text, agent)
             self.assertNotIn("{'", text, agent)
+
+    def test_every_description_asks_for_a_goal_on_work_of_several_steps(self) -> None:
+        skills_dir = Path(skills.__file__).parents[1] / "assets" / "skills"
+        for agent in ("claude", "codex", "pi", "dsh"):
+            text = (skills_dir / agent / "SKILL.md").read_text(encoding="utf-8")
+            description = yaml.safe_load(text.split("---", 2)[1])["description"]
+            self.assertIn("start a Reins goal before the first job", description, agent)
+            self.assertLessEqual(len(description), 1024, agent)
+
+    def test_the_claude_description_does_not_ask_for_a_wait_the_hook_makes_needless(self) -> None:
+        text = (Path(skills.__file__).parents[1] / "assets" / "skills" / "claude" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertNotIn("reins wait", yaml.safe_load(text.split("---", 2)[1])["description"])
+
+
+class SetupSkillRefreshTests(unittest.TestCase):
+    def install(self, home: Path, **fields: object) -> None:
+        args = argparse.Namespace(**{"path": None, "force": True, "keep_existing": False, "target": "both",
+                                     "claude_hook": None, "refresh_installed": True, **fields})
+        environment = {"HOME": str(home), "CODEX_HOME": str(home / "codex"), "CLAUDE_CONFIG_DIR": str(home / "claude"),
+                       pi_channel.PROFILE_ENV: str(home / "pi"), "DSH_HOME": str(home / "dsh")}
+        with mock.patch.dict(os.environ, environment), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(skills.install_skill(args), 0)
+
+    def old_copy(self, home: Path, agent: str) -> Path:
+        path = home / agent / "skills" / "harness-reins" / "SKILL.md"
+        path.parent.mkdir(parents=True)
+        path.write_text("an older version", encoding="utf-8")
+        return path
+
+    def test_setup_refreshes_a_copy_it_installed_earlier(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            copies = [self.old_copy(home, "pi"), self.old_copy(home, "dsh")]
+            self.install(home)
+            for path in copies:
+                self.assertIn("## Several steps: start a goal", path.read_text(encoding="utf-8"), path)
+
+    def test_setup_does_not_install_for_an_agent_that_never_had_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            self.install(home)
+            self.assertFalse((home / "pi" / "skills" / "harness-reins").exists())
+            self.assertFalse((home / "dsh" / "skills" / "harness-reins").exists())
+
+    def test_a_kept_skill_stays_and_so_does_one_outside_setup(self) -> None:
+        for fields in ({"keep_existing": True}, {"refresh_installed": False}):
+            with self.subTest(fields=fields), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                path = self.old_copy(home, "pi")
+                self.install(home, **fields)
+                self.assertEqual(path.read_text(encoding="utf-8"), "an older version")
+
+
+class GoalHintTests(LiveCase):
+    HINT = "start one with `reins goal start`"
+
+    def submit(self, session: str = SESSION, goal_id: str | None = None) -> str:
+        args = argparse.Namespace(
+            cwd=str(self.directory), task="step", command=None, exit_code=None, message=None, session=session,
+            last=False, via_daemon=False, queue_dir=str(self.root), approvals_reviewer="auto_review",
+            approval_policy="on-request", sandbox_mode="workspace-write", dry_run=False, strict=False,
+            wrapped_command=["true"], agent="codex", goal_id=goal_id)
+        errors = io.StringIO()
+        with mock.patch.object(managed_tasks, "screen_binary", return_value="/usr/bin/screen"), \
+                contextlib.redirect_stderr(errors):
+            self.assertEqual(dispatch.submit_managed_run(args), 0)
+        return errors.getvalue()
+
+    def start_goal(self, session: str = SESSION) -> None:
+        plan = self.directory / "plan.yaml"
+        plan.write_text(GoalRouteTests.PLAN, encoding="utf-8")
+        args = argparse.Namespace(queue_dir=str(self.root), id="g1", session=session, agent="codex", last=False,
+                                  cwd=str(self.directory), task="ship it", plan_file=str(plan), idle_seconds=60.0)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(goal_commands.goal_start(args), 0)
+
+    def test_the_second_job_of_a_session_hears_about_goals_and_the_first_does_not(self) -> None:
+        self.assertNotIn(self.HINT, self.submit())
+        self.assertIn(self.HINT, self.submit())
+
+    def test_another_sessions_job_does_not_count(self) -> None:
+        self.submit("another-session")
+        self.assertNotIn(self.HINT, self.submit())
+
+    def test_a_session_with_an_active_goal_hears_nothing(self) -> None:
+        self.submit()
+        self.start_goal()
+        self.assertNotIn(self.HINT, self.submit())
+        self.assertNotIn(self.HINT, self.submit(goal_id="g1"))
+
+    def test_another_sessions_goal_does_not_silence_it(self) -> None:
+        self.start_goal("another-session")
+        self.submit()
+        self.assertIn(self.HINT, self.submit())
+
+    def test_a_failure_to_look_does_not_fail_a_submitted_task(self) -> None:
+        self.submit()
+        with mock.patch.object(goals, "has_active_goal", side_effect=OSError("gone")):
+            self.assertNotIn(self.HINT, self.submit())
 
 
 class WindowsReadRetryTests(unittest.TestCase):

@@ -154,6 +154,10 @@ def select_delivery_prompt(payload: dict[str, object]) -> str:
                        f"system every {cadence['system_every']}; user every {cadence['user_every']}.")
     if (cadence is None or cadence["user_due"]) and isinstance(hook_path, str) and hook_path:
         prompt = attach_callback_hook(prompt, Path(hook_path))
+    if isinstance(request, dict) and request.get("moved_from"):
+        prompt = (f"[reins] This was bound to session {request['moved_from']}, which was left through /clear or a "
+                  "context continuation. What that session knew may not be in this conversation, so read the "
+                  f"task's saved results before you act on it.\n\n{prompt}")
     payload["prompt"] = prompt  # Both Desktop and CLI transports use this choice.
     return prompt
 

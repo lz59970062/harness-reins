@@ -620,6 +620,7 @@ def setup(args: argparse.Namespace) -> int:
         path=args.skill_path,
         force=args.force,
         keep_existing=bool(getattr(args, "keep_skill", False)),
+        refresh_installed=True,
         target=getattr(args, "skill_target", None) or (
             "all" if getattr(args, "with_pi_extension", False) or getattr(args, "with_dsh", False) else "both"
         ),

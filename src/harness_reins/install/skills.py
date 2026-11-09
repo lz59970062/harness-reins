@@ -97,6 +97,12 @@ def install_skill(args: argparse.Namespace) -> int:
     if target_name in ("dsh", "all"):
         status |= install_skill_tree(layout.dsh_home() / "skills" / "harness-reins", include_codex_plugin=False,
                                      force=args.force, keep_existing=keep, focused="dsh")
+    if target_name == "both" and getattr(args, "refresh_installed", False) and args.force and not keep:
+        # Setup installs for Pi and DSH only when asked, but must not leave a copy from an earlier version behind.
+        for agent, home in (("pi", pi_channel.profile_dir()), ("dsh", layout.dsh_home())):
+            target = home / "skills" / "harness-reins"
+            if (target / "SKILL.md").is_file():
+                status |= install_skill_tree(target, include_codex_plugin=False, force=True, focused=agent)
     return status
 
 

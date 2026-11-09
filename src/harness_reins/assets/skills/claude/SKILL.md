@@ -1,14 +1,16 @@
 ---
 name: harness-reins
-description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this turn, and get woken in this same Claude Code session when they finish via a background `reins wait`. Use instead of sleeping, polling logs, or leaving a job owned by the Bash tool whenever a command may take about a minute or longer. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results.
+description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this turn, and get the result back in this same Claude Code session when they finish. Use instead of sleeping, polling logs, or leaving a job owned by the Bash tool whenever a command may take about a minute or longer. For work of several steps (train then evaluate, a sweep of runs, build then test then publish) or work left running unattended, start a Reins goal before the first job; it reminds this session if everything goes quiet. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results.
 ---
 
 # Harness Reins for Claude Code
 
 Reins hands a long command to an independent OS task owner (launchd on macOS, systemd on Linux,
 Task Scheduler on Windows) and queues a callback when it exits. In Claude Code you receive that
-callback **in this live session** by running `reins wait` as a background Bash command: Claude Code
-wakes you when a background command exits, and `reins wait` exits as soon as the callback is ready.
+callback **in this live session**. Where `reins setup` installed its hook, the hook delivers it and
+you start nothing. Otherwise run `reins wait` as a background Bash command: Claude Code wakes you
+when a background command exits, and `reins wait` exits as soon as the callback is ready. The
+output of `reins run` says which applies.
 
 The full reference (all flags, platforms, recovery and goals) is in [REFERENCE.md](REFERENCE.md).
 Read it only when you need details beyond this page. It is shared with other agents; where it
@@ -34,19 +36,19 @@ differs from this page about callback delivery, this page applies to Claude Code
    reins run --cwd "$PWD" --task "train model" -- python train.py --config configs/exp.yaml
    ```
 
-   stderr prints the task id, backend, log path, and a ready-made line:
-   `reins: Claude Code live callback: run in the background (run_in_background): .../reins wait --queue-dir ... --task <id>`
+   stderr prints the task id, backend, log path, and how the callback will arrive:
 
-   If it instead says the callback `arrives through the reins channel`, this session was started with
-   `reins claude`: skip step 2. The callback is pushed into this session as a
-   `<channel source="reins">` event; handle it as in step 3.
+   - `arrives through the Reins hook`: skip step 2. The callback appears in this window when it is idle
+     or its turn ends; handle it as in step 3.
+   - `run in the background (run_in_background): .../reins wait --queue-dir ... --task <id>`: do step 2.
+   - `arrives through the reins channel`: this session was started with `reins claude`, so skip step 2.
+     The callback is pushed in as a `<channel source="reins">` event; handle it as in step 3.
 
 2. **Wait** — run exactly that `reins wait ... --task <id>` command with the Bash tool's
    `run_in_background: true`. Do not run it in the foreground (it blocks until the job ends), and do
    not poll its output. Then tell the user what is running and end your turn, or carry on with other
-   work. If `reins run` says the callback arrives through the Reins hook, there is nothing to start.
-   While this window is open the daemon never resumes the session beside it; it does so only after
-   the window closes.
+   work. While this window is open the daemon never resumes the session beside it; it does so only
+   after the window closes.
 
    If the Bash tool has no `run_in_background` (background tasks are disabled; `reins run` then says
    so instead of printing a wait command), skip the wait: tell the user what is running and end your

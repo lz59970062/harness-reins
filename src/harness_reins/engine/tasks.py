@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import Iterator
 from . import routes
 from ..harness.pi import channel as pi_channel
 from ..harness import AGENTS, CHILD_AGENT_NAMES, ChildOptions, get_agent, get_child_agent
@@ -138,6 +139,18 @@ def load_managed_task(path: Path) -> dict[str, object]:
     if backend == "screen" and not isinstance(task.get("screen_session"), str):
         raise ValueError("managed task is missing screen metadata")
     return task
+
+
+def session_tasks(root: Path, agent: str, session: str) -> Iterator[dict[str, object]]:
+    """The managed tasks that call back into this session; an unreadable record is left out."""
+    for path in layout.managed_tasks_root(root).glob("*/task.json"):
+        try:
+            task = json.loads(files.read_text(path))
+        except (OSError, ValueError):
+            continue
+        target = task.get("target") if isinstance(task, dict) else None
+        if isinstance(target, dict) and target.get("session") == session and task.get("agent") == agent:
+            yield task
 
 
 def report_fields(result: dict[str, object]) -> dict[str, object]:

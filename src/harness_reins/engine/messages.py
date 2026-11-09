@@ -10,7 +10,6 @@ rather than a reply that could become the next turn of the same conversation.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from pathlib import Path
 import sys
@@ -25,9 +24,9 @@ from ..harness.claude import session as claude_session
 from ..harness.claude.adapter import CLAUDE_PERMISSION_MODE_ENV
 from ..harness.pi import channel as pi_channel
 from ..store import layout, link
-from ..system import files
 from ..store import records as queue_store
-from . import dispatch, native_queue, recovery, resume_environment, routes
+from . import dispatch, goals, native_queue, recovery, resume_environment, routes
+from . import tasks as managed_tasks
 
 EXPIRED_NOTE = "message expired before it was read"
 MAINTAIN_INTERVAL = 30.0
@@ -62,25 +61,8 @@ def expects_callbacks(queue: Path, harness: str, session: str) -> bool:
     inactivity reminders, or a name messages reach."""
     if name_of(queue, harness, session) is not None:
         return True
-    for path in (queue / "goals").glob("*.json"):
-        try:
-            goal = json.loads(files.read_text(path))
-        except (OSError, ValueError):
-            continue
-        target = goal.get("target") if isinstance(goal, dict) else None
-        if (isinstance(target, dict) and target.get("session") == session
-                and goal.get("agent") == harness and goal.get("state") == "active"):
-            return True
-    for path in layout.managed_tasks_root(queue).glob("*/task.json"):
-        try:
-            task = json.loads(files.read_text(path))
-        except (OSError, ValueError):
-            continue
-        target = task.get("target") if isinstance(task, dict) else None
-        if (isinstance(target, dict) and target.get("session") == session
-                and task.get("agent") == harness and task.get("state") in ACTIVE_TASK_STATES):
-            return True
-    return False
+    return (goals.has_active_goal(queue, harness, session)
+            or any(task.get("state") in ACTIVE_TASK_STATES for task in managed_tasks.session_tasks(queue, harness, session)))
 
 
 def _route(harness: str) -> dict[str, object]:

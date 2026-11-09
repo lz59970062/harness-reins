@@ -41,6 +41,8 @@ reins run --goal-id baseline-report --cwd "$PWD" --task "Train the baseline" -- 
 
 When the task finishes, the Agent reads the result, acknowledges the callback, and updates the plan. By default, an active goal sends a progress check every three hours to help the original conversation continue the current step. The check reaches the conversation the same way its job results do, including Codex Desktop threads and Pi sessions.
 
+The Agent skills ask for a goal before multi-step work starts. If a session has already run another job and has no active goal, `reins run` also suggests one.
+
 ## Complete the goal
 
 Once the artifacts have been checked, mark every plan step `completed` and run:

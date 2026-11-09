@@ -430,26 +430,43 @@ def hook_installed(settings_path: Path) -> bool:
                              else []))
 
 
-def open_window(session: str, environment: Mapping[str, str]) -> Optional[int]:
-    """The process of a Claude Code window that has this session open, from its session record."""
-    from ...tower import main as tower
-
+def _window_records(environment: Mapping[str, str]) -> list[dict[str, object]]:
+    """Session records of interactive Claude Code processes; the process may have gone without removing one."""
     try:
         paths = list((config_dir(environment) / "sessions").glob("*.json"))
     except OSError:
-        return None
+        return []
+    records = []
     for path in paths:
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if (not isinstance(record, dict) or record.get("sessionId") != session
-                or record.get("entrypoint") == HEADLESS_ENTRYPOINT or type(record.get("pid")) is not int):
-            continue
-        identity = tower.daemon_process_identity(record["pid"])
-        ticks = identity.get("start_ticks") if identity else None
-        if identity and (ticks is None or str(ticks) == str(record.get("procStart", ticks))):
-            return record["pid"]  # The start time rules out a reused pid after a crash.
+        if (isinstance(record, dict) and isinstance(record.get("sessionId"), str)
+                and record.get("entrypoint") != HEADLESS_ENTRYPOINT and type(record.get("pid")) is int):
+            records.append(record)
+    return records
+
+
+def _window_is_alive(record: Mapping[str, object]) -> bool:
+    from ...tower import main as tower
+
+    identity = tower.daemon_process_identity(int(str(record["pid"])))
+    ticks = identity.get("start_ticks") if identity else None
+    # The start time rules out a reused pid after a crash.
+    return bool(identity) and (ticks is None or str(ticks) == str(record.get("procStart", ticks)))
+
+
+def open_windows(environment: Mapping[str, str]) -> list[dict[str, object]]:
+    """The session records of every Claude Code window that is open."""
+    return [record for record in _window_records(environment) if _window_is_alive(record)]
+
+
+def open_window(session: str, environment: Mapping[str, str]) -> Optional[int]:
+    """The process of a Claude Code window that has this session open, from its session record."""
+    for record in _window_records(environment):
+        if record["sessionId"] == session and _window_is_alive(record):
+            return int(str(record["pid"]))
     return None
 
 

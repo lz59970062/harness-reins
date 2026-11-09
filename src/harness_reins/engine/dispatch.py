@@ -27,6 +27,7 @@ from ..store import records as queue_store
 from ..system import shell
 from . import delivery as delivery_engine
 from . import contexts as contexts_engine
+from . import claude_moves
 from . import goals
 from . import tasks as managed_tasks
 
@@ -101,10 +102,20 @@ def request_agent(request: dict[str, object]) -> str:
     return get_agent(agent).name
 
 
+def _current_session(args: argparse.Namespace, session: str) -> str:
+    """A Claude Code session that moved to another id in its window is bound under the id it has now."""
+    if resolve_agent(args) != "claude":
+        return session
+    following = claude_moves.current_session(layout.queue_dir(args).expanduser().absolute(), session)
+    if following != session:
+        print(f"reins: session {session} moved to {following} in its window; binding to {following}", file=sys.stderr)
+    return following
+
+
 def resolve_target(args: argparse.Namespace) -> tuple[dict[str, str], str]:
     if args.session:
         value = pi_channel.canonical_session(args.session) if resolve_agent(args) == "pi" else args.session
-        return targets.session(value), "--session"
+        return targets.session(_current_session(args, value)), "--session"
 
     agent = resolve_agent(args)
     env_name = get_agent(agent).session_id_env
@@ -112,7 +123,7 @@ def resolve_target(args: argparse.Namespace) -> tuple[dict[str, str], str]:
     if session:
         if agent == "pi":
             session = pi_channel.canonical_session(session)
-        return targets.session(session), env_name
+        return targets.session(_current_session(args, session)), env_name
 
     raise SystemExit(
         f"Cannot determine the callback session: {env_name} is unset. "
@@ -386,6 +397,19 @@ def build_acknowledgement_text(command: str, agent: str = "codex", callback_mode
     )
 
 
+def suggests_goal(root: Path, task: dict[str, object]) -> bool:
+    """Whether this looks like one step of several with no goal watching them: the session ran another job before."""
+    target = task["target"]
+    if task.get("goal_id") or target.get("kind") != "session":
+        return False
+    agent, session = str(task["agent"]), str(target.get("session"))
+    try:
+        return (any(earlier.get("id") != task["id"] for earlier in managed_tasks.session_tasks(root, agent, session))
+                and not goals.has_active_goal(root, agent, session))
+    except OSError:
+        return False  # The task is already submitted; a hint is no reason to report a failure.
+
+
 def submit_managed_run(args: argparse.Namespace) -> int:
     if not routes.preflight(args):
         return 125
@@ -592,6 +616,10 @@ def submit_managed_run(args: argparse.Namespace) -> int:
         print("reins: start it now: DSH has no headless fallback, so the callback waits until this session runs "
               "`reins wait`", file=sys.stderr)
         print("reins: if this submission needed sandbox_permissions, give the wait the same ones", file=sys.stderr)
+    if suggests_goal(root, task):
+        print("reins: this session has run other jobs with no goal. If they are steps of one piece of work, start one "
+              "with `reins goal start` and bind the next jobs with --goal-id: Reins then reminds this session if the "
+              "work goes quiet for 3 hours", file=sys.stderr)
     return 0
 
 

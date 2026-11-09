@@ -28,6 +28,7 @@ from ..system import windows_process
 from ..store import layout
 from ..store import records as queue_store
 from ..system import shell
+from . import claude_moves
 from . import dispatch
 from . import reminders as reminder_policy
 from . import resume_environment
@@ -398,14 +399,21 @@ def waits_for_open_session(root: Path, request: dict[str, object], request_id: s
             and not layout.ack_path(root, request_id).exists() and not pi_channel.live_mailbox_open(request))
 
 
-def waits_for_open_window(root: Path, request: dict[str, object], request_id: str) -> bool:
-    """A resume beside an open Claude Code window forks its transcript, so the callback waits for that window."""
+def waits_for_open_window(root: Path, request: dict[str, object], request_id: str, *, look_again: bool = False) -> bool:
+    """A resume beside an open Claude Code window forks its transcript, so the callback waits for that window.
+
+    So does one whose session moved to another id in a window: the daemon sends it there on its next look.
+    ``look_again`` checks for such a move now, for the last check before a resume starts.
+    """
     target = request.get("target")
     if (dispatch.request_agent(request) != "claude" or not isinstance(target, dict)
             or target.get("kind") != "session" or not isinstance(target.get("session"), str)):
         return False
     environment = resume_environment.merged(os.environ, resume_environment.load(root, request_id))
-    return claude_session.open_window(target["session"], environment) is not None
+    if look_again:
+        claude_moves.sync(root, environment, wait=True)
+    return (claude_session.open_window(target["session"], environment) is not None
+            or claude_moves.holds(root, request, environment))
 
 
 def live_hold_ended(root: Path, request: Mapping[str, object], request_id: str) -> bool:
@@ -809,7 +817,7 @@ def delivery_worker_main() -> int:
                 try:
                     stream_code = None
                     if (dispatch.request_agent(request) == "claude"
-                            and waits_for_open_window(Path(str(payload["queue_dir"])), request, str(request.get("id")))):
+                            and waits_for_open_window(Path(str(payload["queue_dir"])), request, str(request.get("id")), look_again=True)):
                         # A window opened on the session after this callback was selected,
                         # most often one closed and opened again; a resume now would fork it.
                         raise _WindowOpened()

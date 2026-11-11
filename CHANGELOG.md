@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.3 — 2026-11-11
+
+- `reins log <id>` prints a task's output and follows it like `tail -f`, then exits when
+  the task ends. A unique prefix of the id or a callback id such as `<id>-c1` works;
+  `-n` sets how many lines to start with, `--all` starts from the first line, and
+  `--no-follow` prints them and exits.
+
 ## 0.13.2 — 2026-11-09
 
 - A Claude Code window that gets a new session id while it stays open keeps its

@@ -190,6 +190,7 @@ def invoke_with_diagnostics(args: argparse.Namespace, operation: Callable[[argpa
 # Modes that act on this installation itself, or that OS services start
 # directly, never forward to the canonical installation.
 LOCAL_MODES = frozenset({
+    "log",  # Read-only: an older installed Reins may not have it.
     "setup", "migrate", "daemon", "desktop", "install-skill", "install-pi-extension", "install-shell-hook", "install-claude-hook",
     "install-systemd", "install-launchd", "install-supervisor", "install-windows-task", "uninstall-windows-task",
 })
@@ -592,6 +593,15 @@ def main() -> int:
     status_parser.add_argument("--quiet-empty", action="store_true", help="Print nothing when no items exist")
     status_parser.add_argument("--shell-hook", action="store_true", help="Use compact terminal-startup output")
 
+    log_parser = sub.add_parser(
+        "log", help="Print a task's output and follow it until the task ends (like tail -f)")
+    log_parser.add_argument("task_id", help="Task id, a unique prefix of one, or a callback id such as <id>-c1")
+    log_lines = log_parser.add_mutually_exclusive_group()
+    log_lines.add_argument("-n", "--lines", type=int, default=10, help="Lines to print before following (default: 10)")
+    log_lines.add_argument("-a", "--all", action="store_true", help="Print the whole log from its first line")
+    log_parser.add_argument("--no-follow", action="store_true", help="Print and exit instead of following")
+    log_parser.add_argument("--queue-dir", help="Wakeup queue directory")
+
     shell_hook_parser = sub.add_parser("install-shell-hook", help="Install an idempotent pending-status check in Bash startup")
     shell_hook_parser.add_argument("--rc-file", help="Bash rc file (default: ~/.bashrc)")
     shell_hook_parser.add_argument("--command", help="Executable path embedded in the hook")
@@ -714,6 +724,9 @@ def main() -> int:
         return callback_commands.cancel(args)
     if args.mode == "status":
         return callback_commands.status(args)
+    if args.mode == "log":
+        from .commands import logs as log_commands
+        return log_commands.log(args)
     if args.mode == "install-shell-hook":
         return skill_install.install_shell_hook(args)
     return 2

@@ -25,6 +25,9 @@ reins agent --help
 | `reins agent codex -- <prompt>` | Start a Codex child Agent |
 | `reins agent claude -- <prompt>` | Start a Claude child Agent |
 | `reins done --task <name> --exit-code <code>` | Report an external task result |
+| `reins log <task-id>` | Print the last 10 lines of a task's output and follow it until the task ends, like `tail -f`; a unique prefix of the id is enough |
+| `reins log <task-id> -n 100 --no-follow` | Print the last 100 lines and exit |
+| `reins log <task-id> --all` | Print the whole log from its first line, then follow it |
 
 Put submission options before `--`:
 

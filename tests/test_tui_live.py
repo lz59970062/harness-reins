@@ -28,8 +28,8 @@ class FakeZellij:
     def panes(self):
         return list(self.pane_list)
 
-    def new_pane(self, argv, *, name, direction="right", close_on_exit=True, cwd=None):
-        self.opened.append((list(argv), name, direction, close_on_exit))
+    def new_pane(self, argv, *, name, direction="right", close_on_exit=True, cwd=None, replace=None):
+        self.opened.append((list(argv), name, f"in place of {replace}" if replace else direction, close_on_exit))
         return "terminal_9"
 
     def focus(self, pane):
@@ -179,7 +179,7 @@ class ActionTests(LiveCase):
     def test_log_send_and_cancel(self) -> None:
         self.assertTrue(self.backend.show_log("t1").ok)
         argv, name, direction, close = self.zellij.opened[-1]
-        self.assertEqual((argv[-2:], name, direction, close), (["log", "t1"], "log t1", "down", False))
+        self.assertEqual((argv[-2:], name, direction, close), (["log", "t1"], "log t1", "right", False))
         ran = []
 
         def run(argv, **kwargs):
@@ -194,6 +194,23 @@ class ActionTests(LiveCase):
         self.assertEqual(ran[-1][-4:], ["send", "lab", "--message", "hi"])
         self.assertTrue(self.backend.cancel_callback("t1-c1").ok)
         self.assertEqual(ran[-1][-3:], ["cancel", "--id", "t1-c1"])
+
+
+class PlacementTests(unittest.TestCase):
+    def test_the_first_pane_replaces_the_hint_and_later_ones_stack_below(self) -> None:
+        zellij = FakeZellij([{"id": 0, "title": "Reins"}, {"id": 1, "title": live.HINT_TITLE}])
+        live.place(zellij, ["claude", "attach", "aaaaaaaa"], name="claude aaaaaaaa", close_on_exit=True)
+        self.assertEqual(zellij.opened[-1][2], "in place of terminal_1")
+        zellij.pane_list = [{"id": 0, "title": "Reins"}, {"id": 2, "title": "claude aaaaaaaa x"},
+                            {"id": 3, "title": "log t1"}, {"id": 4, "title": "claude bbbbbbbb", "exited": True}]
+        live.place(zellij, ["claude", "attach", "cccccccc"], name="claude cccccccc", close_on_exit=True)
+        # The newest open session or log pane is split downwards; the panel is never focused for it.
+        self.assertEqual((zellij.focused, zellij.opened[-1][2]), (["terminal_3"], "down"))
+
+    def test_with_nothing_on_the_right_it_opens_to_the_right(self) -> None:
+        zellij = FakeZellij([{"id": 0, "title": "Reins"}, {"id": 5, "title": "my shell"}])
+        live.place(zellij, ["reins", "log", "t1"], name="log t1", close_on_exit=False)
+        self.assertEqual((zellij.focused, zellij.opened[-1][2]), ([], "right"))
 
 
 class AttachedHandleTests(unittest.TestCase):
@@ -222,6 +239,8 @@ class LaunchTests(unittest.TestCase):
         layout_text = (directory / "layouts" / "reins.kdl").read_text()
         self.assertIn('command="/opt/reins dir/reins"', layout_text)
         self.assertIn('args "_tui-panel" "--queue-dir" "a \\"q\\""', layout_text)
+        self.assertIn(f'pane name="Reins" size="{launch.PANEL_WIDTH}"', layout_text)
+        self.assertIn(f'pane name="{live.HINT_TITLE}"', layout_text)
         config = (directory / "config.kdl").read_text()
         self.assertIn('default_layout "reins"', config)
         self.assertIn("session_serialization false", config)

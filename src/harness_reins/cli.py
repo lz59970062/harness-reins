@@ -600,6 +600,7 @@ def main() -> int:
     tui_parser.add_argument("--queue-dir", help="Wakeup queue directory")
     tui_panel_parser = sub.add_parser("_tui-panel", help=argparse.SUPPRESS)
     tui_panel_parser.add_argument("--queue-dir", help=argparse.SUPPRESS)
+    sub.add_parser("_tui-hint", help=argparse.SUPPRESS)
     log_parser = sub.add_parser(
         "log", help="Print a task's output and, on a terminal, follow it until the task ends (like tail -f)")
     log_parser.add_argument("task_id", help="Task id, a unique prefix of one, or a callback id such as <id>-c1")
@@ -740,6 +741,9 @@ def main() -> int:
     if args.mode == "_tui-panel":
         from .commands.tui import launch as tui_launch
         return tui_launch.panel_main(args)
+    if args.mode == "_tui-hint":
+        from .commands.tui import launch as tui_launch
+        return tui_launch.hint_main(args)
     if args.mode == "install-shell-hook":
         return skill_install.install_shell_hook(args)
     return 2

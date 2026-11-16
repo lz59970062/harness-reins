@@ -121,19 +121,19 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             table = app.query_one("#sessions-table", DataTable)
             self.assertEqual(table.row_count, 4)
             # Process-bearing sessions first, newest first; closed last.
-            titles = [str(table.get_row_at(i)[5]) for i in range(4)]
+            titles = [str(table.get_row_at(i)[1]) for i in range(4)]
             self.assertEqual(
                 titles, ["attached one", "ppt draft", "motion graphs", "old callback"]
             )
-            wheres = [str(table.get_row_at(i)[1]) for i in range(4)]
+            wheres = [str(table.get_row_at(i)[2]) for i in range(4)]
             self.assertEqual(wheres, ["here", "Desktop", "background", "closed"])
             marks = [str(table.get_row_at(i)[0]) for i in range(4)]
             self.assertEqual(marks, ["\u25cf", "\u25cb", "\u25cf", "\u25cc"])
             # cwd under HOME shortens to ~, an absolute path stays.
             self.assertEqual(str(table.get_row_at(0)[7]), "~/att")
             self.assertEqual(str(table.get_row_at(2)[7]), "/home/u/motion")
-            self.assertEqual(str(table.get_row_at(2)[3]), "2")   # running tasks
-            self.assertEqual(str(table.get_row_at(2)[4]), "1")   # pending callbacks
+            self.assertEqual(str(table.get_row_at(2)[4]), "2")   # running tasks
+            self.assertEqual(str(table.get_row_at(2)[5]), "1")   # pending callbacks
 
             tasks = app.query_one("#tasks-table", DataTable)
             self.assertEqual(tasks.row_count, 3)

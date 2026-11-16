@@ -30,8 +30,9 @@ The Reins panel on the left has four tabs:
 - **Goals**: plans and progress.
 - **Messages**: messages between sessions.
 
-The panel opens the panes on the right: a session pane runs `claude attach`, a log pane runs `reins log`. Closing a
-pane only leaves it; the session keeps running in the background.
+The panel opens the panes on the right: a session pane runs `claude attach`, a log pane runs `reins log`. The panel
+keeps its width: the first pane takes the hint's place on the right, and later sessions and logs stack below it
+instead of squeezing the panel.
 
 ## Keys
 
@@ -45,9 +46,17 @@ pane only leaves it; the session keeps running in the background.
 | `c` | Cancel a task's callback, after a confirmation |
 | `r` | Refresh now |
 | `1`–`4` | Switch tabs |
-| `Ctrl+Q` | Quit the panel |
 
 Move between panes and resize them with Zellij's own keys (the bar at the bottom lists them), or with the mouse.
+
+## Closing, leaving and quitting
+
+| To | Keys | The session |
+| --- | --- | --- |
+| Close a session or log pane | Select it (click, or `Alt+←/→`), then `Ctrl+p`, `x` | Keeps running in the background |
+| Leave for now and come back later | `Ctrl+o`, `d` | Layout and panes stay; run `reins tui` to return |
+| End the whole UI | `Ctrl+q` | Every Zellij pane closes; Claude sessions keep running in the background |
+| Stop a session | Select it in the panel and press `s` | Its process stops; the conversation stays |
 
 ## What opening a session does
 

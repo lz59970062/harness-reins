@@ -68,9 +68,12 @@ class Zellij:
         return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else []
 
     def new_pane(self, argv: Sequence[str], *, name: str, direction: Optional[str] = "right",
-                 close_on_exit: bool = True, cwd: Optional[str] = None) -> str:
+                 close_on_exit: bool = True, cwd: Optional[str] = None, replace: Optional[str] = None) -> str:
+        """Open a pane; ``replace`` puts it in place of that pane, which is closed."""
         arguments = ["new-pane", "--name", name]
-        if direction:
+        if replace:
+            arguments += ["--in-place", "--pane-id", replace, "--close-replaced-pane"]
+        elif direction:
             arguments += ["--direction", direction]
         if close_on_exit:
             arguments.append("--close-on-exit")
@@ -88,6 +91,33 @@ _PANE_NAME = re.compile(r"claude ([0-9a-f]{8})\b")
 def pane_name(handle: str, title: str) -> str:
     """How Reins names a session pane; attached_handles reads the handle back from it."""
     return f"claude {handle}" + (f" {title}" if title and title != handle else "")
+
+
+# The pane beside the panel until the first session opens; launch.write_config names it.
+HINT_TITLE = "Reins: select a session and press Enter"
+LOG_PREFIX = "log "
+
+
+def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool) -> None:
+    """Open a pane on the right without narrowing the panel.
+
+    The first one takes the hint pane's place; later ones split the newest
+    session or log pane downwards, so they stack instead of each taking a slice
+    of the width. Only with nothing on the right does it split the panel.
+    """
+    panes = [pane for pane in zellij.panes() if not pane.get("is_plugin") and not pane.get("exited")]
+    hint = next((pane for pane in panes if pane.get("title") == HINT_TITLE), None)
+    if hint is not None:
+        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, replace=f"terminal_{hint.get('id')}")
+        return
+    right = [pane for pane in panes if isinstance(pane.get("title"), str)
+             and (_PANE_NAME.match(str(pane["title"])) or str(pane["title"]).startswith(LOG_PREFIX))
+             and isinstance(pane.get("id"), int)]
+    if right:
+        zellij.focus(f"terminal_{max(int(pane['id']) for pane in right)}")
+        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, direction="down")
+        return
+    zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, direction="right")
 
 
 def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[str, str]:
@@ -265,7 +295,8 @@ class LiveBackend:
         if handle in handles:
             self.zellij.focus(handles[handle])
             return ActionResult(True, f"{view_title} is already open; moved to its pane")
-        self.zellij.new_pane(claude_background.attach_command(handle, self.environment), name=pane_name(handle, view_title))
+        place(self.zellij, claude_background.attach_command(handle, self.environment), name=pane_name(handle, view_title),
+              close_on_exit=True)
         return ActionResult(True, f"opened {view_title}")
 
     def open_session(self, session: str) -> ActionResult:
@@ -321,8 +352,7 @@ class LiveBackend:
         if self.zellij is None:
             return ActionResult(False, "not inside the Reins Zellij session")
         try:
-            self.zellij.new_pane(worker_command("log", task), name=f"log {task[:8]}", direction="down",
-                                 close_on_exit=False)
+            place(self.zellij, worker_command("log", task), name=f"{LOG_PREFIX}{task[:8]}", close_on_exit=False)
         except (RuntimeError, OSError) as exc:
             return ActionResult(False, str(exc))
         return ActionResult(True, f"following task {task[:8]}")

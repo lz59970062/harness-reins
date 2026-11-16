@@ -113,16 +113,16 @@ def _fit(text: str, width: int) -> str:
 
 
 def _session_cells(row: SessionRow) -> List[Any]:
-    # Where it runs and what it is doing come first: a narrow pane still shows them.
+    # Which session, where it runs and what it is doing come first: the panel is narrow.
     cells: List[Any] = [
         _MARKS.get(row.state, "?"),
+        _fit(row.title, TITLE_CELLS),
         _where(row),
         # Claude reports "blocked" both for a session waiting on a denied tool call and for one
         # waiting for its first prompt; either way it waits for a person.
         "waiting" if row.activity == sessions.BLOCKED else (row.activity or ""),
         str(row.tasks_running) if row.tasks_running else "",
         str(row.callbacks_pending) if row.callbacks_pending else "",
-        _fit(row.title, TITLE_CELLS),
         row.agent,
         _fit(_shorten_cwd(row.cwd), DIRECTORY_CELLS),
     ]
@@ -142,7 +142,7 @@ def _message_cells(row: MessageRow) -> List[Any]:
     ]
 
 
-TITLE_CELLS = 32
+TITLE_CELLS = 26
 DIRECTORY_CELLS = 30
 
 # Task states that mean it has not ended yet (the same set `reins log` follows).
@@ -308,7 +308,7 @@ class ReinsPanel(App[None]):
     def on_mount(self) -> None:
         self._main_screen = self.screen
         self.query_one("#sessions-table", DataTable).add_columns(
-            "", "Where", "Activity", "Tasks", "Callbacks", "Session", "Agent", "Directory"
+            "", "Session", "Where", "Activity", "Tasks", "Callbacks", "Agent", "Directory"
         )
         self.query_one("#tasks-table", DataTable).add_columns(
             "Task", "Title", "State", "Session", "Callback"

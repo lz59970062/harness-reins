@@ -22,9 +22,10 @@ from ...harness import AGENTS
 from ...harness.claude import agents as claude_agents
 from ...runtime import worker_command
 from ...store import layout
-from .live import read_record, session_of
+from .live import HINT_TITLE, read_record, session_of
 
-SESSION_NAME = "reins"
+# Another name keeps a second Reins TUI (a test, another queue) out of the user's own session.
+SESSION_NAME = os.environ.get("REINS_TUI_SESSION", "").strip() or "reins"
 ZELLIJ_ENV = "REINS_ZELLIJ"
 READY_SECONDS = 10.0
 
@@ -50,7 +51,12 @@ def _kdl(text: str) -> str:
     return json.dumps(text, ensure_ascii=False)
 
 
-def write_config(directory: Path, panel: list[str]) -> bool:
+# A share, not a column count: Zellij creates the session before any terminal attaches, at a small
+# default size, and a fixed width that does not fit then stops the session from starting.
+PANEL_WIDTH = "38%"
+
+
+def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = None) -> bool:
     """Reins's Zellij configuration, rewritten each time so an upgrade takes effect.
 
     Returns whether the layout changed. A running session keeps the layout it
@@ -74,11 +80,20 @@ def write_config(directory: Path, panel: list[str]) -> bool:
         'on_force_close "detach"',
         "",
     ]), encoding="utf-8")
-    args = " ".join(_kdl(word) for word in panel[1:])
+    hint = hint or [panel[0], "_tui-hint"]
+
+    def command_pane(name: str, argv: list[str], size: Optional[str] = None) -> list[str]:
+        sized = f" size={_kdl(size)}" if size else ""
+        return [f"        pane name={_kdl(name)}{sized} command={_kdl(argv[0])} {{",
+                "            args " + " ".join(_kdl(word) for word in argv[1:]),
+                "        }"]
+
+    # The panel keeps a fixed width; sessions open in the hint pane's place and then stack below it.
     (directory / "layouts" / "reins.kdl").write_text("\n".join([
         "layout {",
-        f"    pane name=\"Reins\" command={_kdl(panel[0])} {{",
-        f"        args {args}",
+        '    pane split_direction="vertical" {',
+        *command_pane("Reins", panel, PANEL_WIDTH),
+        *command_pane(HINT_TITLE, hint),
         "    }",
         "    pane size=1 borderless=true {",
         '        plugin location="compact-bar"',
@@ -188,7 +203,7 @@ def main(args: argparse.Namespace) -> int:
             return 2
     directory = config_dir()
     panel = worker_command("_tui-panel", *(["--queue-dir", str(args.queue_dir)] if getattr(args, "queue_dir", None) else []))
-    changed = write_config(directory, panel)
+    changed = write_config(directory, panel, worker_command("_tui-hint"))
     state = session_state(zellij, directory)
     if state == "running" and changed:
         print("reins tui: the Reins Zellij session was started by another version of Reins and keeps its old "
@@ -222,6 +237,27 @@ def main(args: argparse.Namespace) -> int:
         return 0  # Already in it: the pane opened beside this one.
     os.execv(zellij, [zellij, "--config-dir", str(directory), "attach", SESSION_NAME])
     return 0  # Not reached.
+
+
+HINT_TEXT = """Select a session on the left and press Enter to open it here.
+
+  Enter   open the session (or jump to its pane)    n   new session
+  l       follow a task's log                        s   stop a session
+  m       message a session                          c   cancel a callback
+
+Later sessions and logs open below this one.
+Close a pane: Ctrl+p then x. Leave everything running: Ctrl+o then d.
+Ctrl+q ends this Zellij session (your Claude sessions keep running)."""
+
+
+def hint_main(args: argparse.Namespace) -> int:
+    """Hidden `reins _tui-hint`: what the right side says before a session opens."""
+    print(HINT_TEXT, flush=True)
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        return 0
 
 
 def panel_main(args: argparse.Namespace) -> int:

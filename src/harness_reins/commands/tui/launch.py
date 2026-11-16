@@ -124,12 +124,13 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
     return before is not None and before != layout_path.read_text(encoding="utf-8")
 
 
-def _zellij(executable: str, directory: Path, *arguments: str, timeout: float = 10.0) -> "subprocess.CompletedProcess[str]":
+def _zellij(executable: str, directory: Path, *arguments: str, timeout: float = 10.0,
+            env: Optional[Mapping[str, str]] = None) -> "subprocess.CompletedProcess[str]":
     """Run Zellij; a call it does not answer in time comes back as a failure (exit 124), not an exception."""
     argv = [executable, "--config-dir", str(directory), *arguments]
     try:
         return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=timeout, check=False)
+                              errors="replace", timeout=timeout, check=False, env=env)
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(argv, 124, "", f"Zellij did not answer within {timeout:g} s")
     except OSError as exc:
@@ -193,37 +194,42 @@ def _panes(executable: str, directory: Path) -> Optional[list]:
     return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else None
 
 
-def zellij_servers(executable: str) -> set[int]:
-    """This user's Zellij server processes (`zellij --server ...`).
+# Set on the Zellij that starts the session; its server inherits it, which tells that server from any other.
+LAUNCH_ENV = "REINS_TUI_LAUNCH"
 
-    The server runs from Zellij's resolved path, which differs from ``executable`` when that is a symlink or a
-    wrapper, so this matches on the program name; callers take the difference around starting one.
-    """
-    name = os.path.basename(os.path.realpath(executable))
-    commands: list[tuple[int, list[str]]] = []
-    proc = Path("/proc")
+
+def zellij_servers(marker: str, proc: Path = Path("/proc")) -> set[int]:
+    """This user's Zellij server processes started with ``LAUNCH_ENV=marker``."""
+    wanted = f"{LAUNCH_ENV}={marker}"
+    found: set[int] = set()
     if proc.is_dir():
-        for entry in proc.iterdir():
-            if entry.name.isdigit():
-                try:
-                    if entry.stat().st_uid != os.getuid():
-                        continue
-                    argv = (entry / "cmdline").read_bytes().split(b"\0")
-                except OSError:
-                    continue
-                commands.append((int(entry.name), [word.decode("utf-8", "replace") for word in argv]))
-    else:
         try:
-            listing = subprocess.run(["ps", "-U", str(os.getuid()), "-o", "pid=,command="], capture_output=True,
-                                     text=True, timeout=10, check=False).stdout
-        except (OSError, subprocess.TimeoutExpired):
-            listing = ""
-        for line in listing.splitlines():
-            pid, _, command = line.strip().partition(" ")
-            if pid.isdigit():
-                commands.append((int(pid), command.split()))
-    return {pid for pid, argv in commands
-            if len(argv) > 1 and argv[1] == "--server" and os.path.basename(argv[0]) in (name, "zellij")}
+            entries = [entry for entry in proc.iterdir() if entry.name.isdigit()]
+        except OSError:
+            return found
+        for entry in entries:
+            try:
+                if entry.stat().st_uid != os.getuid():
+                    continue
+                argv = (entry / "cmdline").read_bytes().split(b"\0")
+                if len(argv) < 2 or argv[1] != b"--server":
+                    continue
+                if wanted.encode() in (entry / "environ").read_bytes().split(b"\0"):
+                    found.add(int(entry.name))
+            except OSError:
+                continue
+        return found
+    try:  # macOS: -E appends each of this user's processes' environment to its command.
+        listing = subprocess.run(["ps", "-E", "-ww", "-e", "-o", "uid=,pid=,command="], capture_output=True,
+                                 text=True, errors="replace", timeout=10, check=False).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return found
+    for line in listing.splitlines():
+        words = line.split()
+        if (len(words) > 3 and words[0] == str(os.getuid()) and words[1].isdigit() and "--server" in words[3:5]
+                and wanted in words):
+            found.add(int(words[1]))
+    return found
 
 
 def _end(pids: set[int], grace: float = 3.0) -> set[int]:
@@ -351,8 +357,9 @@ def main(args: argparse.Namespace) -> int:
             return 1
         state = None
     if state is None:
-        before = zellij_servers(zellij)
-        created = _zellij(zellij, directory, "attach", "--create-background", SESSION_NAME)
+        marker = f"{os.getpid()}-{time.time_ns()}"
+        created = _zellij(zellij, directory, "attach", "--create-background", SESSION_NAME,
+                          env={**os.environ, LAUNCH_ENV: marker})
         if created.returncode != 0:
             print(f"reins tui: Zellij could not start the {SESSION_NAME} session: "
                   f"{(created.stderr or created.stdout).strip()}", file=sys.stderr)
@@ -361,10 +368,15 @@ def main(args: argparse.Namespace) -> int:
         if ready == SILENT:
             # A server that never answers would leave an attached client on an empty screen. Its socket does
             # not answer `kill-session` either, so end the server this run started by its process id.
-            left = _end(zellij_servers(zellij) - before)
+            servers = zellij_servers(marker)
+            left = _end(servers)
             _zellij(zellij, directory, "delete-session", "--force", SESSION_NAME)
-            outcome = ("so it was stopped again" if not left else
-                       f"and it could not be stopped; end it with `kill -9 {' '.join(map(str, sorted(left)))}`")
+            if not servers:
+                outcome = "and its server process was not found; end that `zellij --server` process yourself"
+            elif left:
+                outcome = f"and it could not be stopped; end it with `kill -9 {' '.join(map(str, sorted(left)))}`"
+            else:
+                outcome = "so it was stopped again"
             print(f"reins tui: Zellij started the {SESSION_NAME} session but never answered within "
                   f"{READY_SECONDS:g} s, {outcome}. Your Claude sessions are not affected. Please report this "
                   f"with Zellij's log ({zellij_log()}) and the output of `{zellij} --version`.", file=sys.stderr)

@@ -4,6 +4,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -377,18 +378,26 @@ class LaunchTests(unittest.TestCase):
                     mock.patch.object(launch.time, "sleep"), mock.patch("sys.stderr", new_callable=io.StringIO):
                 self.assertEqual(launch._wait_ready("zellij", self.root), expected)
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "an unreaped child counts as gone only through /proc")
     def test_a_silent_zellij_server_is_ended_by_process_id(self) -> None:
         sleeper = subprocess.Popen(["sleep", "60"])
         self.addCleanup(sleeper.kill)
         self.assertEqual(launch._end({sleeper.pid}, grace=1.0), set())
         self.assertIsNotNone(sleeper.poll())
 
-    def test_finds_only_this_executables_servers(self) -> None:
-        with mock.patch.object(launch.Path, "is_dir", return_value=False), \
-                mock.patch.object(launch.subprocess, "run", return_value=subprocess.CompletedProcess(
-                    [], 0, " 10 /opt/z/zellij --server /tmp/zellij-0/c/ab\n 11 /opt/z/zellij action list-panes\n"
-                           " 12 /usr/bin/vim --server x\n", "")):
-            self.assertEqual(launch.zellij_servers("/opt/z/zellij"), {10})
+    def test_only_the_server_this_launch_started_is_found(self) -> None:
+        proc = Path(self.root) / "proc"
+        marker = f"{launch.LAUNCH_ENV}=1-2".encode()
+        for pid, argv, environ in ((10, b"/opt/z/zellij\0--server\0/tmp/zellij-0/c/ab\0", b"A=1\0" + marker + b"\0"),
+                                   (11, b"/opt/z/zellij\0--server\0/tmp/zellij-0/c/cd\0", b"A=1\0"),
+                                   (12, b"/opt/z/zellij\0action\0list-panes\0", marker + b"\0"),
+                                   (13, b"", b"")):
+            (proc / str(pid)).mkdir(parents=True)
+            (proc / str(pid) / "cmdline").write_bytes(argv)
+            (proc / str(pid) / "environ").write_bytes(environ)
+        (proc / "self").mkdir()
+        self.assertEqual(launch.zellij_servers("1-2", proc), {10})
+        self.assertEqual(launch.zellij_servers("9-9", proc), set())
 
     def test_zellij_lookup_order(self) -> None:
         tool = self.root.parent / "zellij-bin"

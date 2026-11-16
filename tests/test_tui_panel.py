@@ -269,6 +269,35 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(backend.calls), calls_before)
             self.assertIn("has no running task", status_text(app))
 
+    async def test_d_switches_where_panes_open_and_t_opens_a_terminal(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            app.query_one("#sessions-table", DataTable).focus()
+            await pilot.press("t")  # below, in the selected session's directory
+            await settle(app, pilot)
+            await pilot.press("d")
+            await pilot.pause()
+            self.assertIn("to the right", status_text(app))
+            await pilot.press("enter")  # first row, "attached one"
+            await settle(app, pilot)
+            self.assertIn(("open", SESSION_D, "right"), backend.calls)
+            await pilot.press("t")
+            await settle(app, pilot)
+            terminals = [call for call in backend.calls if call[0] == "terminal"]
+            self.assertEqual([call[2] for call in terminals], ["down", "right"])
+            self.assertTrue(all(call[1].endswith("att") for call in terminals))
+            await pilot.press("2")
+            await pilot.pause()
+            await pilot.press("l")
+            await settle(app, pilot)
+            self.assertIn(("log", TASK_1, "right"), backend.calls)
+            await pilot.press("d")  # and back
+            await pilot.press("l")
+            await settle(app, pilot)
+            self.assertIn(("log", TASK_1), backend.calls)
+
     async def test_send_message(self):
         backend = make_backend()
         app = make_app(backend)
@@ -330,7 +359,7 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             table.move_cursor(row=2)  # "motion graphs"
             key_before = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
             self.assertEqual(key_before, SESSION_A)
-            await pilot.press("r")
+            app.refresh_data()
             await settle(app, pilot)
             key_after = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
             self.assertEqual(key_after, SESSION_A)
@@ -356,7 +385,7 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_raising_backend_action_shows_error_and_app_lives(self):
         class RaisingOpenBackend(FakeBackend):
-            def open_session(self, session):
+            def open_session(self, session, direction="down"):
                 self.calls.append(("open", session))
                 raise RuntimeError("zellij is gone")
 

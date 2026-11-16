@@ -154,24 +154,48 @@ def resolve(identifier: str, root: Path, environment: Mapping[str, str]) -> str:
     raise ValueError(f"no session, task or callback {identifier} on this machine")
 
 
-def _wait_ready(executable: str, directory: Path) -> bool:
-    """Wait for the new session, then close Zellij's first-run wizard: Reins sets the configuration itself."""
-    deadline = time.monotonic() + READY_SECONDS
-    while time.monotonic() < deadline:
-        result = _zellij(executable, directory, "--session", SESSION_NAME, "action", "list-panes", "--json", "--all")
-        try:
-            panes = json.loads(result.stdout) if result.returncode == 0 else None
-        except ValueError:
-            panes = None
-        if isinstance(panes, list) and any(isinstance(pane, dict) and pane.get("title") == "Reins" for pane in panes):
-            for pane in panes:
-                if isinstance(pane, dict) and pane.get("is_plugin") and pane.get("plugin_url") == "configuration":
-                    _zellij(executable, directory, "--session", SESSION_NAME, "action", "close-pane",
-                            "--pane-id", f"plugin_{pane.get('id')}")
-            return True
-        time.sleep(0.2)
-    return False
+WIZARD_SECONDS = 3.0
 
+
+def _panes(executable: str, directory: Path) -> Optional[list]:
+    result = _zellij(executable, directory, "--session", SESSION_NAME, "action", "list-panes", "--json", "--all")
+    try:
+        panes = json.loads(result.stdout) if result.returncode == 0 else None
+    except ValueError:
+        return None
+    return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else None
+
+
+def _wait_ready(executable: str, directory: Path) -> bool:
+    """Wait for the new session and get it into the layout Reins wrote.
+
+    Zellij's first-run wizard (a floating `configuration` plugin) shows up a
+    second or two after the panes, and a client that attaches before it is
+    closed finds the panel fullscreen. So after the panel appears this keeps
+    looking for a while, closes the wizard, and undoes a fullscreen panel.
+    """
+    deadline = time.monotonic() + READY_SECONDS
+    settled = None
+    while time.monotonic() < deadline:
+        panes = _panes(executable, directory)
+        if panes is not None and any(pane.get("title") == "Reins" for pane in panes):
+            settled = settled or time.monotonic() + WIZARD_SECONDS
+            wizard = [pane for pane in panes if pane.get("is_plugin") and pane.get("plugin_url") == "configuration"]
+            for pane in wizard:
+                _zellij(executable, directory, "--session", SESSION_NAME, "action", "close-pane",
+                        "--pane-id", f"plugin_{pane.get('id')}")
+            if wizard or time.monotonic() >= settled:
+                break
+        time.sleep(0.2)
+    if settled is None:
+        return False
+    time.sleep(0.3)
+    for pane in _panes(executable, directory) or ():
+        if not pane.get("is_plugin") and pane.get("is_fullscreen"):
+            _zellij(executable, directory, "--session", SESSION_NAME, "action", "focus-pane-id",
+                    f"terminal_{pane.get('id')}")
+            _zellij(executable, directory, "--session", SESSION_NAME, "action", "toggle-fullscreen")
+    return True
 
 def main(args: argparse.Namespace) -> int:
     environment = dict(os.environ)
@@ -243,9 +267,10 @@ HINT_TEXT = """Select a session on the left and press Enter to open it here.
 
   Enter   open the session (or jump to its pane)    n   new session
   l       follow a task's log                        s   stop a session
-  m       message a session                          c   cancel a callback
+  t       a terminal in the session's directory      m   message a session
+  d       later panes open below / to the right      c   cancel a callback
+  1-4     Sessions, Tasks, Goals, Messages
 
-Later sessions and logs open below this one.
 Close a pane: Ctrl+p then x. Leave everything running: Ctrl+o then d.
 Ctrl+q ends this Zellij session (your Claude sessions keep running)."""
 

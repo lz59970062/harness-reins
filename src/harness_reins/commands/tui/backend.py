@@ -68,13 +68,18 @@ class ActionResult:
     message: str             # One line for the status bar, in plain words.
 
 
+# Where a new pane goes, beside the newest pane on the right: below it, or to its right.
+BELOW = "down"
+BESIDE = "right"
+
+
 class Backend(Protocol):
     def sessions(self) -> Sequence[SessionRow]: ...
     def tasks(self) -> Sequence[TaskRow]: ...
     def goals(self) -> Sequence[GoalRow]: ...
     def messages(self) -> Sequence[MessageRow]: ...
 
-    def open_session(self, session: str) -> ActionResult:
+    def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
         """Show it in a pane: jump to its pane if one has it, else resume and attach (section 5)."""
 
     def new_session(self, agent: str, cwd: str) -> ActionResult:
@@ -83,8 +88,11 @@ class Backend(Protocol):
     def stop_session(self, session: str) -> ActionResult:
         """Stop its process; the conversation stays and it can be opened again."""
 
-    def show_log(self, task: str) -> ActionResult:
+    def show_log(self, task: str, direction: str = BELOW) -> ActionResult:
         """Follow the task's output in a pane."""
+
+    def open_terminal(self, cwd: str, direction: str = BELOW) -> ActionResult:
+        """A shell in a pane, in ``cwd``."""
 
     def send_message(self, recipient: str, text: str) -> ActionResult:
         """Same as `reins send <recipient> <text>`."""
@@ -117,8 +125,8 @@ class FakeBackend:
     def _find(self, session: str) -> Optional[SessionRow]:
         return next((row for row in self.session_rows if row.session == session), None)
 
-    def open_session(self, session: str) -> ActionResult:
-        self.calls.append(("open", session))
+    def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
+        self.calls.append(("open", session) if direction == BELOW else ("open", session, direction))
         row = self._find(session)
         if row is None:
             return ActionResult(False, f"no session {session[:8]}")
@@ -142,9 +150,13 @@ class FakeBackend:
                              for r in self.session_rows]
         return ActionResult(True, f"stopped {row.title}")
 
-    def show_log(self, task: str) -> ActionResult:
-        self.calls.append(("log", task))
+    def show_log(self, task: str, direction: str = BELOW) -> ActionResult:
+        self.calls.append(("log", task) if direction == BELOW else ("log", task, direction))
         return ActionResult(True, f"following task {task[:8]}")
+
+    def open_terminal(self, cwd: str, direction: str = BELOW) -> ActionResult:
+        self.calls.append(("terminal", cwd, direction))
+        return ActionResult(True, f"opened a terminal in {cwd}")
 
     def send_message(self, recipient: str, text: str) -> ActionResult:
         self.calls.append(("send", recipient, text))

@@ -32,7 +32,7 @@ from textual.widgets import (
 from textual.worker import get_current_worker
 
 from ...core import sessions
-from .backend import ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow
+from .backend import BELOW, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow
 
 SESSIONS_TAB = "tab-sessions"
 TASKS_TAB = "tab-tasks"
@@ -268,22 +268,27 @@ class ReinsPanel(App[None]):
     """
 
     BINDINGS = [
-        Binding("1", "show_tab('%s')" % SESSIONS_TAB, "Sessions"),
-        Binding("2", "show_tab('%s')" % TASKS_TAB, "Tasks"),
-        Binding("3", "show_tab('%s')" % GOALS_TAB, "Goals"),
-        Binding("4", "show_tab('%s')" % MESSAGES_TAB, "Messages"),
+        # Tabs are clickable and listed in the hint, so the narrow footer keeps the actions.
+        Binding("1", "show_tab('%s')" % SESSIONS_TAB, "Sessions", show=False),
+        Binding("2", "show_tab('%s')" % TASKS_TAB, "Tasks", show=False),
+        Binding("3", "show_tab('%s')" % GOALS_TAB, "Goals", show=False),
+        Binding("4", "show_tab('%s')" % MESSAGES_TAB, "Messages", show=False),
         Binding("enter", "activate", "Open"),
-        Binding("n", "new_session", "New session"),
-        Binding("s", "stop_session", "Stop session"),
+        Binding("n", "new_session", "New"),
+        Binding("s", "stop_session", "Stop"),
         Binding("l", "show_log", "Log"),
-        Binding("m", "send_message", "Message"),
-        Binding("c", "cancel_callback", "Cancel callback"),
-        Binding("r", "refresh_now", "Refresh"),
+        Binding("t", "open_terminal", "Shell"),
+        Binding("m", "send_message", "Msg"),
+        Binding("c", "cancel_callback", "Cancel"),
+        # One key for where Enter, l and t put their pane; the footer shows the current choice.
+        Binding("d", "split('right')", "Split ↓"),
+        Binding("d", "split('down')", "Split →"),
     ]
 
     def __init__(self, backend: Backend, refresh_seconds: float = 3.0) -> None:
         super().__init__()
         self._backend = backend
+        self._direction = BELOW
         self._refresh_seconds = max(0.5, float(refresh_seconds))
         self._main_screen: Optional[Any] = None
         self._session_rows: List[SessionRow] = []
@@ -496,21 +501,33 @@ class ReinsPanel(App[None]):
         # Enter on a focused table; the app-level `enter` binding covers the rest.
         if self._modal_open():
             return
-        self._open_selected()
+        self._open_selected(self._direction)
+
+    def check_action(self, action: str, parameters: Tuple[object, ...]) -> Optional[bool]:
+        if action == "split":
+            return bool(parameters) and parameters[0] != self._direction
+        return True
+
+    def action_split(self, direction: str) -> None:
+        if self._modal_open():
+            return
+        self._direction = direction
+        self.refresh_bindings()
+        self._show_status("new panes open " + ("below" if direction == BELOW else "to the right"))
 
     def action_activate(self) -> None:
         if self._modal_open():
             return
-        self._open_selected()
+        self._open_selected(self._direction)
 
-    def _open_selected(self) -> None:
+    def _open_selected(self, direction: str = BELOW) -> None:
         tab = self._active_tab()
         if tab == SESSIONS_TAB:
             row = self._selected_session()
             if row is None:
                 self._show_status("no session selected", ok=False)
                 return
-            self._run_action("open", self._backend.open_session, row.session)
+            self._run_action("open", self._backend.open_session, row.session, direction)
         elif tab == TASKS_TAB:
             row = self._selected_task()
             if row is None:
@@ -519,7 +536,7 @@ class ReinsPanel(App[None]):
             if not row.session:
                 self._show_status("task %s has no session" % row.task[:8], ok=False)
                 return
-            self._run_action("open", self._backend.open_session, row.session)
+            self._run_action("open", self._backend.open_session, row.session, direction)
         else:
             self._show_status("enter opens a session from the Sessions or Tasks tab")
 
@@ -559,6 +576,7 @@ class ReinsPanel(App[None]):
             self._run_action("stop", self._backend.stop_session, row.session)
 
     def action_show_log(self) -> None:
+        direction = self._direction
         if self._modal_open():
             return
         tab = self._active_tab()
@@ -567,7 +585,7 @@ class ReinsPanel(App[None]):
             if row is None:
                 self._show_status("no task selected", ok=False)
                 return
-            self._run_action("log", self._backend.show_log, row.task)
+            self._run_action("log", self._backend.show_log, row.task, direction)
         elif tab == SESSIONS_TAB:
             row = self._selected_session()
             if row is None:
@@ -577,9 +595,25 @@ class ReinsPanel(App[None]):
             if task is None:
                 self._show_status("%s has no running task" % row.title)
                 return
-            self._run_action("log", self._backend.show_log, task.task)
+            self._run_action("log", self._backend.show_log, task.task, direction)
         else:
             self._show_status("l follows a task from the Sessions or Tasks tab")
+
+    def action_open_terminal(self) -> None:
+        """A shell in the selected session's directory (or the task's session's), else here."""
+        if self._modal_open():
+            return
+        direction = self._direction
+        cwd = None
+        tab = self._active_tab()
+        if tab == SESSIONS_TAB:
+            row = self._selected_session()
+            cwd = row.cwd if row is not None else None
+        elif tab == TASKS_TAB:
+            task = self._selected_task()
+            session = next((row for row in self._session_rows if task is not None and row.session == task.session), None)
+            cwd = session.cwd if session is not None else None
+        self._run_action("terminal", self._backend.open_terminal, cwd or os.getcwd(), direction)
 
     def action_send_message(self) -> None:
         if self._modal_open():

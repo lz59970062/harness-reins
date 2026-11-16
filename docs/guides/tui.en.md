@@ -31,8 +31,8 @@ The Reins panel on the left has four tabs:
 - **Messages**: messages between sessions.
 
 The panel opens the panes on the right: a session pane runs `claude attach`, a log pane runs `reins log`. The panel
-keeps its width: the first pane takes the hint's place on the right, and later sessions and logs stack below it
-instead of squeezing the panel.
+keeps its width: the first pane takes the hint's place on the right, and later sessions, logs and terminals open
+below or to the right of the newest pane there (`d` switches which), instead of squeezing the panel.
 
 ## Keys
 
@@ -41,11 +41,14 @@ instead of squeezing the panel.
 | `Enter` | Open the selected session, or jump to its pane if it is already open. On Tasks, open the session that started the task |
 | `n` | Start a new Claude Code session in a directory you choose |
 | `l` | Follow a task's output |
+| `t` | Open a terminal in the selected session's directory |
+| `d` | Switch whether new panes open below or to the right; the footer shows which |
 | `m` | Send the selected session a message |
 | `s` | Stop a session, after a confirmation. The conversation stays, and `Enter` opens it again |
 | `c` | Cancel a task's callback, after a confirmation |
-| `r` | Refresh now |
 | `1`–`4` | Switch tabs |
+
+The panel refreshes itself every 3 seconds.
 
 Move between panes and resize them with Zellij's own keys (the bar at the bottom lists them), or with the mouse.
 

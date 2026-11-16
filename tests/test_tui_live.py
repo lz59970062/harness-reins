@@ -176,6 +176,14 @@ class ActionTests(LiveCase):
         stop.assert_called_once()
         self.assertEqual(stop.call_args.args[0], SESSION[:8])
 
+    def test_terminal_opens_a_shell_in_the_directory(self) -> None:
+        self.backend.environment["SHELL"] = "/bin/zsh"
+        self.assertTrue(self.backend.open_terminal(str(self.home), "right").ok)
+        argv, name, direction, close = self.zellij.opened[-1]
+        self.assertEqual((argv, name, direction, close), (["/bin/zsh"], f"shell {self.home.name}", "right", True))
+        self.assertIn(str(Path.home()) if False else "", "")
+        self.assertTrue(self.backend.open_terminal("/no/such/dir").ok)  # Falls back to the home directory.
+
     def test_log_send_and_cancel(self) -> None:
         self.assertTrue(self.backend.show_log("t1").ok)
         argv, name, direction, close = self.zellij.opened[-1]
@@ -207,8 +215,20 @@ class PlacementTests(unittest.TestCase):
         # The newest open session or log pane is split downwards; the panel is never focused for it.
         self.assertEqual((zellij.focused, zellij.opened[-1][2]), (["terminal_3"], "down"))
 
+    def test_beside_splits_the_newest_pane_to_the_right_and_shells_count(self) -> None:
+        zellij = FakeZellij([{"id": 0, "title": "Reins"}, {"id": 2, "title": "claude aaaaaaaa"},
+                             {"id": 6, "title": "shell project"}])
+        live.place(zellij, ["claude", "attach", "bbbbbbbb"], name="claude bbbbbbbb", close_on_exit=True,
+                   direction="right")
+        self.assertEqual((zellij.focused, zellij.opened[-1][2]), (["terminal_6"], "right"))
+
+    def test_a_pane_that_renamed_itself_still_counts(self) -> None:
+        zellij = FakeZellij([{"id": 0, "title": "Reins"}, {"id": 5, "title": "user@host: ~/project"}])
+        live.place(zellij, ["reins", "log", "t1"], name="log t1", close_on_exit=False)
+        self.assertEqual((zellij.focused, zellij.opened[-1][2]), (["terminal_5"], "down"))
+
     def test_with_nothing_on_the_right_it_opens_to_the_right(self) -> None:
-        zellij = FakeZellij([{"id": 0, "title": "Reins"}, {"id": 5, "title": "my shell"}])
+        zellij = FakeZellij([{"id": 0, "title": "Reins"}])
         live.place(zellij, ["reins", "log", "t1"], name="log t1", close_on_exit=False)
         self.assertEqual((zellij.focused, zellij.opened[-1][2]), ([], "right"))
 

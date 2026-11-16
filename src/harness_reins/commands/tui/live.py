@@ -24,7 +24,7 @@ from ...harness.claude import agents as claude_agents
 from ...install import skills as skill_install
 from ...runtime import worker_command
 from ...store import layout, link
-from .backend import ActionResult, GoalRow, MessageRow, SessionRow, TaskRow
+from .backend import BELOW, ActionResult, GoalRow, MessageRow, SessionRow, TaskRow
 
 Run = Callable[..., "subprocess.CompletedProcess[str]"]
 
@@ -96,28 +96,36 @@ def pane_name(handle: str, title: str) -> str:
 # The pane beside the panel until the first session opens; launch.write_config names it.
 HINT_TITLE = "Reins: select a session and press Enter"
 LOG_PREFIX = "log "
+SHELL_PREFIX = "shell "
 
 
-def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool) -> None:
+PANEL_TITLE = "Reins"
+
+
+def _is_panel(pane: Mapping[str, object]) -> bool:
+    return pane.get("title") == PANEL_TITLE or "_tui-panel" in str(pane.get("terminal_command") or "")
+
+
+def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool, direction: str = BELOW,
+          cwd: Optional[str] = None) -> None:
     """Open a pane on the right without narrowing the panel.
 
     The first one takes the hint pane's place; later ones split the newest
-    session or log pane downwards, so they stack instead of each taking a slice
-    of the width. Only with nothing on the right does it split the panel.
+    session, log or shell pane, below it or to its right as asked, so the
+    panel keeps its width. Only with nothing on the right does it split the panel.
     """
     panes = [pane for pane in zellij.panes() if not pane.get("is_plugin") and not pane.get("exited")]
     hint = next((pane for pane in panes if pane.get("title") == HINT_TITLE), None)
     if hint is not None:
-        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, replace=f"terminal_{hint.get('id')}")
+        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, replace=f"terminal_{hint.get('id')}")
         return
-    right = [pane for pane in panes if isinstance(pane.get("title"), str)
-             and (_PANE_NAME.match(str(pane["title"])) or str(pane["title"]).startswith(LOG_PREFIX))
-             and isinstance(pane.get("id"), int)]
+    # Every pane but the panel is on the right. Names cannot tell: a shell renames its pane.
+    right = [pane for pane in panes if isinstance(pane.get("id"), int) and not _is_panel(pane)]
     if right:
         zellij.focus(f"terminal_{max(int(pane['id']) for pane in right)}")
-        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, direction="down")
+        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction=direction)
         return
-    zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, direction="right")
+    zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction="right")
 
 
 def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[str, str]:
@@ -288,7 +296,7 @@ class LiveBackend:
     def _settings(self) -> str:
         return claude_background.settings_argument(skill_install.agent_command_names())
 
-    def _attach(self, view_title: str, handle: str) -> ActionResult:
+    def _attach(self, view_title: str, handle: str, direction: str = BELOW) -> ActionResult:
         if self.zellij is None:
             return ActionResult(False, "not inside the Reins Zellij session")
         handles = attached_handles(self.zellij.panes())
@@ -296,10 +304,10 @@ class LiveBackend:
             self.zellij.focus(handles[handle])
             return ActionResult(True, f"{view_title} is already open; moved to its pane")
         place(self.zellij, claude_background.attach_command(handle, self.environment), name=pane_name(handle, view_title),
-              close_on_exit=True)
+              close_on_exit=True, direction=direction)
         return ActionResult(True, f"opened {view_title}")
 
-    def open_session(self, session: str) -> ActionResult:
+    def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
         view = next((view for view in self._views() if view.session == session), None)
         if view is None:
             view = claude_agents.session_view(session, self.environment, views=(), run=self.run)
@@ -320,7 +328,7 @@ class LiveBackend:
                                                   settings=self._settings(), run=self.run)
             else:
                 handle = view.handle or session[:8]
-            return self._attach(title, handle)
+            return self._attach(title, handle, direction)
         except claude_background.StartedCopy:
             return ActionResult(False, f"{title} was opened somewhere else just now; try again when it closes")
         except (claude_background.BackgroundError, RuntimeError, OSError) as exc:
@@ -348,14 +356,27 @@ class LiveBackend:
             return ActionResult(False, str(exc))
         return ActionResult(True, f"stopped {view.name or session[:8]}; its conversation stays and opens again with Enter")
 
-    def show_log(self, task: str) -> ActionResult:
+    def show_log(self, task: str, direction: str = BELOW) -> ActionResult:
         if self.zellij is None:
             return ActionResult(False, "not inside the Reins Zellij session")
         try:
-            place(self.zellij, worker_command("log", task), name=f"{LOG_PREFIX}{task[:8]}", close_on_exit=False)
+            place(self.zellij, worker_command("log", task), name=f"{LOG_PREFIX}{task[:8]}", close_on_exit=False,
+                  direction=direction)
         except (RuntimeError, OSError) as exc:
             return ActionResult(False, str(exc))
         return ActionResult(True, f"following task {task[:8]}")
+
+    def open_terminal(self, cwd: str, direction: str = BELOW) -> ActionResult:
+        if self.zellij is None:
+            return ActionResult(False, "not inside the Reins Zellij session")
+        directory = os.path.expanduser(cwd) if cwd and os.path.isdir(os.path.expanduser(cwd)) else os.path.expanduser("~")
+        shell = self.environment.get("SHELL") or "/bin/sh"
+        try:
+            place(self.zellij, [shell], name=f"{SHELL_PREFIX}{os.path.basename(directory.rstrip(os.sep)) or directory}",
+                  close_on_exit=True, direction=direction, cwd=directory)
+        except (RuntimeError, OSError) as exc:
+            return ActionResult(False, str(exc))
+        return ActionResult(True, f"opened a terminal in {directory}")
 
     def _reins(self, *arguments: str) -> ActionResult:
         try:

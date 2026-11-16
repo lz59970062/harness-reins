@@ -430,8 +430,8 @@ def hook_installed(settings_path: Path) -> bool:
                              else []))
 
 
-def _window_records(environment: Mapping[str, str]) -> list[dict[str, object]]:
-    """Session records of interactive Claude Code processes; the process may have gone without removing one."""
+def _session_records(environment: Mapping[str, str], *, include_headless: bool) -> list[dict[str, object]]:
+    """Session records of Claude Code processes; the process may have gone without removing one."""
     try:
         paths = list((config_dir(environment) / "sessions").glob("*.json"))
     except OSError:
@@ -442,10 +442,15 @@ def _window_records(environment: Mapping[str, str]) -> list[dict[str, object]]:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if (isinstance(record, dict) and isinstance(record.get("sessionId"), str)
-                and record.get("entrypoint") != HEADLESS_ENTRYPOINT and type(record.get("pid")) is int):
+        if (isinstance(record, dict) and isinstance(record.get("sessionId"), str) and type(record.get("pid")) is int
+                and (include_headless or record.get("entrypoint") != HEADLESS_ENTRYPOINT)):
             records.append(record)
     return records
+
+
+def _window_records(environment: Mapping[str, str]) -> list[dict[str, object]]:
+    """Session records of interactive Claude Code processes; the process may have gone without removing one."""
+    return _session_records(environment, include_headless=False)
 
 
 def _window_is_alive(record: Mapping[str, object]) -> bool:
@@ -455,6 +460,11 @@ def _window_is_alive(record: Mapping[str, object]) -> bool:
     ticks = identity.get("start_ticks") if identity else None
     # The start time rules out a reused pid after a crash.
     return bool(identity) and (ticks is None or str(ticks) == str(record.get("procStart", ticks)))
+
+
+def live_process_records(environment: Mapping[str, str]) -> list[dict[str, object]]:
+    """The session records of every running Claude Code process, headless ones included."""
+    return [record for record in _session_records(environment, include_headless=True) if _window_is_alive(record)]
 
 
 def open_windows(environment: Mapping[str, str]) -> list[dict[str, object]]:

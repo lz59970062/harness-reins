@@ -30,6 +30,8 @@ build=$(git -C "$root" rev-parse --short=12 HEAD)
 git -C "$root" diff --quiet HEAD -- src pyproject.toml || build="$build-dirty"
 docker run --rm "${as_user[@]}" "${pip_env[@]}" -e "REINS_BUILD=$build" -v "$root:/src:ro" -v "$out:/out" \
   "$builder" bash /src/packaging/freeze.sh
+# `reins tui` runs the Zellij shipped beside reins (design 7.4).
+bash "$root/packaging/zellij/fetch.sh" linux-x64 "$out/dist/reins"
 docker run --rm "${as_user[@]}" -e npm_config_cache=/tmp/.npm -v "$root:/src:ro" -v "$out:/out" \
   "$node_image" bash /src/packaging/npm/pack.sh "$npm_version" linux-x64
 

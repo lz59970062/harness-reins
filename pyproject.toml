@@ -21,6 +21,10 @@ classifiers = [
 ]
 dependencies = ["PyYAML>=6.0"]
 
+[project.optional-dependencies]
+# `reins tui`: the panel. The npm package includes it, and Zellij beside it.
+tui = ["textual>=1.0"]
+
 [project.urls]
 Homepage = "https://github.com/lz59970062/harness-reins"
 Repository = "https://github.com/lz59970062/harness-reins"

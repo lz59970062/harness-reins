@@ -17,6 +17,13 @@ reins agent --help
 | `reins setup --keep-skill --force --enable --now` | Update the coordinator and retain skill content |
 | `reins doctor --agent codex --session <id>` | Inspect a session's runtime configuration |
 
+## Terminal UI
+
+| Command | Purpose |
+| --- | --- |
+| `reins tui` | Open the terminal UI: every session, task, goal and message, with sessions opened in panes beside them. See [Terminal UI](../guides/tui.md) |
+| `reins tui <id>` | Open one session at once; a session, task or callback id works |
+
 ## Submit work
 
 | Command | Purpose |

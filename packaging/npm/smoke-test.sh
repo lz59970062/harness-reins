@@ -59,6 +59,14 @@ reins install-skill --target claude
 ls ~/.claude/skills/*/SKILL.md
 reins template list >/dev/null && echo "ok: templates readable"
 
+step "reins tui ships its Zellij and Textual"
+zellij=$(npm root -g)/@harness-reins/linux-x64/dist/reins/zellij
+"$zellij" --version
+test -f "$(dirname "$zellij")/ZELLIJ-LICENSE.md"
+reins tui --help >/dev/null
+reins _tui-panel --help >/dev/null
+echo "ok: $("$zellij" --version) and the panel entry point are in the package"
+
 step "end-to-end: daemon -> screen task -> callback delivered to a fake claude"
 export CLAUDE_CONFIG_DIR=/tmp/claude CODEX_HOME=/tmp/codex REINS_DESKTOP_APP_SERVER=0
 export PATH=/opt/fake:$PATH REINS_CLAUDE_BIN=/opt/fake/claude

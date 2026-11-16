@@ -74,6 +74,7 @@ plugins:
             典型使用场景: Use cases
             基准测试: Benchmark
             使用指南: User guides
+            终端界面: Terminal UI
             运行命令: Running commands
             启动子 Agent: Running child agents
             接入已有任务: External jobs
@@ -141,6 +142,7 @@ nav:
       - 典型使用场景: guides/use-cases.md
       - 基准测试: benchmark.md
   - 使用指南:
+      - 终端界面: guides/tui.md
       - 运行命令: guides/run.md
       - 启动子 Agent: guides/agents.md
       - 接入已有任务: guides/external-jobs.md

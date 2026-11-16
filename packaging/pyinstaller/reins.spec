@@ -11,6 +11,9 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 hiddenimports = collect_submodules("harness_reins")
 # Skills, templates, PowerShell, the Pi extension.
 datas = collect_data_files("harness_reins")
+# `reins tui` panel: Textual loads widgets and its CSS lazily.
+hiddenimports += collect_submodules("textual")
+datas += collect_data_files("textual")
 
 a = Analysis(
     [os.path.join(SPECPATH, "reins_main.py")],

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `reins tui`: one terminal for every Claude Code session on the machine, with the tasks, goals
+  and messages they started. Sessions open in Zellij panes beside the panel in Claude Code's own
+  interface (`claude attach`), and a closed session is resumed in the background first, so nothing
+  forks. `reins tui <id>` opens a session by its id or by the id of a task it started. The npm
+  package includes Zellij 0.46.0 and the Textual panel; with pip, install `harness-reins[tui]` and
+  Zellij. Not on Windows.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session
   (`claude --bg --resume`) under the same id, and the Reins hook delivers into it. You can look in
   with `claude attach` at any time without forking the conversation. On Linux, Claude Code's

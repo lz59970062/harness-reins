@@ -1,0 +1,75 @@
+# 终端界面：reins tui
+
+一个终端、认证一次，就能看到这台机器上所有的 Claude Code 会话，以及它们派出的任务、Goal 和消息；会话就在旁边的窗格里打开，用的是 Claude Code 自己的界面。同一个会话永远只有一个进程，不会分叉。
+
+```bash
+reins tui
+```
+
+SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有窗格都还在。
+
+## 界面
+
+```text
+┌─ Reins ──────────────────────────────┬─ claude 08e8651e 运动图 ───────────┐
+│ Sessions  Tasks  Goals  Messages     │                                    │
+│ ●  here        working  运动图       │  Claude Code 原生界面（attach）    │
+│ ○  Desktop     idle     进展 PPT     │                                    │
+│ ◌  closed               旧的回调     ├─ log cf408bf5 ─────────────────────┤
+│ opened 运动图                        │  任务输出，持续跟踪                │
+└──────────────────────────────────────┴────────────────────────────────────┘
+```
+
+左边是 Reins 面板，四个标签页：
+
+- **Sessions**：每个会话的标题、在哪里运行、忙闲、名下正在跑的任务数、待处理的回调数和 Goal。最近派过任务、现在已关闭的会话也列在这里，方便找回。
+- **Tasks**：每个任务都标出是哪个会话派的，以及回调有没有被确认。
+- **Goals**：计划和进度。
+- **Messages**：会话之间的消息。
+
+右边的窗格由面板打开：会话窗格运行 `claude attach`，日志窗格运行 `reins log`。关掉窗格只是离开，会话照常在后台运行。
+
+## 按键
+
+| 键 | 作用 |
+| --- | --- |
+| `Enter` | 打开选中的会话；它已经在某个窗格里，就跳过去。在 Tasks 页，打开派这个任务的会话 |
+| `n` | 在指定目录新建 Claude Code 会话 |
+| `l` | 跟踪任务输出 |
+| `m` | 给选中的会话发消息 |
+| `s` | 停止会话（会先确认）。对话保留，之后 `Enter` 还能打开 |
+| `c` | 取消任务的回调（会先确认） |
+| `r` | 立即刷新 |
+| `1`–`4` | 切换标签页 |
+| `Ctrl+Q` | 退出面板 |
+
+窗格之间的切换、调整大小用 Zellij 自己的按键（底部状态栏有提示），鼠标点击和滚轮也可以。
+
+## 打开会话时会发生什么
+
+你只需要按 `Enter`，Reins 按会话现在的状态选择做法：
+
+| 会话状态 | Reins 的做法 |
+| --- | --- |
+| 已经在某个窗格里 | 跳到那个窗格 |
+| 在后台运行，或已停止 | 新开窗格，`claude attach` 接上；已停止的会话会被重新拉起 |
+| 已关闭 | 先用 `claude --bg --resume` 把它转成后台会话，再接上。ID 和对话都不变 |
+| 在 Desktop 或别的终端里开着 | 不打开，提示它在哪里；照样可以发消息、看任务日志。那边关掉后就能打开 |
+
+直接打开某个会话，可以写会话 ID，也可以写任务 ID 或回调 ID：
+
+```bash
+reins tui cf408bf5
+```
+
+## 和 Desktop 一起用
+
+Claude Code Desktop 打不开正在后台运行的会话，会提示 “That session is running in the background”。在面板里选中它按 `s` 停止，或者运行 `claude stop <id>`，Desktop 就能打开。
+
+## 安装
+
+- **npm 安装**：已经带上 Zellij 和面板，不用另装。
+- **pip 安装**：`pip install 'harness-reins[tui]'`，再从系统的包管理器安装 [Zellij](https://zellij.dev)，或者用 `REINS_ZELLIJ` 指定它的路径。
+- **Windows**：Zellij 不支持 Windows，请用 `reins status` 和 `reins log`。
+
+Reins 用自己的 Zellij 配置（`~/.reins/zellij`），不影响你本机的 Zellij。`reins tui` 只给人用；在 agent 会话里运行会直接报错。

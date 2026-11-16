@@ -191,6 +191,7 @@ def invoke_with_diagnostics(args: argparse.Namespace, operation: Callable[[argpa
 # directly, never forward to the canonical installation.
 LOCAL_MODES = frozenset({
     "log",  # Read-only: an older installed Reins may not have it.
+    "tui",  # Interactive, for people; it runs the Reins they typed.
     "setup", "migrate", "daemon", "desktop", "install-skill", "install-pi-extension", "install-shell-hook", "install-claude-hook",
     "install-systemd", "install-launchd", "install-supervisor", "install-windows-task", "uninstall-windows-task",
 })
@@ -593,6 +594,12 @@ def main() -> int:
     status_parser.add_argument("--quiet-empty", action="store_true", help="Print nothing when no items exist")
     status_parser.add_argument("--shell-hook", action="store_true", help="Use compact terminal-startup output")
 
+    tui_parser = sub.add_parser(
+        "tui", help="Open the Reins terminal UI: every session, task, goal and message, with sessions in panes")
+    tui_parser.add_argument("id", nargs="?", help="Open this session at once; a session, task or callback id works")
+    tui_parser.add_argument("--queue-dir", help="Wakeup queue directory")
+    tui_panel_parser = sub.add_parser("_tui-panel", help=argparse.SUPPRESS)
+    tui_panel_parser.add_argument("--queue-dir", help=argparse.SUPPRESS)
     log_parser = sub.add_parser(
         "log", help="Print a task's output and, on a terminal, follow it until the task ends (like tail -f)")
     log_parser.add_argument("task_id", help="Task id, a unique prefix of one, or a callback id such as <id>-c1")
@@ -727,6 +734,12 @@ def main() -> int:
     if args.mode == "log":
         from .commands import logs as log_commands
         return log_commands.log(args)
+    if args.mode == "tui":
+        from .commands.tui import launch as tui_launch
+        return tui_launch.main(args)
+    if args.mode == "_tui-panel":
+        from .commands.tui import launch as tui_launch
+        return tui_launch.panel_main(args)
     if args.mode == "install-shell-hook":
         return skill_install.install_shell_hook(args)
     return 2

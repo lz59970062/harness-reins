@@ -1,0 +1,234 @@
+"""`reins tui [id]`: one Zellij session named "reins", the Reins panel on its left (design section 7).
+
+Zellij keeps the layout when the terminal or SSH connection goes away, so
+running `reins tui` again comes back to the same panes. Reins uses its own
+Zellij configuration under ~/.reins/zellij and leaves the user's alone.
+"""
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Mapping, Optional
+
+from ...core import sessions
+from ...harness import AGENTS
+from ...harness.claude import agents as claude_agents
+from ...runtime import worker_command
+from ...store import layout
+from .live import read_record, session_of
+
+SESSION_NAME = "reins"
+ZELLIJ_ENV = "REINS_ZELLIJ"
+READY_SECONDS = 10.0
+
+
+def zellij_executable(environment: Mapping[str, str] = os.environ) -> Optional[str]:
+    """The Zellij Reins runs: REINS_ZELLIJ, the one shipped beside a packaged reins, or one on PATH."""
+    configured = environment.get(ZELLIJ_ENV, "").strip()
+    if configured:
+        return configured if os.access(configured, os.X_OK) else None
+    if getattr(sys, "frozen", False):
+        bundled = Path(sys.executable).resolve().parent / "zellij"
+        if os.access(bundled, os.X_OK):
+            return str(bundled)
+    return shutil.which("zellij", path=environment.get("PATH"))
+
+
+def config_dir() -> Path:
+    return layout.reins_home() / "zellij"
+
+
+def _kdl(text: str) -> str:
+    # KDL quotes and escapes like JSON, except that it has no \uXXXX escape: non-ASCII stays as it is.
+    return json.dumps(text, ensure_ascii=False)
+
+
+def write_config(directory: Path, panel: list[str]) -> bool:
+    """Reins's Zellij configuration, rewritten each time so an upgrade takes effect.
+
+    Returns whether the layout changed. A running session keeps the layout it
+    was made with, so a change only reaches it once the session is recreated.
+    """
+    layout_path = directory / "layouts" / "reins.kdl"
+    try:
+        before = layout_path.read_text(encoding="utf-8")
+    except OSError:
+        before = None
+    (directory / "layouts").mkdir(parents=True, exist_ok=True)
+    (directory / "config.kdl").write_text("\n".join([
+        "// Written by `reins tui`; changes here are overwritten.",
+        "show_startup_tips false",
+        "show_release_notes false",
+        "mouse_mode true",
+        "pane_frames true",
+        'default_layout "reins"',
+        # Reins rebuilds the panes from its own state; a resurrected session would rerun stale commands.
+        "session_serialization false",
+        'on_force_close "detach"',
+        "",
+    ]), encoding="utf-8")
+    args = " ".join(_kdl(word) for word in panel[1:])
+    (directory / "layouts" / "reins.kdl").write_text("\n".join([
+        "layout {",
+        f"    pane name=\"Reins\" command={_kdl(panel[0])} {{",
+        f"        args {args}",
+        "    }",
+        "    pane size=1 borderless=true {",
+        '        plugin location="compact-bar"',
+        "    }",
+        "}",
+        "",
+    ]), encoding="utf-8")
+    return before is not None and before != layout_path.read_text(encoding="utf-8")
+
+
+def _zellij(executable: str, directory: Path, *arguments: str, timeout: float = 10.0) -> "subprocess.CompletedProcess[str]":
+    return subprocess.run([executable, "--config-dir", str(directory), *arguments], stdin=subprocess.DEVNULL,
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, check=False)
+
+
+def session_state(executable: str, directory: Path) -> Optional[str]:
+    """"running", "exited", or None when there is no Reins Zellij session."""
+    result = _zellij(executable, directory, "list-sessions", "--no-formatting")
+    for line in (result.stdout or "").splitlines():
+        words = line.split()
+        if words and words[0] == SESSION_NAME:
+            return "exited" if "EXITED" in line else "running"
+    return None
+
+
+def inside_agent(environment: Mapping[str, str]) -> Optional[str]:
+    """The agent whose session this runs in, if any: `reins tui` is for people, not agents."""
+    for name in AGENTS.names:
+        if AGENTS.get(name).matches_environment(environment):
+            return name
+    return None
+
+
+def resolve(identifier: str, root: Path, environment: Mapping[str, str]) -> str:
+    """The Claude session an id names: a session id or its start, a task id, or a callback id."""
+    identifier = identifier.strip()
+    if sessions.FULL_ID.fullmatch(identifier):
+        return identifier
+    try:
+        found = session_of(read_record(layout.managed_task_path(root, identifier)))
+    except ValueError:
+        found = None
+    if found:
+        return found
+    for state in ("pending", "running", "failed", "canceled", "done", layout.ACTIVE_STATE):
+        found = session_of(read_record(root / state / f"{identifier}.json"))
+        if found:
+            return found
+    tasks_root = layout.managed_tasks_root(root)
+    matches = {session for session in (session_of(read_record(path))
+                                       for path in tasks_root.glob(f"{identifier}*/task.json")) if session}
+    matches |= {view.session for view in claude_agents.session_views(environment)
+                if view.session.startswith(identifier) or view.handle == identifier}
+    if len(matches) == 1:
+        return matches.pop()
+    if matches:
+        raise ValueError(f"{identifier} matches more than one session; give more of the id")
+    raise ValueError(f"no session, task or callback {identifier} on this machine")
+
+
+def _wait_ready(executable: str, directory: Path) -> bool:
+    """Wait for the new session, then close Zellij's first-run wizard: Reins sets the configuration itself."""
+    deadline = time.monotonic() + READY_SECONDS
+    while time.monotonic() < deadline:
+        result = _zellij(executable, directory, "--session", SESSION_NAME, "action", "list-panes", "--json", "--all")
+        try:
+            panes = json.loads(result.stdout) if result.returncode == 0 else None
+        except ValueError:
+            panes = None
+        if isinstance(panes, list) and any(isinstance(pane, dict) and pane.get("title") == "Reins" for pane in panes):
+            for pane in panes:
+                if isinstance(pane, dict) and pane.get("is_plugin") and pane.get("plugin_url") == "configuration":
+                    _zellij(executable, directory, "--session", SESSION_NAME, "action", "close-pane",
+                            "--pane-id", f"plugin_{pane.get('id')}")
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def main(args: argparse.Namespace) -> int:
+    environment = dict(os.environ)
+    agent = inside_agent(environment)
+    if agent is not None:
+        print(f"reins tui is for people, and this runs inside a {agent} session. Agents use `reins run`, "
+              "`reins agent`, `reins ack` and `reins log --no-follow`.", file=sys.stderr)
+        return 2
+    if os.name == "nt":
+        print("reins tui needs Zellij, which does not run on Windows; use `reins status` and `reins log`.",
+              file=sys.stderr)
+        return 2
+    if importlib.util.find_spec("textual") is None:
+        print("reins tui needs Textual: pip install 'harness-reins[tui]' (the npm package includes it).",
+              file=sys.stderr)
+        return 2
+    zellij = zellij_executable(environment)
+    if zellij is None:
+        print("reins tui needs Zellij (https://zellij.dev). The npm package includes it; with pip, install it "
+              f"from your package manager or set {ZELLIJ_ENV} to its path.", file=sys.stderr)
+        return 2
+    root = layout.queue_dir(args).expanduser().absolute()
+    target = None
+    if getattr(args, "id", None):
+        try:
+            target = resolve(args.id, root, environment)
+        except ValueError as exc:
+            print(f"reins tui: {exc}", file=sys.stderr)
+            return 2
+    directory = config_dir()
+    panel = worker_command("_tui-panel", *(["--queue-dir", str(args.queue_dir)] if getattr(args, "queue_dir", None) else []))
+    changed = write_config(directory, panel)
+    state = session_state(zellij, directory)
+    if state == "running" and changed:
+        print("reins tui: the Reins Zellij session was started by another version of Reins and keeps its old "
+              f"panel. To get the new one, leave it and run `{zellij} delete-session --force {SESSION_NAME}`, "
+              "then `reins tui` again; your Claude sessions keep running.", file=sys.stderr)
+    if state == "exited":
+        deleted = _zellij(zellij, directory, "delete-session", SESSION_NAME)
+        if deleted.returncode != 0:
+            print(f"reins tui: could not remove the ended Zellij session {SESSION_NAME}: "
+                  f"{(deleted.stderr or deleted.stdout).strip()}", file=sys.stderr)
+            return 1
+        state = None
+    if state is None:
+        created = _zellij(zellij, directory, "attach", "--create-background", SESSION_NAME)
+        if created.returncode != 0:
+            print(f"reins tui: Zellij could not start the {SESSION_NAME} session: "
+                  f"{(created.stderr or created.stdout).strip()}", file=sys.stderr)
+            return 1
+        if not _wait_ready(zellij, directory):
+            print("reins tui: the Reins panel did not appear within "
+                  f"{READY_SECONDS:g} s; run `reins _tui-panel` in a terminal to see why.", file=sys.stderr)
+    if target is not None:
+        from .live import LiveBackend, Zellij
+
+        backend = LiveBackend(queue_root=root, environment=environment,
+                              zellij=Zellij(zellij, session=SESSION_NAME, config_dir=str(directory)))
+        result = backend.open_session(target)
+        if not result.ok:
+            print(f"reins tui: {result.message}", file=sys.stderr)
+    if os.environ.get("ZELLIJ_SESSION_NAME") == SESSION_NAME:
+        return 0  # Already in it: the pane opened beside this one.
+    os.execv(zellij, [zellij, "--config-dir", str(directory), "attach", SESSION_NAME])
+    return 0  # Not reached.
+
+
+def panel_main(args: argparse.Namespace) -> int:
+    """Hidden `reins _tui-panel`: the panel inside the Reins Zellij session."""
+    from .live import LiveBackend, Zellij
+    from .panel import run_panel
+
+    root = layout.queue_dir(args).expanduser().absolute()
+    zellij = zellij_executable() or "zellij"
+    return run_panel(LiveBackend(queue_root=root, zellij=Zellij(zellij)))

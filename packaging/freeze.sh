@@ -11,7 +11,7 @@ if [[ -n ${REINS_BUILD:-} ]]; then
 fi
 python -m venv "$work/venv"
 . "$work/venv/bin/activate"
-pip install --quiet --disable-pip-version-check pyinstaller==6.11.1 "$work"
+pip install --quiet --disable-pip-version-check pyinstaller==6.11.1 "$work[tui]"
 pyinstaller --noconfirm --log-level WARN --distpath /out/dist --workpath "$work/build" \
   /src/packaging/pyinstaller/reins.spec
 

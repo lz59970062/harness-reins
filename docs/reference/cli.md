@@ -17,6 +17,13 @@ reins agent --help
 | `reins setup --keep-skill --force --enable --now` | 更新协调器，保留技能内容 |
 | `reins doctor --agent codex --session <id>` | 检查指定会话的运行配置 |
 
+## 终端界面
+
+| 命令 | 用途 |
+| --- | --- |
+| `reins tui` | 打开终端界面：所有会话、任务、Goal 和消息，会话在旁边的窗格里打开。见[终端界面](../guides/tui.md) |
+| `reins tui <ID>` | 直接打开某个会话；会话 ID、任务 ID 或回调 ID 都可以 |
+
 ## 提交工作
 
 | 命令 | 用途 |

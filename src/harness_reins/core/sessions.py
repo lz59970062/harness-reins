@@ -5,8 +5,12 @@ session's state: a view is built from the harness each time it is needed.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Optional
+
+# A full session id, as Claude Code and Codex write them; shorter ids are prefixes or other records' ids.
+FULL_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 # Where the one process of a session is, if any.
 ATTACHED = "attached"  # Hosted on the Reins side and shown in a Reins pane.

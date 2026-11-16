@@ -315,6 +315,7 @@ Zellij 默认就能用鼠标滚轮滚动，每个窗格有自己的回滚历史�
 | V10 | 会话开在交互窗口里时执行 `claude --bg --resume` | **不分叉，但会起副本。** 退出码 0，提示 “open in another Claude Code process, so this started a copy as <新ID>”，原 transcript 不变。Reins 先查状态；万一起了副本，按输出里的短 ID 认出来，立刻 `stop` 加 `rm` |
 | V11 | 不带提示的 `claude --bg --resume <id>` | **通过。** 会话以原 ID 起来，空闲等待输入；hook 把回调送进去，会话里的 Claude 执行 `reins ack`（`--settings` 带了 allow 规则）成功，全程没有无头进程 |
 | V12 | 对已停止的后台会话执行 `--bg --resume` | **不带别的参数才接原会话。** 带了 `--model` 等参数，会另起副本（“keeps its own saved options, so the flags you passed started a copy”）；不带参数时，以原 ID 和当初保存的参数（含 `--settings`）唤醒 |
+| V14 | Zellij 0.46.0 里的 `reins tui` | **通过。** 在伪终端里对真实队列和 Claude 实测：打开已关闭的会话（先转后台再 attach）、拒绝打开 Desktop 里开着的会话、停止后窗格自动关闭、对已停止的会话按 Enter 重新拉起、新建会话、开日志窗格。注意：自定义配置目录下 Zellij 仍会弹出首次运行的配置向导（`configuration` 插件），Reins 建好会话后关掉它；`list-panes` 过一会儿就不再报告 `claude attach` 窗格的命令，所以 Reins 按自己起的窗格名（`claude <短ID> <标题>`）认窗格 |
 | V13 | 其他 | `--bg` 拒绝没信任过的目录（“Workspace not trusted”）；`claude rm` 只删后台任务，有对话的 transcript 保留；会话记录文件只有 `status`，没有 `state`；刚起来还没收到提示的后台会话，`claude agents` 报 `state: blocked`、`status: idle`；从 Claude 会话里启动 `claude` 会继承 `CLAUDE_CODE_CHILD_SESSION` 等变量，不保存 transcript，所以 Reins 启动 Claude 时清掉这些变量 |
 
 **V4 的过程：**

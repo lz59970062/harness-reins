@@ -103,6 +103,9 @@ although nothing failed. Resuming a closed desktop session has not been tested y
   `reins wait` is needed.
 - `reins setup --no-claude-hook` skips it. `reins install-claude-hook [--remove]` adds or removes it on its own.
   Windows already open pick up the change after their next turn.
+- Setup also allows the bookkeeping commands sessions run, `reins ack`, `reins goal check` and `reins goal ack`,
+  in `permissions.allow`, so auto mode does not refuse an ACK in a session nobody is watching. It adds nothing
+  broader: `reins run` and `reins cancel` still go through auto mode. `--remove` takes these rules out too.
 
 ## Open windows are not resumed
 
@@ -112,6 +115,23 @@ job results and messages alike, with or without the hook. Without a hook, channe
 the window to close. Headless runs (`sdk-cli`) do not count as open, and a reused pid is told apart by its start time.
 
 The daemon's target lock keeps it to one headless resume per session; other callbacks for that session wait for it to end.
+
+## Closed sessions resume in the background
+
+With Claude Code 2.1.3xx and the hook installed, a callback for a closed session brings it up as a Claude Code
+background session (`claude --bg --resume`) under the same id, and the hook delivers the callback into it. Nothing
+runs headless, so you can look in at any time with `claude attach <id>` (or `reins tui`) and the conversation does
+not fork. The session runs with the permission mode the callback asked for, and with the Reins bookkeeping commands
+allowed as above; it keeps both when it is stopped and woken again.
+
+- On Linux the first background session starts Claude Code's own daemon in a systemd user scope, so it is not tied
+  to the Reins service or to an SSH login, and restarting Reins does not stop your sessions.
+- A background session that Claude stopped after a long idle period is woken the same way when a callback arrives.
+- The daemon resumes headless, as before, when the Claude CLI has no `--bg`, the hook is not installed, Claude Code
+  has not been trusted in the session's directory, or a background resume did not come up within three minutes.
+  `REINS_CLAUDE_BACKGROUND=0` in the service environment turns background resumes off.
+- Claude Code's desktop app cannot open a session while it runs in the background. Stop it first (`claude stop
+  <id>`, or `s` in `reins tui`), then open it in the app.
 
 ### When a window gets a new session id
 

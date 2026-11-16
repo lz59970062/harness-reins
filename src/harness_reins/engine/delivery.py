@@ -25,9 +25,10 @@ from ..harness.claude.adapter import CLAUDE_BIN_ENV, CLAUDE_PERMISSION_MODE_ENV
 from ..runtime import worker_command
 from ..system import files
 from ..system import windows_process
-from ..store import layout
+from ..store import install_record, layout
 from ..store import records as queue_store
 from ..system import shell
+from . import claude_background
 from . import claude_moves
 from . import dispatch
 from . import reminders as reminder_policy
@@ -437,6 +438,19 @@ def queue_handover_note(queue: Path, request: Mapping[str, object], handed: "cla
             note[key] = request[key]
     note["requires"] = capabilities.required_for(note)
     dispatch.enqueue_existing_request(queue, note, prompt)
+
+
+def resume_in_background(root: Path, request: Mapping[str, object], cwd: str,
+                         environment: Mapping[str, str]) -> str | None:
+    """Resume a closed Claude session as a background session (design 6.1); why not, or None when it is up."""
+    commands = [command for command in (install_record.launcher(), "reins") if command]
+    extra = []
+    for key in ("queue_dir", "link_dir"):
+        if isinstance(request.get(key), str) and request[key]:
+            extra += ["--add-dir", str(request[key])]
+    return claude_background.resume_for_callback(
+        root, str(request["target"]["session"]), cwd, environment,  # type: ignore[index]
+        reins_commands=commands, permission_mode=claude_permission_mode(dict(request)), extra=extra)
 
 
 def waits_for_open_window(root: Path, request: dict[str, object], request_id: str, *, look_again: bool = False) -> bool:
@@ -862,6 +876,12 @@ def delivery_worker_main() -> int:
                         # most often one closed and opened again; a resume now would fork it.
                         raise _WindowOpened()
                     if target_key is not None and dispatch.request_agent(request) == "claude":
+                        why_not = resume_in_background(Path(str(payload["queue_dir"])), request, str(payload["cwd"]),
+                                                       resume_env or os.environ)
+                        if why_not is None:
+                            raise _WindowOpened()  # The session is up; its hook delivers the callback.
+                        print(f"reins: resuming Claude session {request['target']['session']} headless: {why_not}",
+                              file=sys.stderr, flush=True)
                         os.environ[claude_session.RESUMED_TARGET_ENV] = target_key  # Its own claims pass the lock it holds.
                         process = start_resume(claude_stream.ARGUMENTS, subprocess.PIPE)
                         handover: list[claude_stream.Handover] = []
@@ -1213,7 +1233,8 @@ def process_selected(root: Path, args: argparse.Namespace, path: Path) -> bool:
             request["attempts"] = max(0, attempts - 1)
             request["next_attempt_at"] = time.time() + 10
             request["last_deferred_reason"] = ("session is closed; the message stays in its inbox" if request.get("wake") == "never"
-                                               else "the original session is open in a window or has an active turn")
+                                               else "the original session is open in a window, was resumed in the "
+                                                    "background for its hook, or has an active turn")
             if running.exists() and not queue_store.is_canceled(root, request_id):
                 queue_store.write_request(running, request)
                 queue_store.move_request(running, root / "pending")

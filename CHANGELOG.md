@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- A callback for a closed Claude Code session brings it up as a Claude Code background session
+  (`claude --bg --resume`) under the same id, and the Reins hook delivers into it. You can look in
+  with `claude attach` at any time without forking the conversation. On Linux, Claude Code's
+  background daemon starts in its own systemd scope, so a Reins restart or a closed SSH login does
+  not stop it. Older CLIs, untrusted directories and setups without the hook keep the headless
+  resume. `REINS_CLAUDE_BACKGROUND=0` turns it off.
+- `reins setup` allows `reins ack`, `reins goal check` and `reins goal ack` in Claude Code's
+  `permissions.allow`, so auto mode no longer refuses an ACK in a session nobody watches. Nothing
+  broader is allowed. `reins install-claude-hook --remove` removes the rules again.
 - A headless Claude resume hands the session over when a window opens it, for example a
   `claude --resume` to look at progress. It takes no more callbacks, closes its input so it ends
   after the turn it is in, and later callbacks go to the window. If that turn was still running

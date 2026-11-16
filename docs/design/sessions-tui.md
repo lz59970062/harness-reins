@@ -130,7 +130,7 @@ Desktop 用户没有这个问题，因为 Desktop 本来就能看各个会话的
 
 - `claude attach`：“Open the background session in this terminal… The session keeps running either way.”（2.1.321 `--help`）
 - `claude stop`：“Its conversation is kept; resume it later with `claude attach <id>`.”
-- `--bg --resume <session-id>`：“continues that session in the background under the same ID, or starts a copy and says so when the session is already running.” Reins 必须先确认会话不在运行，才能用它。
+- `--bg --resume <session-id>`：“continues that session in the background under the same ID, or starts a copy and says so when the session is already running.” Reins 必须先确认会话不在运行，才能用它。已停止的后台会话只能不带别的参数唤醒，否则也会起副本（V12）。
 - 官方文档：对正在后台运行的会话执行 `claude --resume`，会接到这个会话上，而不是重新加载 transcript。所以用户在别处手动 resume 也不会分叉。
 
 新建会话一律用 `claude --bg` 启动，再 attach。
@@ -312,6 +312,10 @@ Zellij 默认就能用鼠标滚轮滚动，每个窗格有自己的回滚历史�
 | V7 | 后台会话的托管者 | **通过，有条件。** 启动它的进程退出后仍在运行；但 Claude 守护进程挂在第一个启动它的登录会话的 cgroup 里（第 6.3 节） |
 | V8 | `claude agents --json --all` 的状态取值 | **通过。** 字段和取值见第 4.2 节；不报告是否有客户端接着 |
 | V9 | auto mode 是否尊重 `reins ack` 等命令的 allow 规则 | **通过，有条件。** 用 `--settings` 传入新写法的 `permissions.allow`，或 `autoMode.allow`，ACK 都通过；项目设置里的旧写法不行（第 6.4 节） |
+| V10 | 会话开在交互窗口里时执行 `claude --bg --resume` | **不分叉，但会起副本。** 退出码 0，提示 “open in another Claude Code process, so this started a copy as <新ID>”，原 transcript 不变。Reins 先查状态；万一起了副本，按输出里的短 ID 认出来，立刻 `stop` 加 `rm` |
+| V11 | 不带提示的 `claude --bg --resume <id>` | **通过。** 会话以原 ID 起来，空闲等待输入；hook 把回调送进去，会话里的 Claude 执行 `reins ack`（`--settings` 带了 allow 规则）成功，全程没有无头进程 |
+| V12 | 对已停止的后台会话执行 `--bg --resume` | **不带别的参数才接原会话。** 带了 `--model` 等参数，会另起副本（“keeps its own saved options, so the flags you passed started a copy”）；不带参数时，以原 ID 和当初保存的参数（含 `--settings`）唤醒 |
+| V13 | 其他 | `--bg` 拒绝没信任过的目录（“Workspace not trusted”）；`claude rm` 只删后台任务，有对话的 transcript 保留；会话记录文件只有 `status`，没有 `state`；刚起来还没收到提示的后台会话，`claude agents` 报 `state: blocked`、`status: idle`；从 Claude 会话里启动 `claude` 会继承 `CLAUDE_CODE_CHILD_SESSION` 等变量，不保存 transcript，所以 Reins 启动 Claude 时清掉这些变量 |
 
 **V4 的过程：**
 

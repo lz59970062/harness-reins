@@ -14,7 +14,8 @@ from pathlib import Path
 from ..harness.claude import session as claude_session
 from ..harness.pi import channel as pi_channel
 from .. import template_registration
-from ..store import layout
+from ..engine import claude_background
+from ..store import install_record, layout
 from .. import runtime as reins_runtime
 from ..system import shell
 
@@ -117,6 +118,14 @@ def install_skill(args: argparse.Namespace) -> int:
             except (OSError, ValueError) as exc:
                 print(f"reins: warning: could not add the Claude Code hook, so open windows need `reins wait`: {exc}",
                       file=sys.stderr)
+            try:
+                added = configure_claude_permissions(agent_command_names())
+            except (OSError, ValueError) as exc:
+                print(f"reins: warning: could not allow the Reins agent commands in Claude Code, so auto mode may "
+                      f"refuse `reins ack`: {exc}", file=sys.stderr)
+            else:
+                if added:
+                    print("Allowed these Reins commands in Claude Code's auto mode: " + ", ".join(added))
     if target_name in ("pi", "all"):
         status |= install_one(pi_channel.profile_dir() / "skills" / "harness-reins", include_codex_plugin=False,
                               force=args.force, keep_existing=keep, focused="pi")
@@ -210,13 +219,66 @@ def configure_claude_hook(command: str | None, settings_path: Path | None = None
         settings["hooks"] = hooks
     else:
         settings.pop("hooks", None)
+    _write_settings(path, settings)
+    return path
+
+
+def _write_settings(path: Path, settings: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     tmp.write_text(json.dumps(settings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if path.exists():
         tmp.chmod(path.stat().st_mode)
     os.replace(tmp, path)
-    return path
+
+
+def _is_reins_rule(rule: object) -> bool:
+    """A rule Reins added: `Bash(<reins> <bookkeeping command> *)`, <reins> being `reins` or a path to it."""
+    if not isinstance(rule, str) or not rule.startswith("Bash(") or not rule.endswith(" *)"):
+        return False
+    body = rule[len("Bash("):-len(" *)")]
+    for mode in claude_background.AGENT_COMMANDS:
+        command = body[:-len(mode) - 1] if body.endswith(f" {mode}") else None
+        if command == "reins" or (command and " " not in command and command.endswith("/reins")):
+            return True
+    return False
+
+
+def configure_claude_permissions(reins_commands: list[str] | None, settings_path: Path | None = None) -> list[str]:
+    """Allow the agent commands in Claude Code's user settings, or take them out when ``reins_commands`` is None.
+
+    Auto mode's classifier can refuse `reins ack` in a session nobody is
+    watching (design 6.4); a specific allow rule is checked before it. Returns
+    the rules added (or removed); other rules are left as they are.
+    """
+    path = settings_path or layout.claude_home() / "settings.json"
+    settings = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    permissions = settings.get("permissions", {}) if isinstance(settings, dict) else None
+    if not isinstance(settings, dict) or not isinstance(permissions, dict) or not isinstance(permissions.get("allow", []), list):
+        raise ValueError(f"{path} does not hold a settings object with a permissions.allow list")
+    allow = list(permissions.get("allow", []))
+    if reins_commands is None:
+        changed = [rule for rule in allow if _is_reins_rule(rule)]
+        allow = [rule for rule in allow if not _is_reins_rule(rule)]
+    else:
+        changed = [rule for rule in claude_background.allow_rules(reins_commands) if rule not in allow]
+        allow += changed
+    if not changed:
+        return []
+    permissions = {**permissions, "allow": allow}
+    if not allow:
+        permissions.pop("allow")
+    if permissions:
+        settings["permissions"] = permissions
+    else:
+        settings.pop("permissions", None)
+    _write_settings(path, settings)
+    return changed
+
+
+def agent_command_names() -> list[str]:
+    """How sessions are told to run Reins: the installed launcher, and plain `reins`."""
+    return [command for command in (install_record.launcher(), "reins") if command]
 
 
 def claude_hook_command(executable: str | None, queue_dir: str | None) -> str:
@@ -232,6 +294,14 @@ def install_claude_hook(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         print(f"reins: could not change the Claude Code hook: {exc}", file=sys.stderr)
         return 2
+    try:
+        rules = configure_claude_permissions(None if args.remove else agent_command_names())
+    except (OSError, ValueError) as exc:
+        rules = []
+        print(f"reins: warning: the hook was {'removed' if args.remove else 'installed'}, but the Reins command "
+              f"rules in Claude Code's permissions.allow were not changed: {exc}", file=sys.stderr)
     print(f"{'Removed the Reins hook from' if args.remove else 'Installed the Reins hook in'} {path}; "
           "windows that are already open pick the change up after their next turn")
+    if rules:
+        print(f"{'Removed' if args.remove else 'Allowed'} these Reins commands in auto mode: " + ", ".join(rules))
     return 0

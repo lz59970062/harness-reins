@@ -172,28 +172,6 @@ container still ends all workloads. Do not use `reins setup --service standalone
 --now` as a container's sole `CMD`: setup returns after starting its background
 process, which ends the container's main command.
 
-### Claude sessions and `reins tui` in a container
-
-A callback for a closed Claude Code session brings it up as a Claude Code background session, as on the host. No
-systemd is needed: Claude's own background daemon detaches from the process that started it, so restarting the
-coordinator does not stop it. Stopping the container does. Keep `--init` so finished background processes are reaped.
-
-Claude Code starts a background session only in a directory it trusts. In a new container, open `claude` once in the
-project directory and accept the trust prompt; until then Reins resumes that session headless, as before. The trust
-record lives in `.claude.json`: `$CLAUDE_CONFIG_DIR/.claude.json` when that variable is set (as in the image above,
-under the state volume), otherwise `~/.claude.json` in the home directory, outside `~/.claude`. Persist it with the
-rest of the Claude profile, or every new container asks again.
-
-Open the terminal UI with a TTY:
-
-```bash
-docker exec -it --workdir /workspace reins-service reins tui
-```
-
-`Alt+d` leaves it running; the next `docker exec -it ... reins tui` comes back to the same panes. The npm package
-includes Zellij; with a pip install, put a `zellij` binary on `PATH` or point `REINS_ZELLIJ` at one. The panel's top
-line shows what `reins doctor` finds wrong, such as a coordinator that is not running.
-
 ## AutoDL or an existing Linux development container
 
 Use the environment already provided by the platform; a second Docker daemon is
@@ -464,6 +442,29 @@ Confirm one execution, the original session's receipt and inspection, its ACK, a
 the callback's `done` record. Container recreation may change identity even with
 the same mounts; inspect old records rather than treating autostart as permission
 to replay interrupted work or redirect its callback.
+
+### Claude sessions and `reins tui` inside the container
+
+Everything here runs inside the container you work in, from its own terminal (SSH or a web terminal).
+
+A callback for a closed Claude Code session brings it up as a Claude Code background session, as on a host. No
+systemd is needed: Claude's background daemon detaches from the process that started it, so restarting the
+coordinator does not stop your sessions. Stopping the container does.
+
+Claude Code starts a background session only in a directory it trusts. Open `claude` once in the project directory
+and accept the trust prompt; until then Reins resumes that session headless, as before. The trust record is kept in
+`.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json` when that variable is set, otherwise `~/.claude.json`), so a
+container whose home directory is reset asks again.
+
+Open the terminal UI from the container's terminal:
+
+```bash
+reins tui
+```
+
+`Alt+d` leaves it running, and the next `reins tui` comes back to the same panes. The npm package includes Zellij;
+with a pip install, put a `zellij` binary on `PATH` or point `REINS_ZELLIJ` at one. The panel's top line shows what
+`reins doctor` finds wrong, such as no screen for the task backend or a coordinator that is not running.
 
 ## Stop, restart and callback boundaries
 

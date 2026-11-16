@@ -366,8 +366,16 @@ class LaunchTests(unittest.TestCase):
                 mock.patch.object(launch.time, "monotonic", side_effect=lambda: next(clock)), \
                 mock.patch.object(launch.time, "sleep"), \
                 mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
-            self.assertTrue(launch._wait_ready("zellij", self.root))
+            self.assertEqual(launch._wait_ready("zellij", self.root), launch.READY)
         self.assertIn("first start can take a minute", stderr.getvalue())
+
+    def test_wait_ready_tells_silence_from_a_missing_panel(self) -> None:
+        for answer, expected in ((None, launch.SILENT), ([{"id": 1, "title": "other"}], launch.NO_PANEL)):
+            clock = iter(float(second) for second in range(0, 1000, 5))
+            with mock.patch.object(launch, "_panes", return_value=answer), \
+                    mock.patch.object(launch.time, "monotonic", side_effect=lambda: next(clock)), \
+                    mock.patch.object(launch.time, "sleep"), mock.patch("sys.stderr", new_callable=io.StringIO):
+                self.assertEqual(launch._wait_ready("zellij", self.root), expected)
 
     def test_zellij_lookup_order(self) -> None:
         tool = self.root.parent / "zellij-bin"

@@ -131,6 +131,8 @@ def _zellij(executable: str, directory: Path, *arguments: str, timeout: float = 
                               errors="replace", timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(argv, 124, "", f"Zellij did not answer within {timeout:g} s")
+    except OSError as exc:
+        return subprocess.CompletedProcess(argv, 127, "", f"could not run Zellij: {exc}")
 
 
 def session_state(executable: str, directory: Path) -> Optional[str]:
@@ -190,8 +192,15 @@ def _panes(executable: str, directory: Path) -> Optional[list]:
     return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else None
 
 
-def _wait_ready(executable: str, directory: Path) -> bool:
+READY, NO_PANEL, SILENT = "ready", "no panel", "silent"
+
+
+def _wait_ready(executable: str, directory: Path) -> str:
     """Wait for the new session and get it into the layout Reins wrote.
+
+    READY: the panel is up. NO_PANEL: Zellij answers but the panel never
+    appeared. SILENT: Zellij never answered at all, so attaching would only
+    show an empty screen.
 
     Zellij's first-run wizard (a floating `configuration` plugin) shows up a
     second or two after the panes, and a client that attaches before it is
@@ -201,13 +210,14 @@ def _wait_ready(executable: str, directory: Path) -> bool:
     started = time.monotonic()
     deadline = started + READY_SECONDS
     settled = None
-    noticed = False
+    noticed = answered = False
     while time.monotonic() < deadline:
         if not noticed and time.monotonic() - started >= NOTICE_SECONDS:
             print("reins tui: waiting for Zellij to start; the first start can take a minute...",
                   file=sys.stderr, flush=True)
             noticed = True
         panes = _panes(executable, directory)
+        answered = answered or panes is not None
         if panes is not None and any(pane.get("title") == "Reins" for pane in panes):
             settled = settled or time.monotonic() + WIZARD_SECONDS
             wizard = [pane for pane in panes if pane.get("is_plugin") and pane.get("plugin_url") == "configuration"]
@@ -218,14 +228,14 @@ def _wait_ready(executable: str, directory: Path) -> bool:
                 break
         time.sleep(0.2)
     if settled is None:
-        return False
+        return NO_PANEL if answered else SILENT
     time.sleep(0.3)
     for pane in _panes(executable, directory) or ():
         if not pane.get("is_plugin") and pane.get("is_fullscreen"):
             _zellij(executable, directory, "--session", SESSION_NAME, "action", "focus-pane-id",
                     f"terminal_{pane.get('id')}")
             _zellij(executable, directory, "--session", SESSION_NAME, "action", "toggle-fullscreen")
-    return True
+    return READY
 
 def zellij_log() -> Path:
     return Path(tempfile.gettempdir()) / f"zellij-{os.getuid()}" / "zellij-log" / "zellij.log"
@@ -280,11 +290,19 @@ def main(args: argparse.Namespace) -> int:
             print(f"reins tui: Zellij could not start the {SESSION_NAME} session: "
                   f"{(created.stderr or created.stdout).strip()}", file=sys.stderr)
             return 1
-        if not _wait_ready(zellij, directory):
-            print(f"reins tui: the Reins panel did not appear within {READY_SECONDS:g} s; attaching anyway. If the "
-                  f"screen stays empty, Zellij's log is {zellij_log()}; run `{zellij} delete-session --force "
-                  f"{SESSION_NAME}` before trying again.",
+        ready = _wait_ready(zellij, directory)
+        if ready == SILENT:
+            # A server that never answers would leave an attached client on an empty screen; clear it away.
+            _zellij(zellij, directory, "kill-session", SESSION_NAME)
+            _zellij(zellij, directory, "delete-session", "--force", SESSION_NAME)
+            print(f"reins tui: Zellij started the {SESSION_NAME} session but never answered within "
+                  f"{READY_SECONDS:g} s, so it was removed again. Your Claude sessions are not affected. Please "
+                  f"report this with Zellij's log ({zellij_log()}) and the output of `{zellij} --version`.",
                   file=sys.stderr)
+            return 1
+        if ready == NO_PANEL:
+            print(f"reins tui: the Reins panel did not appear within {READY_SECONDS:g} s; attaching anyway. If it "
+                  f"stays missing, run `reins _tui-panel` in a terminal to see why.", file=sys.stderr)
     if target is not None:
         from .live import LiveBackend, Zellij
 

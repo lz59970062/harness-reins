@@ -385,6 +385,7 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(launch._end({sleeper.pid}, grace=1.0), set())
         self.assertIsNotNone(sleeper.poll())
 
+    @unittest.skipIf(os.name == "nt", "reins tui does not run on Windows (no os.getuid)")
     def test_only_the_server_this_launch_started_is_found(self) -> None:
         proc = Path(self.root) / "proc"
         marker = f"{launch.LAUNCH_ENV}=1-2".encode()

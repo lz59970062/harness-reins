@@ -11,6 +11,7 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -192,6 +193,71 @@ def _panes(executable: str, directory: Path) -> Optional[list]:
     return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else None
 
 
+def zellij_servers(executable: str) -> set[int]:
+    """This user's Zellij server processes (`zellij --server ...`).
+
+    The server runs from Zellij's resolved path, which differs from ``executable`` when that is a symlink or a
+    wrapper, so this matches on the program name; callers take the difference around starting one.
+    """
+    name = os.path.basename(os.path.realpath(executable))
+    commands: list[tuple[int, list[str]]] = []
+    proc = Path("/proc")
+    if proc.is_dir():
+        for entry in proc.iterdir():
+            if entry.name.isdigit():
+                try:
+                    if entry.stat().st_uid != os.getuid():
+                        continue
+                    argv = (entry / "cmdline").read_bytes().split(b"\0")
+                except OSError:
+                    continue
+                commands.append((int(entry.name), [word.decode("utf-8", "replace") for word in argv]))
+    else:
+        try:
+            listing = subprocess.run(["ps", "-U", str(os.getuid()), "-o", "pid=,command="], capture_output=True,
+                                     text=True, timeout=10, check=False).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            listing = ""
+        for line in listing.splitlines():
+            pid, _, command = line.strip().partition(" ")
+            if pid.isdigit():
+                commands.append((int(pid), command.split()))
+    return {pid for pid, argv in commands
+            if len(argv) > 1 and argv[1] == "--server" and os.path.basename(argv[0]) in (name, "zellij")}
+
+
+def _end(pids: set[int], grace: float = 3.0) -> set[int]:
+    """Stop these processes (TERM, then KILL after ``grace``); the ones still alive."""
+    def alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        try:  # A zombie is gone; a container whose pid 1 is not an init may never reap it.
+            return (Path("/proc") / str(pid) / "stat").read_text().rpartition(")")[2].split()[0] != "Z"
+        except (OSError, IndexError):
+            return True
+
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline and any(alive(pid) for pid in pids):
+        time.sleep(0.1)
+    for pid in pids:
+        if alive(pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+    time.sleep(0.2)
+    return {pid for pid in pids if alive(pid)}
+
+
 READY, NO_PANEL, SILENT = "ready", "no panel", "silent"
 
 
@@ -285,6 +351,7 @@ def main(args: argparse.Namespace) -> int:
             return 1
         state = None
     if state is None:
+        before = zellij_servers(zellij)
         created = _zellij(zellij, directory, "attach", "--create-background", SESSION_NAME)
         if created.returncode != 0:
             print(f"reins tui: Zellij could not start the {SESSION_NAME} session: "
@@ -292,13 +359,15 @@ def main(args: argparse.Namespace) -> int:
             return 1
         ready = _wait_ready(zellij, directory)
         if ready == SILENT:
-            # A server that never answers would leave an attached client on an empty screen; clear it away.
-            _zellij(zellij, directory, "kill-session", SESSION_NAME)
+            # A server that never answers would leave an attached client on an empty screen. Its socket does
+            # not answer `kill-session` either, so end the server this run started by its process id.
+            left = _end(zellij_servers(zellij) - before)
             _zellij(zellij, directory, "delete-session", "--force", SESSION_NAME)
+            outcome = ("so it was stopped again" if not left else
+                       f"and it could not be stopped; end it with `kill -9 {' '.join(map(str, sorted(left)))}`")
             print(f"reins tui: Zellij started the {SESSION_NAME} session but never answered within "
-                  f"{READY_SECONDS:g} s, so it was removed again. Your Claude sessions are not affected. Please "
-                  f"report this with Zellij's log ({zellij_log()}) and the output of `{zellij} --version`.",
-                  file=sys.stderr)
+                  f"{READY_SECONDS:g} s, {outcome}. Your Claude sessions are not affected. Please report this "
+                  f"with Zellij's log ({zellij_log()}) and the output of `{zellij} --version`.", file=sys.stderr)
             return 1
         if ready == NO_PANEL:
             print(f"reins tui: the Reins panel did not appear within {READY_SECONDS:g} s; attaching anyway. If it "

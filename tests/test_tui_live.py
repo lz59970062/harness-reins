@@ -377,6 +377,19 @@ class LaunchTests(unittest.TestCase):
                     mock.patch.object(launch.time, "sleep"), mock.patch("sys.stderr", new_callable=io.StringIO):
                 self.assertEqual(launch._wait_ready("zellij", self.root), expected)
 
+    def test_a_silent_zellij_server_is_ended_by_process_id(self) -> None:
+        sleeper = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(sleeper.kill)
+        self.assertEqual(launch._end({sleeper.pid}, grace=1.0), set())
+        self.assertIsNotNone(sleeper.poll())
+
+    def test_finds_only_this_executables_servers(self) -> None:
+        with mock.patch.object(launch.Path, "is_dir", return_value=False), \
+                mock.patch.object(launch.subprocess, "run", return_value=subprocess.CompletedProcess(
+                    [], 0, " 10 /opt/z/zellij --server /tmp/zellij-0/c/ab\n 11 /opt/z/zellij action list-panes\n"
+                           " 12 /usr/bin/vim --server x\n", "")):
+            self.assertEqual(launch.zellij_servers("/opt/z/zellij"), {10})
+
     def test_zellij_lookup_order(self) -> None:
         tool = self.root.parent / "zellij-bin"
         tool.write_text("#!/bin/sh\n")

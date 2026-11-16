@@ -18,9 +18,13 @@ from harness_reins.commands import logs
 class _Out(io.StringIO):
     """A text stdout with a binary buffer, like the real one."""
 
-    def __init__(self) -> None:
+    def __init__(self, tty: bool = False) -> None:
         super().__init__()
         self.buffer = io.BytesIO()
+        self.tty = tty
+
+    def isatty(self) -> bool:
+        return self.tty
 
 
 class TaskLogTests(unittest.TestCase):
@@ -41,10 +45,10 @@ class TaskLogTests(unittest.TestCase):
         return directory
 
     def run_log(self, task_id: str, *, lines: int = 10, follow: bool = False,
-                whole: bool = False) -> tuple[int, bytes, str]:
+                whole: bool = False, tty: bool | None = None) -> tuple[int, bytes, str]:
         args = argparse.Namespace(task_id=task_id, lines=lines, all=whole, no_follow=not follow,
                                   queue_dir=str(self.queue))
-        out, err = _Out(), io.StringIO()
+        out, err = _Out(tty=follow if tty is None else tty), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = logs.log(args)
         return code, out.buffer.getvalue(), err.getvalue()
@@ -123,6 +127,14 @@ class TaskLogTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(out, b"first\nsecond\nlast\n")
         self.assertIn("ended: completed, exit code 3", err)
+
+    def test_does_not_follow_when_output_is_not_a_terminal(self) -> None:
+        # An agent's tool call reads the output through a pipe and must not block on a running task.
+        self.task("ab12cd34", state="running", output=b"so far\n")
+        started = time.monotonic()
+        code, out, err = self.run_log("ab12cd34", follow=True, tty=False)
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertEqual((code, out, err), (0, b"so far\n", ""))
 
     def test_follow_waits_for_the_log_to_appear(self) -> None:
         directory = self.task("ab12cd34", state="launching", output=None)

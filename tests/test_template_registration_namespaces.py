@@ -118,7 +118,9 @@ class TemplateRegistrationNamespaceTests(unittest.TestCase):
         original = self.workflow.read_bytes()
         with mock.patch.dict(os.environ, {"REINS_TEMPLATE_DIR": str(self.first_directory)}):
             with registration._lock([self.skill_root]):
-                with self.assertRaisesRegex(ValueError, "another template registration"):
+                with mock.patch.object(registration, "LOCK_WAIT_SECONDS", 0.0), \
+                        contextlib.redirect_stderr(io.StringIO()), \
+                        self.assertRaisesRegex(ValueError, "template registration holds"):
                     self.register("beta", self.second_directory)
                 # This registry sorts before the held shared root. Its own lease
                 # must be released when acquisition of the shared lease fails.

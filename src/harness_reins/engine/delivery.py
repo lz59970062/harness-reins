@@ -13,7 +13,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from ..core import capabilities, records
+from ..core import capabilities, records, targets
 from .. import __version__
 from ..harness.claude import session as claude_session
 from ..harness.claude import stream as claude_stream
@@ -397,6 +397,46 @@ def waits_for_open_session(root: Path, request: dict[str, object], request_id: s
     """A message that may not start a process waits for its closed Pi session to reopen."""
     return (request.get("wake") == "never" and request.get("agent") == "pi" and "pi_published_at" not in request
             and not layout.ack_path(root, request_id).exists() and not pi_channel.live_mailbox_open(request))
+
+
+HANDOVER_RESULT_LIMIT = 4000
+
+
+def queue_handover_note(queue: Path, request: Mapping[str, object], handed: "claude_stream.Handover") -> None:
+    """Tell a window that opened mid-turn how the headless resume's turn ended.
+
+    The window loaded the transcript as it was when it opened, so the end of a
+    turn still running then is not in its context. A turn that ended before is,
+    but the worker only looks every few seconds, so a turn that ended since its
+    last look counts as unseen: a redundant note costs less than a missing one.
+    """
+    if not handed.turn_unseen:
+        return
+    session = str(request["target"]["session"])  # type: ignore[index]
+    result = (handed.result or "").strip() or "(it ended without a final message)"
+    if len(result) > HANDOVER_RESULT_LIMIT:
+        result = result[:HANDOVER_RESULT_LIMIT] + "\n[... cut; the full text is the last reply in this session's transcript]"
+    prompt = (
+        "[reins]\nA headless Reins resume of this session was running a turn when this window "
+        f"(pid {handed.window_pid}) opened, or finished one just before, so how that turn ended may not be "
+        "in this window's context. It took no more work after the window opened and has now ended. "
+        "Its last message was:\n\n"
+        f"{result}\n\nIt may have changed files or started jobs that you have not seen; check them before "
+        "relying on what you remember of the work.")
+    cwd = str(request.get("cwd") or os.getcwd())
+    note: dict[str, object] = {
+        "schema": records.CALLBACK_SCHEMA, "id": dispatch.new_callback_id(queue), "created_at": time.time(),
+        "cwd": cwd, "agent": "claude", "target": targets.session(session),
+        "origin": targets.origin("claude", session, cwd, "headless handover"),
+        "prompt": prompt, "prompt_format": "full", "task": "headless turn handed over to the window",
+        "exit_code": None, "message": None, "callback_mode": request.get("callback_mode") or "cli",
+        "callback_origin": "other",
+    }
+    for key in ("permission_mode",):
+        if key in request:
+            note[key] = request[key]
+    note["requires"] = capabilities.required_for(note)
+    dispatch.enqueue_existing_request(queue, note, prompt)
 
 
 def waits_for_open_window(root: Path, request: dict[str, object], request_id: str, *, look_again: bool = False) -> bool:
@@ -824,8 +864,14 @@ def delivery_worker_main() -> int:
                     if target_key is not None and dispatch.request_agent(request) == "claude":
                         os.environ[claude_session.RESUMED_TARGET_ENV] = target_key  # Its own claims pass the lock it holds.
                         process = start_resume(claude_stream.ARGUMENTS, subprocess.PIPE)
-                        stream_code = claude_stream.supervise(process, prompt, Path(str(payload["queue_dir"])),
-                                                              str(request["target"]["session"]), timeout, stall)
+                        handover: list[claude_stream.Handover] = []
+                        try:
+                            stream_code = claude_stream.supervise(process, prompt, Path(str(payload["queue_dir"])),
+                                                                  str(request["target"]["session"]), timeout, stall,
+                                                                  handover=handover)
+                        finally:
+                            for handed in handover:
+                                queue_handover_note(Path(str(payload["queue_dir"])), request, handed)
                     if stream_code is not None:
                         result = {"returncode": stream_code}
                     else:

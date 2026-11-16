@@ -105,6 +105,8 @@ class TemplateRegistrationTests(unittest.TestCase):
                 value = ("link", os.readlink(path))
             elif path.is_dir():
                 value = ("directory",)
+            elif path.name == ".reins-registration.lock":
+                value = ("lock",)  # Records its last holder, which is not part of what was installed.
             else:
                 value = ("file", path.read_bytes())
             if metadata:

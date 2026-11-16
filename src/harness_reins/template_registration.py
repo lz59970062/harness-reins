@@ -8,6 +8,7 @@ uses the existing template loader and durable child-agent lifecycle.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import hashlib
 import importlib.resources as resources
 import json
@@ -15,6 +16,9 @@ import os
 from pathlib import Path
 import re
 import shlex
+import socket
+import sys
+import time
 from dataclasses import dataclass, field
 
 import yaml
@@ -421,18 +425,102 @@ def _lock_paths(roots) -> list[Path]:
     return sorted(paths, key=str)
 
 
+# How long a skill installation or template registration waits for another one.
+LOCK_WAIT_SECONDS = 30.0
+_LOCK_POLL_SECONDS = 0.2
+
+
+class RegistrationBusy(ValueError):
+    """Another process held a registration lock for longer than LOCK_WAIT_SECONDS."""
+
+
+# Set once a lock was found busy, so later installs in the same run try each lock once instead of waiting again.
+_lock_wait: contextvars.ContextVar[float | None] = contextvars.ContextVar("reins_lock_wait", default=None)
+
+
+@contextlib.contextmanager
+def no_lock_wait():
+    """Inside this, a held lock fails at once instead of waiting LOCK_WAIT_SECONDS."""
+    token = _lock_wait.set(0.0)
+    try:
+        yield
+    finally:
+        _lock_wait.reset(token)
+
+
+def _record_holder(handle) -> None:
+    # Best effort: the lock is the flock, this text only helps a person find its holder.
+    try:
+        handle.seek(0)
+        handle.truncate(0)
+        handle.write(json.dumps({"pid": os.getpid(), "host": socket.gethostname(), "since": time.time(),
+                                 "command": " ".join(sys.argv[:3])}) + "\n")
+        handle.flush()
+    except (OSError, ValueError):
+        pass
+
+
+def _describe_holder(path: Path) -> str:
+    # On Windows the holder opened the file with share mode 0, so it cannot be read while held
+    # and this says the file does not name a holder. The lock itself still works.
+    try:
+        holder = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        holder = None
+    if not isinstance(holder, dict) or type(holder.get("pid")) is not int or holder["pid"] <= 0:
+        return "the lock file does not say which process holds it"
+    pid, host = holder["pid"], holder.get("host")
+    since = holder.get("since")
+    text = f"pid {pid}" + (f" on {host}" if isinstance(host, str) and host else "")
+    if isinstance(since, (int, float)) and not isinstance(since, bool):
+        text += " since " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(since))
+    if isinstance(holder.get("command"), str) and holder["command"]:
+        text += f" ({holder['command']})"
+    if host == socket.gethostname() and os.name != "nt":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return text + ", which is no longer running"
+        except OSError:
+            pass
+        else:
+            return text + ", still running"
+    return text
+
+
+def _busy(path: Path) -> RegistrationBusy:
+    if os.name == "nt":
+        hint = "Close the other Reins setup or registration, or the program that has the file open, then retry."
+    else:
+        hint = (f"Wait for it to finish and retry. If no Reins setup or registration is running, find what holds "
+                f"the lock with `fuser -v {shlex.quote(str(path))}` (or `lsof {shlex.quote(str(path))}`); remove the file only when nothing does.")
+    return RegistrationBusy(f"another skill installation or template registration holds {path} "
+                            f"({_describe_holder(path)}). {hint}")
+
+
 @contextlib.contextmanager
 def _lock(roots=()):
     platform = windows_io if os.name == "nt" else posix
     leases = []
     paths = _lock_paths(roots)
+    wait = _lock_wait.get()
+    wait = LOCK_WAIT_SECONDS if wait is None else wait
+    deadline = time.monotonic() + wait
     try:
+        # A fixed order means two waiting processes cannot each hold what the other needs.
         for path in paths:
             if path.is_symlink():
                 raise ValueError(f"preserving an existing registration lock symlink: {path}")
             lease = platform.acquire_path_lock(path, blocking=False)
-            if lease is None:
-                raise ValueError("another template registration is running; retry after it completes")
+            if lease is None and wait > 0:
+                print(f"reins: waiting up to {wait:.0f} s for another skill installation "
+                      f"or template registration to release {path}", file=sys.stderr)
+            while lease is None:
+                if time.monotonic() >= deadline:
+                    raise _busy(path)
+                time.sleep(_LOCK_POLL_SECONDS)
+                lease = platform.acquire_path_lock(path, blocking=False)
+            _record_holder(lease[0])
             leases.append(lease)
         yield frozenset(paths)
     finally:

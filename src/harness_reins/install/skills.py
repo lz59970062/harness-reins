@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.resources as resources
 import json
 import os
@@ -27,11 +28,13 @@ CLAUDE_HOOK_TIMEOUT_SECONDS = claude_session.HOOK_TIMEOUT_SECONDS
 
 
 def install_skill_tree(target: Path, *, include_codex_plugin: bool, force: bool, keep_existing: bool = False,
-                       focused: str | None = None) -> int:
+                       focused: str | None = None, raise_busy: bool = False) -> int:
     """Install the bundled skill.
 
     Codex, Claude and Pi each get a focused SKILL.md for their own callback
-    delivery plus the shared full text as REFERENCE.md.
+    delivery plus the shared full text as REFERENCE.md. A registration lock
+    that stays held is an error line and status 1, or ``RegistrationBusy``
+    with ``raise_busy``.
     """
     if keep_existing and (target / "SKILL.md").is_file():
         print(f"Keeping existing harness-reins skill at {target}")
@@ -45,6 +48,16 @@ def install_skill_tree(target: Path, *, include_codex_plugin: bool, force: bool,
 
     skills = resources.files("harness_reins").joinpath("assets").joinpath("skills")
     package_root = skills.joinpath("reference")
+    try:
+        return _install_tree(target, skills, package_root, include_codex_plugin=include_codex_plugin, focused=focused)
+    except template_registration.RegistrationBusy as exc:
+        if raise_busy:
+            raise
+        print(f"reins: error: could not install the skill at {target}: {exc}", file=sys.stderr)
+        return 1
+
+
+def _install_tree(target: Path, skills, package_root, *, include_codex_plugin: bool, focused: str | None) -> int:
     with template_registration.preserve_installed_index(target):
         if target.exists():
             shutil.rmtree(target)
@@ -79,12 +92,25 @@ def install_skill(args: argparse.Namespace) -> int:
     target_name = getattr(args, "target", None) or "both"
     keep = bool(getattr(args, "keep_existing", False))
     status = 0
+    busy = False
+
+    def install_one(target: Path, **options) -> int:
+        # After one lock stayed busy, the rest try each lock once: setup should not wait 30 s per agent.
+        nonlocal busy
+        with template_registration.no_lock_wait() if busy else contextlib.nullcontext():
+            try:
+                return install_skill_tree(target, raise_busy=True, **options)
+            except template_registration.RegistrationBusy as exc:
+                busy = True
+                print(f"reins: error: could not install the skill at {target}: {exc}", file=sys.stderr)
+                return 1
+
     if target_name in ("codex", "both", "all"):
-        status |= install_skill_tree(layout.codex_home() / "skills" / "harness-reins", include_codex_plugin=True, force=args.force,
-                                     keep_existing=keep, focused="codex")
+        status |= install_one(layout.codex_home() / "skills" / "harness-reins", include_codex_plugin=True, force=args.force,
+                              keep_existing=keep, focused="codex")
     if target_name in ("claude", "both", "all"):
-        status |= install_skill_tree(layout.claude_home() / "skills" / "harness-reins", include_codex_plugin=False, force=args.force,
-                                     keep_existing=keep, focused="claude")
+        status |= install_one(layout.claude_home() / "skills" / "harness-reins", include_codex_plugin=False, force=args.force,
+                              keep_existing=keep, focused="claude")
         if getattr(args, "claude_hook", None):  # Only setup passes one; install-skill leaves settings alone.
             try:
                 print(f"Installed the Reins hook in {configure_claude_hook(args.claude_hook)}")
@@ -92,17 +118,17 @@ def install_skill(args: argparse.Namespace) -> int:
                 print(f"reins: warning: could not add the Claude Code hook, so open windows need `reins wait`: {exc}",
                       file=sys.stderr)
     if target_name in ("pi", "all"):
-        status |= install_skill_tree(pi_channel.profile_dir() / "skills" / "harness-reins", include_codex_plugin=False,
-                                     force=args.force, keep_existing=keep, focused="pi")
+        status |= install_one(pi_channel.profile_dir() / "skills" / "harness-reins", include_codex_plugin=False,
+                              force=args.force, keep_existing=keep, focused="pi")
     if target_name in ("dsh", "all"):
-        status |= install_skill_tree(layout.dsh_home() / "skills" / "harness-reins", include_codex_plugin=False,
-                                     force=args.force, keep_existing=keep, focused="dsh")
+        status |= install_one(layout.dsh_home() / "skills" / "harness-reins", include_codex_plugin=False,
+                              force=args.force, keep_existing=keep, focused="dsh")
     if target_name == "both" and getattr(args, "refresh_installed", False) and args.force and not keep:
         # Setup installs for Pi and DSH only when asked, but must not leave a copy from an earlier version behind.
         for agent, home in (("pi", pi_channel.profile_dir()), ("dsh", layout.dsh_home())):
             target = home / "skills" / "harness-reins"
             if (target / "SKILL.md").is_file():
-                status |= install_skill_tree(target, include_codex_plugin=False, force=True, focused=agent)
+                status |= install_one(target, include_codex_plugin=False, force=True, focused=agent)
     return status
 
 

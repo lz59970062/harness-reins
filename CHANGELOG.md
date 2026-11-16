@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- A headless Claude resume hands the session over when a window opens it, for example a
+  `claude --resume` to look at progress. It takes no more callbacks, closes its input so it ends
+  after the turn it is in, and later callbacks go to the window. If that turn was still running
+  when the window opened, or ended just before Reins noticed the window, the window gets a note with
+  how it ended, since the window loaded the conversation before it did. Before, the resume kept taking work beside the window and the
+  session forked further.
+- `reins setup` and template registration wait up to 30 s for another one holding the registration
+  lock, and then stop with an error that names the lock file, the process that took it and whether
+  that process still runs, instead of a traceback. After one such wait, setup tries the remaining
+  agents' skills once each instead of waiting again. The lock file now records its holder. A leftover
+  lock file was never the problem by itself: the lock is released when its process exits.
+- `reins log` follows only when its output is a terminal. Piped or captured output, such as an
+  agent's tool call, gets the lines and returns instead of waiting for the task to end.
+
 ## 0.13.3 — 2026-11-11
 
 - `reins log <id>` prints a task's output and follows it like `tail -f`, then exits when

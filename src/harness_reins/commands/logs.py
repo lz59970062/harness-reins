@@ -106,6 +106,13 @@ def _binary_stdout() -> IO[bytes]:
     return _Text()  # type: ignore[return-value]
 
 
+def _is_terminal(stream: object) -> bool:
+    try:
+        return bool(stream.isatty())  # type: ignore[attr-defined]
+    except (AttributeError, ValueError, OSError):
+        return False
+
+
 def _ending(task: dict[str, object]) -> str:
     state = str(task.get("state") or "unknown")
     code = task.get("exit_code")
@@ -121,7 +128,9 @@ def log(args: argparse.Namespace) -> int:
     task = _read_task(directory)
     path = Path(str(task.get("log_path") or directory / "attempt-1.log")).expanduser()
     out = _binary_stdout()
-    follow = not args.no_follow
+    # Following is for a person watching; a program reading the output (an agent's
+    # tool call) would block until the task ends.
+    follow = not args.no_follow and _is_terminal(sys.stdout)
     position = None
     try:
         while True:

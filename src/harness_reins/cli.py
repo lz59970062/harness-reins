@@ -594,7 +594,7 @@ def main() -> int:
     status_parser.add_argument("--shell-hook", action="store_true", help="Use compact terminal-startup output")
 
     log_parser = sub.add_parser(
-        "log", help="Print a task's output and follow it until the task ends (like tail -f)")
+        "log", help="Print a task's output and, on a terminal, follow it until the task ends (like tail -f)")
     log_parser.add_argument("task_id", help="Task id, a unique prefix of one, or a callback id such as <id>-c1")
     log_lines = log_parser.add_mutually_exclusive_group()
     log_lines.add_argument("-n", "--lines", type=int, default=10, help="Lines to print before following (default: 10)")

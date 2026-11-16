@@ -48,6 +48,11 @@ FAKE_CLAUDE = textwrap.dedent("""\
             emit(type="system", subtype="background_tasks_changed", tasks=[{"task_id": "b1"}])
             time.sleep(1.0)
             emit(type="system", subtype="background_tasks_changed", tasks=[])
+        if scenario == "slow":
+            emit(type="assistant", message={"content": [{"type": "text", "text": "working"}]})
+            time.sleep(0.6)
+            emit(type="result", subtype="success", result="slow turn finished")
+            continue
         if scenario == "background":
             emit(type="system", subtype="background_tasks_changed", tasks=[{"task_id": "b1"}])
             emit(type="result", subtype="success", result="started")
@@ -180,6 +185,106 @@ class SuperviseTests(StreamCase):
         process = self.start("background")
         with self.assertRaises(subprocess.TimeoutExpired):
             self.supervise(process, timeout=0.2)
+
+
+class HandoverTests(StreamCase):
+    def supervise_with_window(self, process: subprocess.Popen[str], window: int | None,
+                              handover: list) -> int | None:
+        with mock.patch.dict(os.environ, {claude_session.RESUMED_TARGET_ENV: f"session:{SESSION}"}), \
+                mock.patch.object(claude_stream, "WINDOW_CHECK_SECONDS", 0.0), \
+                contextlib.redirect_stderr(io.StringIO()):
+            return claude_stream.supervise(process, "first callback", self.root, SESSION, 30.0, None,
+                                           window_open=lambda: window, handover=handover)
+
+    def test_a_window_that_opens_mid_turn_takes_the_session_over(self) -> None:
+        later = self.enqueue("cb-later")
+        handover: list = []
+        self.assertEqual(self.supervise_with_window(self.start("slow"), 4321, handover), 0)
+        # The turn in progress finished; nothing more went into the headless process.
+        self.assertEqual(self.logged(), ["first callback", "stdin closed"])
+        self.assertEqual(len(handover), 1)
+        self.assertEqual((handover[0].window_pid, handover[0].turn_unseen, handover[0].result),
+                         (4321, True, "slow turn finished"))
+        # The later callback is left for the window.
+        self.assertNotIn("live_delivered_at", json.loads(later.read_text(encoding="utf-8")))
+
+    def looks(self, *answers: str) -> tuple[object, list]:
+        """A window lookup that answers in turn: "none", "ended" (wait for the turn to end, then none), or "window"."""
+        made: list = []
+
+        class Recording(claude_stream._Progress):
+            def __init__(self) -> None:
+                super().__init__()
+                made.append(self)
+
+        remaining = list(answers)
+
+        def window_open() -> int | None:
+            answer = remaining.pop(0) if len(remaining) > 1 else remaining[0]
+            if answer == "ended":
+                deadline = time.monotonic() + 10
+                while made[0].turn_ended_at is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertIsNotNone(made[0].turn_ended_at)
+                return None
+            if answer == "window-after-end":
+                deadline = time.monotonic() + 10
+                while made[0].turn_ended_at is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                return 4321
+            return 4321 if answer == "window" else None
+
+        return window_open, [mock.patch.object(claude_stream, "_Progress", Recording)]
+
+    def run_looks(self, scenario: str, *answers: str) -> list:
+        window_open, patches = self.looks(*answers)
+        handover: list = []
+        with contextlib.ExitStack() as stack:
+            for patch in patches:
+                stack.enter_context(patch)
+            stack.enter_context(mock.patch.dict(os.environ, {claude_session.RESUMED_TARGET_ENV: f"session:{SESSION}"}))
+            stack.enter_context(mock.patch.object(claude_stream, "WINDOW_CHECK_SECONDS", 0.0))
+            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            claude_stream.supervise(self.start(scenario), "first callback", self.root, SESSION, 30.0, None,
+                                    window_open=window_open, handover=handover)
+        self.assertEqual(len(handover), 1)
+        return handover
+
+    def test_a_turn_that_ended_since_the_last_look_counts_as_unseen(self) -> None:
+        # The window may have opened before the result arrived, between two looks.
+        [handed] = self.run_looks("slow", "none", "window-after-end")
+        self.assertEqual((handed.turn_unseen, handed.result), (True, "slow turn finished"))
+
+    def test_a_turn_that_ended_before_the_last_empty_look_is_seen(self) -> None:
+        # A look that found nothing counts from when it started, so the turn ends during one and the next clears it.
+        [handed] = self.run_looks("slow", "none", "ended", "none", "window")
+        self.assertFalse(handed.turn_unseen)
+
+    def test_no_note_when_claude_never_started(self) -> None:
+        [handed] = self.run_looks("silent", "window")
+        self.assertFalse(handed.turn_unseen)
+
+    def test_no_window_means_no_handover(self) -> None:
+        handover: list = []
+        self.assertEqual(self.supervise_with_window(self.start(), None, handover), 0)
+        self.assertEqual(handover, [])
+
+    def test_the_note_tells_the_window_how_the_turn_ended(self) -> None:
+        request = {"id": "cb-1", "cwd": str(self.directory), "target": {"kind": "session", "session": SESSION},
+                   "callback_mode": "cli", "permission_mode": "auto"}
+        with contextlib.redirect_stderr(io.StringIO()):
+            delivery_engine.queue_handover_note(self.root, request, claude_stream.Handover(4321, False, "done"))
+        self.assertEqual(list((self.root / "pending").glob("*.json")), [])
+        long_result = "x" * (delivery_engine.HANDOVER_RESULT_LIMIT + 50)
+        with contextlib.redirect_stderr(io.StringIO()):
+            delivery_engine.queue_handover_note(self.root, request, claude_stream.Handover(4321, True, long_result))
+        [path] = list((self.root / "pending").glob("*.json"))
+        note = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(note["target"], {"kind": "session", "session": SESSION})
+        self.assertEqual((note["agent"], note["permission_mode"], note["callback_mode"]), ("claude", "auto", "cli"))
+        self.assertIn("(pid 4321) opened", note["prompt"])
+        self.assertIn("[... cut;", note["prompt"])
+        self.assertIn(dispatch.ack_command(self.root, path.stem), note["prompt"])
 
 
 class StallTests(StreamCase):

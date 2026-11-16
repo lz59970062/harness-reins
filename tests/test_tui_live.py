@@ -181,7 +181,6 @@ class ActionTests(LiveCase):
         self.assertTrue(self.backend.open_terminal(str(self.home), "right").ok)
         argv, name, direction, close = self.zellij.opened[-1]
         self.assertEqual((argv, name, direction, close), (["/bin/zsh"], f"shell {self.home.name}", "right", True))
-        self.assertIn(str(Path.home()) if False else "", "")
         self.assertTrue(self.backend.open_terminal("/no/such/dir").ok)  # Falls back to the home directory.
 
     def test_naming_registers_the_session_and_its_address_shows(self) -> None:
@@ -244,6 +243,13 @@ class PlacementTests(unittest.TestCase):
         live.place(zellij, ["reins", "log", "t1"], name="log t1", close_on_exit=False)
         self.assertEqual((zellij.focused, zellij.opened[-1][2]), (["terminal_5"], "down"))
 
+    def test_panes_in_another_tab_or_floating_are_not_split(self) -> None:
+        zellij = FakeZellij([{"id": 0, "title": "Reins", "tab_id": 0}, {"id": 2, "title": "claude aaaaaaaa", "tab_id": 0},
+                             {"id": 7, "title": "elsewhere", "tab_id": 1}, {"id": 8, "title": "float", "tab_id": 0,
+                                                                           "is_floating": True}])
+        live.place(zellij, ["reins", "log", "t1"], name="log t1", close_on_exit=False)
+        self.assertEqual(zellij.focused, ["terminal_2"])
+
     def test_with_nothing_on_the_right_it_opens_to_the_right(self) -> None:
         zellij = FakeZellij([{"id": 0, "title": "Reins"}])
         live.place(zellij, ["reins", "log", "t1"], name="log t1", close_on_exit=False)
@@ -260,7 +266,9 @@ class HealthTests(unittest.TestCase):
             "something new: reins doctor"])
 
     def test_the_backend_adds_a_missing_hook_and_survives_a_failing_check(self) -> None:
-        backend = live.LiveBackend(queue_root=Path(tempfile.mkdtemp()) / "queue", environment={})
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        backend = live.LiveBackend(queue_root=Path(tmp.name) / "queue", environment={})
         with mock.patch("harness_reins.install.diagnostics.inspect", side_effect=RuntimeError("boom")), \
                 mock.patch.object(live.claude_session, "hook_installed", return_value=False):
             lines = backend.health()

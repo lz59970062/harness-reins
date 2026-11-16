@@ -120,8 +120,11 @@ def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bo
     if hint is not None:
         zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, replace=f"terminal_{hint.get('id')}")
         return
-    # Every pane but the panel is on the right. Names cannot tell: a shell renames its pane.
-    right = [pane for pane in panes if isinstance(pane.get("id"), int) and not _is_panel(pane)]
+    # Every pane but the panel is on the right. Names cannot tell: a shell renames its pane. Only tiled panes in
+    # the panel's own tab count, so a split never pulls the user to another tab or into a floating pane.
+    panel_tab = next((pane.get("tab_id") for pane in panes if _is_panel(pane)), None)
+    right = [pane for pane in panes if isinstance(pane.get("id"), int) and not _is_panel(pane)
+             and not pane.get("is_floating") and pane.get("tab_id") == panel_tab]
     if right:
         zellij.focus(f"terminal_{max(int(pane['id']) for pane in right)}")
         zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction=direction)

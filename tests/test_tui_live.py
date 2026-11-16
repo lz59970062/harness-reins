@@ -184,6 +184,23 @@ class ActionTests(LiveCase):
         self.assertIn(str(Path.home()) if False else "", "")
         self.assertTrue(self.backend.open_terminal("/no/such/dir").ok)  # Falls back to the home directory.
 
+    def test_naming_registers_the_session_and_its_address_shows(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.RUNNING, handle=SESSION[:8], cwd="/w")]
+        ran = []
+
+        def run(argv, **kwargs):
+            ran.append(argv)
+            return subprocess.CompletedProcess(argv, 0, stdout="named lab\n", stderr="")
+
+        self.backend.run = run
+        self.assertTrue(self.backend.name_session(SESSION, "lab").ok)
+        # A queue other than the default one is named, so the command works on the panel's queue.
+        self.assertEqual(ran[-1][-11:], ["session", "register", "lab", "--agent", "claude", "--session", SESSION,
+                                         "--cwd", "/w", "--queue-dir", str(self.root)])
+        with mock.patch.object(live.link, "sessions", return_value=[{"name": "lab", "session": SESSION}]):
+            [row] = self.backend.sessions()
+        self.assertEqual(row.address, "lab")
+
     def test_log_send_and_cancel(self) -> None:
         self.assertTrue(self.backend.show_log("t1").ok)
         argv, name, direction, close = self.zellij.opened[-1]
@@ -199,9 +216,9 @@ class ActionTests(LiveCase):
         with mock.patch.object(live.link, "sessions", return_value=[{"name": "lab", "session": SESSION}]):
             result = self.backend.send_message(SESSION, "hi")
         self.assertEqual((result.ok, result.message), (True, "reins: sent m-1"))
-        self.assertEqual(ran[-1][-4:], ["send", "lab", "--message", "hi"])
+        self.assertEqual(ran[-1][-6:], ["send", "lab", "--message", "hi", "--queue-dir", str(self.root)])
         self.assertTrue(self.backend.cancel_callback("t1-c1").ok)
-        self.assertEqual(ran[-1][-3:], ["cancel", "--id", "t1-c1"])
+        self.assertEqual(ran[-1][-5:], ["cancel", "--id", "t1-c1", "--queue-dir", str(self.root)])
 
 
 class PlacementTests(unittest.TestCase):

@@ -28,6 +28,7 @@ class SessionRow:
     callbacks_pending: int = 0
     goal: Optional[str] = None      # The active goal's task text, if any.
     started_at: Optional[float] = None
+    address: Optional[str] = None   # Its name in the Reins address book, what `reins send` takes.
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,9 @@ class Backend(Protocol):
     def health(self) -> Sequence[str]:
         """What `reins doctor` finds wrong, one plain line each; empty when Reins is ready."""
 
+    def name_session(self, session: str, name: str) -> ActionResult:
+        """Put the session in the address book under ``name`` (`reins session register`)."""
+
 
 @dataclass
 class FakeBackend:
@@ -172,3 +176,11 @@ class FakeBackend:
 
     def health(self) -> Sequence[str]:
         return list(self.problems)
+
+    def name_session(self, session: str, name: str) -> ActionResult:
+        self.calls.append(("name", session, name))
+        row = self._find(session)
+        if row is None:
+            return ActionResult(False, f"no session {session[:8]}")
+        self.session_rows = [replace(r, address=name) if r is row else r for r in self.session_rows]
+        return ActionResult(True, f"named {row.title} {name}")

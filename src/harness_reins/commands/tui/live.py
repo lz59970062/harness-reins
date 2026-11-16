@@ -274,6 +274,8 @@ class LiveBackend:
             if session and not layout.ack_path(self.root, path.stem).exists():
                 pending[session] = pending.get(session, 0) + 1
         goals = {row.session: row.task for row in self.goals() if not row.state.startswith(FINISHED_GOAL_PREFIXES)}
+        addresses = {str(record.get("session")): str(record["name"]) for record in link.sessions(self.root)
+                     if isinstance(record.get("name"), str)}
         # Closed sessions are listed when Reins has worked with them lately: that is how a user finds them again.
         for record in tasks:
             session = session_of(record)
@@ -284,7 +286,8 @@ class LiveBackend:
         return [SessionRow(session=view.session, agent=view.agent, state=view.state,
                            title=view.name or view.session[:8], cwd=view.cwd, activity=view.activity, host=view.host,
                            tasks_running=running.get(view.session, 0), callbacks_pending=pending.get(view.session, 0),
-                           goal=goals.get(view.session), started_at=view.started_at)
+                           goal=goals.get(view.session), started_at=view.started_at,
+                           address=addresses.get(view.session))
                 for view in views.values()]
 
     def tasks(self) -> Sequence[TaskRow]:
@@ -418,6 +421,8 @@ class LiveBackend:
         return ActionResult(True, f"opened a terminal in {directory}")
 
     def _reins(self, *arguments: str) -> ActionResult:
+        if self.root != layout.queue_dir(None).expanduser().absolute():
+            arguments = (*arguments, "--queue-dir", str(self.root))
         try:
             result = self.run(worker_command(*arguments), stdin=subprocess.DEVNULL, capture_output=True, text=True,
                               encoding="utf-8", errors="replace", timeout=60, check=False)
@@ -440,6 +445,17 @@ class LiveBackend:
 
     def cancel_callback(self, callback: str) -> ActionResult:
         return self._reins("cancel", "--id", callback)
+
+    def name_session(self, session: str, name: str) -> ActionResult:
+        view = next((view for view in self._views() if view.session == session), None)
+        if view is None:
+            view = claude_agents.session_view(session, self.environment, views=(), run=self.run)
+        if view is None:
+            return ActionResult(False, f"no Claude session {session[:8]} on this machine")
+        arguments = ["session", "register", name, "--agent", view.agent, "--session", session]
+        if view.cwd:
+            arguments += ["--cwd", view.cwd]
+        return self._reins(*arguments)
 
     def health(self) -> Sequence[str]:
         """`reins doctor` for this queue, read in process, plus what the TUI itself needs."""

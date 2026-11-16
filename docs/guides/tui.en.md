@@ -48,7 +48,22 @@ below or to the right of the newest pane there (`d` switches which), instead of 
 | `c` | Cancel a task's callback, after a confirmation |
 | `1`–`4` | Switch tabs |
 
-The panel refreshes itself every 3 seconds.
+The panel refreshes itself every 3 seconds. Its top line shows what `reins doctor` finds: "Reins is ready", or one
+line per problem with what to do.
+
+## Copying a session's address
+
+**Right-click** a session to copy its address in the Reins address book; in another conversation, ask the agent to
+send to that address and it uses `reins send`. A session that has a name shows it as `@name` before its title.
+
+- Named: choose "Copy address".
+- Not named yet: choose "Name it and copy its address...", accept or change the suggested name, and the panel adds it
+  to the address book and copies it.
+- "Copy session id" copies the id instead.
+
+Copying uses the terminal's clipboard protocol (OSC 52). If a paste comes out empty, the terminal does not let
+programs write the clipboard (in iTerm2, enable "Applications in terminal may access clipboard"); the copied text is
+also shown at the bottom of the panel, where you can select it.
 
 ## Pane keys
 

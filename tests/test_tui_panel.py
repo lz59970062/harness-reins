@@ -11,9 +11,11 @@ import asyncio
 import os
 import time
 import unittest
+from dataclasses import replace
 
 try:
     import textual  # noqa: F401
+    from textual import events
     from textual.widgets import DataTable, Input, Static, TabbedContent
 
     from harness_reins.commands.tui import panel
@@ -312,6 +314,49 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await settle(app, pilot)
             self.assertIn("Reins is ready", str(health.render()))
             self.assertTrue(health.has_class("ok"))
+
+    async def right_click_first_session(self, app, pilot):
+        # A real right click through Textual's mouse routing: first row, just under the header.
+        await pilot.click("#sessions-table", offset=(4, 1), button=3)
+        await settle(app, pilot)
+
+    async def test_right_click_copies_a_named_sessions_address(self):
+        backend = make_backend()
+        backend.session_rows = [replace(row, address="lab") if row.session == SESSION_D else row
+                                for row in backend.session_rows]
+        app = make_app(backend)
+        copied = []
+        app.copy_to_clipboard = copied.append
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            self.assertTrue(str(app.query_one("#sessions-table", DataTable).get_row_at(0)[1]).startswith("@lab "))
+            await self.right_click_first_session(app, pilot)
+            self.assertIsInstance(app.screen, panel.MenuScreen)
+            await pilot.press("enter")  # first option: Copy address @lab
+            await settle(app, pilot)
+            self.assertEqual(copied, ["lab"])
+            self.assertIn("copied address lab", status_text(app))
+
+    async def test_right_click_names_an_unnamed_session_then_copies(self):
+        backend = make_backend()
+        app = make_app(backend)
+        copied = []
+        app.copy_to_clipboard = copied.append
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await self.right_click_first_session(app, pilot)
+            await pilot.press("enter")  # Name it and copy its address...
+            await settle(app, pilot)
+            self.assertIsInstance(app.screen, panel.TextPromptScreen)
+            await pilot.press("enter")  # accept the suggested name
+            await settle(app, pilot)
+            self.assertIn(("name", SESSION_D, "attached-one"), backend.calls)
+            self.assertEqual(copied, ["attached-one"])
+
+    def test_suggested_names_fit_the_address_book(self):
+        row = make_backend().session_rows[0]
+        self.assertEqual(panel._suggested_name(replace(row, title="Motion Plots: v2")), "motion-plots-v2")
+        self.assertEqual(panel._suggested_name(replace(row, title="嵌入空间运动图")), "s-" + row.session[:8])
 
     async def test_send_message(self):
         backend = make_backend()

@@ -19,16 +19,19 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
+from textual import events
 from textual.widgets import (
     Button,
     DataTable,
     Footer,
     Input,
     Label,
+    OptionList,
     Static,
     TabbedContent,
     TabPane,
 )
+from textual.widgets.option_list import Option
 from textual.worker import get_current_worker
 
 from ...core import sessions
@@ -116,7 +119,7 @@ def _session_cells(row: SessionRow) -> List[Any]:
     # Which session, where it runs and what it is doing come first: the panel is narrow.
     cells: List[Any] = [
         _MARKS.get(row.state, "?"),
-        _fit(row.title, TITLE_CELLS),
+        _fit(("@%s " % row.address if row.address else "") + row.title, TITLE_CELLS),
         _where(row),
         # Claude reports "blocked" both for a session waiting on a denied tool call and for one
         # waiting for its first prompt; either way it waits for a person.
@@ -227,6 +230,61 @@ class TextPromptScreen(ModalScreen[Optional[str]]):
         self.dismiss(None)
 
 
+class MenuScreen(ModalScreen[Optional[str]]):
+    """A right-click menu: dismisses the chosen option's id, or None."""
+
+    BINDINGS = [Binding("escape", "cancel", show=False)]
+
+    def __init__(self, title: str, options: Sequence[Tuple[str, str]]) -> None:
+        super().__init__()
+        self._title = title
+        self._options = options
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label(self._title, id="dialog-title")
+            yield OptionList(*(Option(label, id=key) for key, label in self._options), id="menu")
+
+    def on_mount(self) -> None:
+        self.query_one("#menu", OptionList).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(OptionList.OptionSelected, "#menu")
+    def _chosen(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(event.option.id)
+
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        # A click outside the menu closes it.
+        if not self.query_one("#dialog").region.contains(event.screen_x, event.screen_y):
+            self.dismiss(None)
+
+
+class SessionTable(DataTable):
+    """The sessions table: a right click opens the session's menu instead of selecting the row."""
+
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        if event.button == 3:
+            event.stop()
+            row = int(event.y + self.scroll_y) - (1 if self.show_header else 0)
+            self.app.call_later(self.app.session_right_click, row)  # type: ignore[attr-defined]
+
+    async def _on_click(self, event: events.Click) -> None:
+        if event.button == 3:
+            event.prevent_default()
+            event.stop()
+            return
+        await super()._on_click(event)
+
+
+def _suggested_name(row: SessionRow) -> str:
+    """An address-book name from the session's title: lowercase letters, digits and '-'."""
+    name = "".join(ch if ch.isascii() and ch.isalnum() else "-" for ch in row.title.lower())
+    name = "-".join(part for part in name.split("-") if part)[:32].strip("-")
+    return name if name and not name.startswith("-") else "s-" + row.session[:8]
+
+
 class ReinsPanel(App[None]):
     """Tables of sessions, tasks, goals and messages, driven by a Backend."""
 
@@ -313,7 +371,7 @@ class ReinsPanel(App[None]):
         yield Static("checking Reins...", id="health")
         with TabbedContent(id="tabs"):
             with TabPane("Sessions", id=SESSIONS_TAB):
-                yield DataTable(id="sessions-table", cursor_type="row", zebra_stripes=True)
+                yield SessionTable(id="sessions-table", cursor_type="row", zebra_stripes=True)
             with TabPane("Tasks", id=TASKS_TAB):
                 yield DataTable(id="tasks-table", cursor_type="row", zebra_stripes=True)
             with TabPane("Goals", id=GOALS_TAB):
@@ -692,6 +750,58 @@ class ReinsPanel(App[None]):
             ),
             lambda yes: self._cancel_confirmed(row, yes),
         )
+
+    # ------------------------------------------------------------ right click
+
+    def session_right_click(self, row_index: int) -> None:
+        """Right click on a session: copy its address, or give it one first."""
+        if self._modal_open() or not 0 <= row_index < len(self._session_rows):
+            return
+        table = self.query_one("#sessions-table", DataTable)
+        table.focus()
+        table.move_cursor(row=row_index)
+        self.open_session_menu(self._session_rows[row_index])
+
+    def open_session_menu(self, row: SessionRow) -> None:
+        options = [("copy-address", "Copy address  @%s" % row.address) if row.address
+                   else ("name", "Name it and copy its address..."),
+                   ("copy-id", "Copy session id")]
+        self.push_screen(MenuScreen(row.title, options), lambda choice: self._menu_chosen(row, choice))
+
+    def _menu_chosen(self, row: SessionRow, choice: Optional[str]) -> None:
+        if choice == "copy-address" and row.address:
+            self._copy(row.address, "address")
+        elif choice == "copy-id":
+            self._copy(row.session, "session id")
+        elif choice == "name":
+            self.push_screen(
+                TextPromptScreen("Name for %s (lowercase letters, digits, - or _)" % row.title,
+                                 initial=_suggested_name(row)),
+                lambda name: self._name_given(row, name),
+            )
+
+    def _name_given(self, row: SessionRow, name: Optional[str]) -> None:
+        name = (name or "").strip()
+        if name:
+            self._name_worker(row.session, name)
+
+    @work(thread=True, group="actions")
+    def _name_worker(self, session: str, name: str) -> None:
+        try:
+            result = self._backend.name_session(session, name)
+        except Exception as exc:
+            self.call_from_thread(self._show_status, "name: %s" % exc, False)
+            return
+        if result.ok:
+            self.call_from_thread(self._copy, name, "address")
+            self.call_from_thread(self.refresh_data)
+        else:
+            self.call_from_thread(self._show_status, result.message, False)
+
+    def _copy(self, text: str, what: str) -> None:
+        # OSC 52: Zellij passes it to the terminal, which puts it on the clipboard if it allows that.
+        self.copy_to_clipboard(text)
+        self._show_status("copied %s %s (if paste is empty, your terminal blocks clipboard access)" % (what, text))
 
     def _cancel_confirmed(self, row: TaskRow, yes: bool) -> None:
         if yes and row.callback:

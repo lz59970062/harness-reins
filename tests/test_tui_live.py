@@ -233,6 +233,27 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual((zellij.focused, zellij.opened[-1][2]), ([], "right"))
 
 
+class HealthTests(unittest.TestCase):
+    def test_doctor_issues_in_plain_words_without_agent_only_ones(self) -> None:
+        report = {"issues": [{"code": "callback_delivery_failed", "count": 4}, {"code": "session_unbound"},
+                             {"code": "daemon_not_running"}, {"code": "something_new"}]}
+        self.assertEqual(live.health_lines(report), [
+            "4 callbacks failed to deliver (Tasks tab; c cancels one)",
+            "the Reins daemon is not running: reins setup --enable --now",
+            "something new: reins doctor"])
+
+    def test_the_backend_adds_a_missing_hook_and_survives_a_failing_check(self) -> None:
+        backend = live.LiveBackend(queue_root=Path(tempfile.mkdtemp()) / "queue", environment={})
+        with mock.patch("harness_reins.install.diagnostics.inspect", side_effect=RuntimeError("boom")), \
+                mock.patch.object(live.claude_session, "hook_installed", return_value=False):
+            lines = backend.health()
+        self.assertIn("the check itself failed (RuntimeError): reins doctor", lines)
+        self.assertTrue(any("hook is not installed" in line for line in lines))
+        with mock.patch("harness_reins.install.diagnostics.inspect", return_value={"status": "ready", "issues": []}), \
+                mock.patch.object(live.claude_session, "hook_installed", return_value=True):
+            self.assertEqual(backend.health(), [])
+
+
 class AttachedHandleTests(unittest.TestCase):
     def test_only_live_claude_attach_panes_count(self) -> None:
         panes = [

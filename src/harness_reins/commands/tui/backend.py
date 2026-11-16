@@ -100,6 +100,9 @@ class Backend(Protocol):
     def cancel_callback(self, callback: str) -> ActionResult:
         """Same as `reins cancel <callback>`."""
 
+    def health(self) -> Sequence[str]:
+        """What `reins doctor` finds wrong, one plain line each; empty when Reins is ready."""
+
 
 @dataclass
 class FakeBackend:
@@ -108,6 +111,7 @@ class FakeBackend:
     task_rows: list[TaskRow] = field(default_factory=list)
     goal_rows: list[GoalRow] = field(default_factory=list)
     message_rows: list[MessageRow] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)
     calls: list[tuple[str, ...]] = field(default_factory=list)
 
     def sessions(self) -> Sequence[SessionRow]:
@@ -165,3 +169,6 @@ class FakeBackend:
     def cancel_callback(self, callback: str) -> ActionResult:
         self.calls.append(("cancel", callback))
         return ActionResult(True, f"canceled {callback}")
+
+    def health(self) -> Sequence[str]:
+        return list(self.problems)

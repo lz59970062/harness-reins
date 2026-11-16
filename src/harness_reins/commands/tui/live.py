@@ -21,6 +21,7 @@ from ...core import sessions
 from ...core.sessions import SessionView
 from ...engine import claude_background
 from ...harness.claude import agents as claude_agents
+from ...harness.claude import session as claude_session
 from ...install import skills as skill_install
 from ...runtime import worker_command
 from ...store import layout, link
@@ -181,6 +182,44 @@ def _when(value: object) -> Optional[float]:
         except ValueError:
             return None
     return None
+
+
+# `reins doctor` issues in the words the panel shows. Ones that only concern an agent session (which
+# session a submission binds to, child agents) are left out: the panel is not one.
+HEALTH_IGNORED = frozenset({"session_unbound", "submission_unverified", "child_agent_unspecified",
+                            "child_agent_unavailable", "child_agent_desktop_only"})
+HEALTH_TEXT = {
+    "daemon_not_running": "the Reins daemon is not running: reins setup --enable --now",
+    "daemon_unverified": "cannot tell whether the Reins daemon runs: reins doctor",
+    "daemon_version_mismatch": "the daemon runs another Reins version: reins setup --now",
+    "daemon_build_mismatch": "the daemon runs another Reins build: reins setup --now",
+    "coordinator_restart_required": "the daemon needs a restart: reins setup --now",
+    "callback_delivery_failed": "{count} callbacks failed to deliver (Tasks tab; c cancels one)",
+    "callback_transport_blocked": "{count} callbacks are blocked (Tasks tab)",
+    "callback_outcome_unknown": "{count} callbacks have an unknown outcome (Tasks tab)",
+    "callback_record_unverified": "failed callback records cannot be read: reins doctor",
+    "callback_queue_unverified": "failed callback records cannot be read: reins doctor",
+    "skill_missing": "the Reins skill is not installed: reins setup",
+    "queue_unwritable": "the Reins queue cannot be written",
+    "tasks_unwritable": "Reins task records cannot be written",
+    "task_records_unavailable": "Reins task records cannot be read",
+    "backend_unavailable": "no task backend (systemd or screen) is available: reins doctor",
+    "callback_agent_unavailable": "Claude Code was not found on PATH",
+    "message_limit_reached": "messages between sessions stopped at a limit: reins message alerts",
+    "platform_unsupported": "this system is not supported",
+    "diagnostics_failed": "the check itself failed: reins doctor",
+}
+
+
+def health_lines(report: Mapping[str, object]) -> list[str]:
+    lines = []
+    for issue in report.get("issues") or ():
+        if not isinstance(issue, dict) or issue.get("code") in HEALTH_IGNORED:
+            continue
+        code = str(issue.get("code"))
+        text = HEALTH_TEXT.get(code, code.replace("_", " ") + ": reins doctor")
+        lines.append(text.format(count=issue.get("count", "some")))
+    return lines
 
 
 class LiveBackend:
@@ -401,3 +440,20 @@ class LiveBackend:
 
     def cancel_callback(self, callback: str) -> ActionResult:
         return self._reins("cancel", "--id", callback)
+
+    def health(self) -> Sequence[str]:
+        """`reins doctor` for this queue, read in process, plus what the TUI itself needs."""
+        import argparse
+
+        from ...install import diagnostics
+
+        args = argparse.Namespace(mode="doctor", queue_dir=str(self.root), backend="auto", operation="run",
+                                  agent="claude", agent_worker=None, callback_mode=None, app_server_socket=None,
+                                  session=None)
+        try:
+            lines = health_lines(diagnostics.inspect(args))
+        except (Exception, SystemExit) as exc:
+            lines = [f"the check itself failed ({type(exc).__name__}): reins doctor"]
+        if not claude_session.hook_installed(claude_session.config_dir(self.environment) / "settings.json"):
+            lines.append("the Claude Code hook is not installed, so sessions get no callbacks: reins setup")
+        return lines

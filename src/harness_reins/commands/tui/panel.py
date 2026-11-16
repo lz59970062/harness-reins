@@ -143,6 +143,7 @@ def _message_cells(row: MessageRow) -> List[Any]:
 
 
 TITLE_CELLS = 26
+HEALTH_SECONDS = 60.0
 DIRECTORY_CELLS = 30
 
 # Task states that mean it has not ended yet (the same set `reins log` follows).
@@ -233,6 +234,17 @@ class ReinsPanel(App[None]):
     #tabs, TabPane, DataTable {
         height: 1fr;
     }
+    #health {
+        height: auto;
+        padding: 0 1;
+        color: $text-muted;
+    }
+    #health.ok {
+        color: $success;
+    }
+    #health.problem {
+        color: $warning;
+    }
     #status {
         height: 1;
         padding: 0 1;
@@ -298,6 +310,7 @@ class ReinsPanel(App[None]):
         self._session_titles: Dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
+        yield Static("checking Reins...", id="health")
         with TabbedContent(id="tabs"):
             with TabPane("Sessions", id=SESSIONS_TAB):
                 yield DataTable(id="sessions-table", cursor_type="row", zebra_stripes=True)
@@ -326,9 +339,33 @@ class ReinsPanel(App[None]):
         )
         self.query_one("#sessions-table", DataTable).focus()
         self.set_interval(self._refresh_seconds, self.refresh_data)
+        # `reins doctor` at every start, then now and again: a broken daemon shows here, not as silence.
+        self.set_interval(HEALTH_SECONDS, self.check_health)
+        self.check_health()
         self.refresh_data()
 
     # ------------------------------------------------------------------ data
+
+    def check_health(self) -> None:
+        self._health_worker()
+
+    @work(thread=True, exclusive=True, group="health")
+    def _health_worker(self) -> None:
+        try:
+            problems = list(self._backend.health())
+        except Exception as exc:  # the panel shows it; it never crashes
+            problems = ["the check itself failed: %s" % exc]
+        if not get_current_worker().is_cancelled:
+            self.call_from_thread(self._show_health, problems)
+
+    def _show_health(self, problems: List[str]) -> None:
+        bar = self.query_one("#health", Static)
+        if problems:
+            bar.update("\n".join("! " + problem for problem in problems))
+        else:
+            bar.update("Reins is ready")
+        bar.set_class(not problems, "ok")
+        bar.set_class(bool(problems), "problem")
 
     def refresh_data(self) -> None:
         """Read every backend list off the UI thread, then redraw."""

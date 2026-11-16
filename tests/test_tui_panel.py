@@ -298,6 +298,21 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await settle(app, pilot)
             self.assertIn(("log", TASK_1), backend.calls)
 
+    async def test_the_health_line_shows_doctor_problems_or_ready(self):
+        backend = make_backend()
+        backend.problems = ["the Reins daemon is not running: reins setup --enable --now"]
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            health = app.query_one("#health", Static)
+            self.assertIn("daemon is not running", str(health.render()))
+            self.assertTrue(health.has_class("problem"))
+            backend.problems = []
+            app.check_health()
+            await settle(app, pilot)
+            self.assertIn("Reins is ready", str(health.render()))
+            self.assertTrue(health.has_class("ok"))
+
     async def test_send_message(self):
         backend = make_backend()
         app = make_app(backend)

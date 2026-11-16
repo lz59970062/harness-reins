@@ -1,27 +1,39 @@
 # 安装
 
-准备 Python 3.9 或更新版本、Git，以及已经完成登录的 Agent CLI。Reins 和 Agent 使用同一个用户账号运行。
+准备一个已经完成登录的 Agent CLI。Reins 和 Agent 使用同一个用户账号运行。
 
-## 安装正式版
+## 用 npm 安装（Linux x64）
 
-以下命令安装 `0.7.0`。虚拟环境用来保存 Reins 及其依赖，安装完成后保留这个目录。
+预编译包不需要 Python，并且带上了 [`reins tui`](guides/tui.md) 用的 Zellij 和面板：
+
+```bash
+npm install -g harness-reins
+reins setup --enable --now
+reins --version
+```
+
+## 从源码安装
+
+其他平台（macOS、Windows、Linux arm64）从源码安装，需要 Python 3.9 或更新版本和 Git。虚拟环境用来保存 Reins 及其依赖，安装完成后保留这个目录。
 
 === "Linux / macOS"
 
     ```bash
-    git clone --branch v0.7.0 --depth 1 https://github.com/lz59970062/harness-reins.git
+    git clone --depth 1 https://github.com/lz59970062/harness-reins.git
     cd harness-reins
     python3 -m venv .venv
     source .venv/bin/activate
-    python -m pip install .
+    python -m pip install '.[tui]'
     reins setup --enable --now
     reins --version
     ```
 
+    `[tui]` 装上 `reins tui` 的面板；另外从系统包管理器装 [Zellij](https://zellij.dev) 就能用它。
+
 === "Windows PowerShell"
 
     ```powershell
-    git clone --branch v0.7.0 --depth 1 https://github.com/lz59970062/harness-reins.git
+    git clone --depth 1 https://github.com/lz59970062/harness-reins.git
     Set-Location harness-reins
     py -3 -m venv .venv
     & .\.venv\Scripts\python.exe -m pip install .
@@ -49,22 +61,8 @@ reins setup --backend screen --service standalone --now
 
 容器内的 Reins、Agent、工作目录和会话文件放在同一个运行环境中。把 `~/.reins`、Agent 配置目录和项目目录放在持久卷里，可以在重启后继续读取任务记录。镜像和启动配置见[容器部署资料](https://github.com/lz59970062/harness-reins/blob/main/docs/containers.md)。
 
-## 安装预览版
+## 升级
 
-`0.7.1` 预览版包含 Claude 实时回调和 Pi 接入。使用一个新的目录安装当前 `main`：
-
-```bash
-git clone https://github.com/lz59970062/harness-reins.git reins-preview
-cd reins-preview
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install .
-reins setup --force --enable --now
-reins --version
-```
-
-Windows 使用上面的 PowerShell 安装方式，将克隆命令中的 `--branch v0.7.0 --depth 1` 去掉。
-
-从已有版本升级时，先处理完队列中的任务和回调，再安装新版本并运行 `reins setup --keep-skill --force --enable --now`。这会更新协调器并保留已有技能内容。
+先处理完队列中的任务和回调，再安装新版本（npm：`npm install -g harness-reins`；源码：在原目录 `git pull` 后重新 `pip install`），然后运行 `reins setup --keep-skill --force --enable --now`。这会更新协调器并保留已有技能内容。
 
 安装完成后，进入[第一个任务](quickstart.md)。

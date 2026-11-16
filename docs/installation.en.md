@@ -1,27 +1,39 @@
 # Installation
 
-Prepare Python 3.9 or later, Git, and an Agent CLI that you have signed into. Run Reins and the Agent under the same user account.
+Have an Agent CLI that you have signed into. Run Reins and the Agent under the same user account.
 
-## Install the stable version
+## Install with npm (Linux x64)
 
-These commands install `0.7.0`. Keep the virtual environment after installation: it holds Reins and its dependencies.
+The prebuilt package needs no Python and includes the Zellij and the panel that [`reins tui`](guides/tui.md) uses:
+
+```bash
+npm install -g harness-reins
+reins setup --enable --now
+reins --version
+```
+
+## Install from source
+
+Other platforms (macOS, Windows, Linux arm64) install from source, with Python 3.9 or later and Git. Keep the virtual environment after installation: it holds Reins and its dependencies.
 
 === "Linux / macOS"
 
     ```bash
-    git clone --branch v0.7.0 --depth 1 https://github.com/lz59970062/harness-reins.git
+    git clone --depth 1 https://github.com/lz59970062/harness-reins.git
     cd harness-reins
     python3 -m venv .venv
     source .venv/bin/activate
-    python -m pip install .
+    python -m pip install '.[tui]'
     reins setup --enable --now
     reins --version
     ```
 
+    `[tui]` adds the panel for `reins tui`; install [Zellij](https://zellij.dev) from your package manager to use it.
+
 === "Windows PowerShell"
 
     ```powershell
-    git clone --branch v0.7.0 --depth 1 https://github.com/lz59970062/harness-reins.git
+    git clone --depth 1 https://github.com/lz59970062/harness-reins.git
     Set-Location harness-reins
     py -3 -m venv .venv
     & .\.venv\Scripts\python.exe -m pip install .
@@ -49,22 +61,8 @@ reins setup --backend screen --service standalone --now
 
 Place Reins, the Agent, the working directory, and the session files in the same runtime environment. Mount `~/.reins`, the Agent configuration directory, and the project directory on persistent volumes to retain task records across restarts. See the [container deployment notes](https://github.com/lz59970062/harness-reins/blob/main/docs/containers.md) for images and startup configuration.
 
-## Install the preview
+## Upgrade
 
-The `0.7.1` preview includes Claude live callbacks and Pi integration. Install the current `main` branch in a new directory:
-
-```bash
-git clone https://github.com/lz59970062/harness-reins.git reins-preview
-cd reins-preview
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install .
-reins setup --force --enable --now
-reins --version
-```
-
-On Windows, use the PowerShell steps above and remove `--branch v0.7.0 --depth 1` from the clone command.
-
-When upgrading an existing installation, finish the queued tasks and callbacks first. Install the new version, then run `reins setup --keep-skill --force --enable --now` to update the coordinator and retain your existing skill content.
+Finish the queued tasks and callbacks first. Install the new version (npm: `npm install -g harness-reins`; source: `git pull` in the same directory and `pip install` again), then run `reins setup --keep-skill --force --enable --now` to update the coordinator and retain your existing skill content.
 
 Continue with [Your first task](quickstart.md).

@@ -46,6 +46,11 @@ function binaryPath() {
   try {
     root = path.dirname(require.resolve(`${name}/package.json`));
   } catch {
+    // A platform this release has no build for is not among its optionalDependencies.
+    const own = require(path.join(__dirname, "..", "package.json"));
+    if (!(own.optionalDependencies && name in own.optionalDependencies)) {
+      fail(`this release has no prebuilt binary for ${key}; install from source: ${PIP_INSTALL}`);
+    }
     fail(`${name} is not installed; reinstall without --omit=optional / --no-optional`);
   }
   return path.join(root, "dist", "reins", process.platform === "win32" ? "reins.exe" : "reins");

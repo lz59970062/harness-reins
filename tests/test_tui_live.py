@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
@@ -344,6 +345,29 @@ class LaunchTests(unittest.TestCase):
         view = SessionView(agent="claude", session=OTHER, state=sessions.RUNNING, handle=OTHER[:8])
         with mock.patch.object(launch.claude_agents, "session_views", return_value=[view]):
             self.assertEqual(launch.resolve(OTHER[:8], self.root, {}), OTHER)
+
+    def test_zellij_that_does_not_answer_is_a_failure_not_a_crash(self) -> None:
+        late = subprocess.TimeoutExpired(["zellij"], 10.0)
+        with mock.patch.object(launch.subprocess, "run", side_effect=late):
+            result = launch._zellij("zellij", self.root, "action", "list-panes")
+            self.assertEqual(result.returncode, 124)
+            self.assertIsNone(launch._panes("zellij", self.root))
+            self.assertIsNone(launch.session_state("zellij", self.root))
+        zellij = live.Zellij("zellij", run=mock.Mock(side_effect=late))
+        self.assertEqual(zellij.panes(), [])
+        with self.assertRaisesRegex(RuntimeError, "did not answer"):
+            zellij.focus("terminal_1")
+
+    def test_wait_ready_keeps_waiting_through_a_slow_first_start(self) -> None:
+        panel = [{"id": 0, "title": "Reins", "is_plugin": False}]
+        answers = [None, None, None, panel, panel, panel]
+        clock = iter(float(second) for second in range(100))
+        with mock.patch.object(launch, "_panes", side_effect=lambda *_: answers.pop(0) if answers else panel), \
+                mock.patch.object(launch.time, "monotonic", side_effect=lambda: next(clock)), \
+                mock.patch.object(launch.time, "sleep"), \
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            self.assertTrue(launch._wait_ready("zellij", self.root))
+        self.assertIn("first start can take a minute", stderr.getvalue())
 
     def test_zellij_lookup_order(self) -> None:
         tool = self.root.parent / "zellij-bin"

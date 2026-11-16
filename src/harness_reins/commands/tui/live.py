@@ -55,8 +55,12 @@ class Zellij:
         if self.session:
             argv += ["--session", self.session]
         argv += ["action", *arguments]
-        result = self.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", timeout=ZELLIJ_TIMEOUT_SECONDS, check=False)
+        try:
+            result = self.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=ZELLIJ_TIMEOUT_SECONDS, check=False)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"zellij {arguments[0]} did not answer within {ZELLIJ_TIMEOUT_SECONDS:g} s; "
+                               "try again in a moment") from None
         if result.returncode != 0:
             raise RuntimeError(f"zellij {arguments[0]} failed: {(result.stderr or result.stdout or '').strip()}")
         return result.stdout or ""
@@ -64,7 +68,7 @@ class Zellij:
     def panes(self) -> list[dict[str, object]]:
         try:
             panes = json.loads(self._action("list-panes", "--json", "--command", "--tab"))
-        except (RuntimeError, ValueError, OSError, subprocess.TimeoutExpired):
+        except (RuntimeError, ValueError, OSError):
             return []
         return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else []
 

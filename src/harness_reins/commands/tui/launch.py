@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Mapping, Optional
@@ -27,7 +28,9 @@ from .live import HINT_TITLE, read_record, session_of
 # Another name keeps a second Reins TUI (a test, another queue) out of the user's own session.
 SESSION_NAME = os.environ.get("REINS_TUI_SESSION", "").strip() or "reins"
 ZELLIJ_ENV = "REINS_ZELLIJ"
-READY_SECONDS = 10.0
+# The first start on a slow or CPU-capped machine (a container) can keep Zellij busy for a while.
+READY_SECONDS = 90.0
+NOTICE_SECONDS = 3.0
 
 
 def zellij_executable(environment: Mapping[str, str] = os.environ) -> Optional[str]:
@@ -121,8 +124,13 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
 
 
 def _zellij(executable: str, directory: Path, *arguments: str, timeout: float = 10.0) -> "subprocess.CompletedProcess[str]":
-    return subprocess.run([executable, "--config-dir", str(directory), *arguments], stdin=subprocess.DEVNULL,
-                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, check=False)
+    """Run Zellij; a call it does not answer in time comes back as a failure (exit 124), not an exception."""
+    argv = [executable, "--config-dir", str(directory), *arguments]
+    try:
+        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(argv, 124, "", f"Zellij did not answer within {timeout:g} s")
 
 
 def session_state(executable: str, directory: Path) -> Optional[str]:
@@ -190,9 +198,15 @@ def _wait_ready(executable: str, directory: Path) -> bool:
     closed finds the panel fullscreen. So after the panel appears this keeps
     looking for a while, closes the wizard, and undoes a fullscreen panel.
     """
-    deadline = time.monotonic() + READY_SECONDS
+    started = time.monotonic()
+    deadline = started + READY_SECONDS
     settled = None
+    noticed = False
     while time.monotonic() < deadline:
+        if not noticed and time.monotonic() - started >= NOTICE_SECONDS:
+            print("reins tui: waiting for Zellij to start; the first start can take a minute...",
+                  file=sys.stderr, flush=True)
+            noticed = True
         panes = _panes(executable, directory)
         if panes is not None and any(pane.get("title") == "Reins" for pane in panes):
             settled = settled or time.monotonic() + WIZARD_SECONDS
@@ -212,6 +226,10 @@ def _wait_ready(executable: str, directory: Path) -> bool:
                     f"terminal_{pane.get('id')}")
             _zellij(executable, directory, "--session", SESSION_NAME, "action", "toggle-fullscreen")
     return True
+
+def zellij_log() -> Path:
+    return Path(tempfile.gettempdir()) / f"zellij-{os.getuid()}" / "zellij-log" / "zellij.log"
+
 
 def main(args: argparse.Namespace) -> int:
     environment = dict(os.environ)
@@ -263,8 +281,10 @@ def main(args: argparse.Namespace) -> int:
                   f"{(created.stderr or created.stdout).strip()}", file=sys.stderr)
             return 1
         if not _wait_ready(zellij, directory):
-            print("reins tui: the Reins panel did not appear within "
-                  f"{READY_SECONDS:g} s; run `reins _tui-panel` in a terminal to see why.", file=sys.stderr)
+            print(f"reins tui: the Reins panel did not appear within {READY_SECONDS:g} s; attaching anyway. If the "
+                  f"screen stays empty, Zellij's log is {zellij_log()}; run `{zellij} delete-session --force "
+                  f"{SESSION_NAME}` before trying again.",
+                  file=sys.stderr)
     if target is not None:
         from .live import LiveBackend, Zellij
 

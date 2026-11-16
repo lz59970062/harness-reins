@@ -78,6 +78,22 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
         # Reins rebuilds the panes from its own state; a resurrected session would rerun stale commands.
         "session_serialization false",
         'on_force_close "detach"',
+        # Zellij's own keys are modes (Ctrl+p, Ctrl+o, ...) that swallow what is typed next, which reads
+        # as a hang, and Claude Code uses some of the same keys. A few Alt keys replace them all.
+        "keybinds clear-defaults=true {",
+        "    shared {",
+        '        bind "Alt Left" "Alt h" { MoveFocus "Left"; }',
+        '        bind "Alt Right" "Alt l" { MoveFocus "Right"; }',
+        '        bind "Alt Up" "Alt k" { MoveFocus "Up"; }',
+        '        bind "Alt Down" "Alt j" { MoveFocus "Down"; }',
+        '        bind "Alt x" { CloseFocus; }',
+        '        bind "Alt f" { ToggleFocusFullscreen; }',
+        '        bind "Alt =" "Alt +" { Resize "Increase"; }',
+        '        bind "Alt -" { Resize "Decrease"; }',
+        '        bind "Alt d" { Detach; }',
+        '        bind "Alt q" { Quit; }',
+        "    }",
+        "}",
         "",
     ]), encoding="utf-8")
     hint = hint or [panel[0], "_tui-hint"]
@@ -271,8 +287,9 @@ HINT_TEXT = """Select a session on the left and press Enter to open it here.
   d       later panes open below / to the right      c   cancel a callback
   1-4     Sessions, Tasks, Goals, Messages
 
-Close a pane: Ctrl+p then x. Leave everything running: Ctrl+o then d.
-Ctrl+q ends this Zellij session (your Claude sessions keep running)."""
+Alt+arrows  move between panes      Alt+x  close a pane      Alt+f  fullscreen
+Alt+d       leave (run `reins tui` to come back)     Alt+q  end this screen
+Closing a pane or the screen never stops a Claude session; s in the panel does."""
 
 
 def hint_main(args: argparse.Namespace) -> int:

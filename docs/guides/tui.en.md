@@ -50,16 +50,21 @@ below or to the right of the newest pane there (`d` switches which), instead of 
 
 The panel refreshes itself every 3 seconds.
 
-Move between panes and resize them with Zellij's own keys (the bar at the bottom lists them), or with the mouse.
+## Pane keys
 
-## Closing, leaving and quitting
+Panes take a few `Alt` keys that act at once, with no modes to remember; every `Ctrl` key goes to Claude Code and
+the terminal. Clicking a pane and scrolling with the wheel work too.
 
-| To | Keys | The session |
+| Keys | Does | The session |
 | --- | --- | --- |
-| Close a session or log pane | Select it (click, or `Alt+←/→`), then `Ctrl+p`, `x` | Keeps running in the background |
-| Leave for now and come back later | `Ctrl+o`, `d` | Layout and panes stay; run `reins tui` to return |
-| End the whole UI | `Ctrl+q` | Every Zellij pane closes; Claude sessions keep running in the background |
-| Stop a session | Select it in the panel and press `s` | Its process stops; the conversation stays |
+| `Alt+←/→/↑/↓` | Move between panes | |
+| `Alt+x` | Close the focused pane | Keeps running in the background |
+| `Alt+f` | Fullscreen the focused pane, or back | |
+| `Alt+=` / `Alt+-` | Grow / shrink the focused pane | |
+| `Alt+d` | Leave for now; run `reins tui` to come back | Layout and panes stay |
+| `Alt+q` | End the whole screen | Claude sessions keep running in the background |
+
+To stop a session, select it in the panel and press `s`: its process stops and the conversation stays.
 
 ## What opening a session does
 

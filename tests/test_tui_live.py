@@ -263,6 +263,10 @@ class LaunchTests(unittest.TestCase):
         self.assertIn(f'pane name="{live.HINT_TITLE}"', layout_text)
         config = (directory / "config.kdl").read_text()
         self.assertIn('default_layout "reins"', config)
+        # Zellij's modal Ctrl keys are gone; a few Alt keys act at once.
+        self.assertIn("keybinds clear-defaults=true", config)
+        for key in ("Alt x", "Alt d", "Alt q", "Alt Left"):
+            self.assertIn(f'"{key}"', config)
         self.assertIn("session_serialization false", config)
 
     def test_non_ascii_paths_stay_literal_in_kdl(self) -> None:

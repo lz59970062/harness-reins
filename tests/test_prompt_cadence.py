@@ -164,6 +164,49 @@ class PromptCadenceTests(unittest.TestCase):
                 else:
                     child.communicate.assert_called_once_with(input=selected, timeout=1.0)
 
+    def run_hosted(self, ident, mode, turn_id):
+        """The worker for a Codex callback whose thread is loaded on the daemon (native_queue.hosted_socket)."""
+        from harness_reins.engine import native_queue
+
+        self.allocate(self.request(ident))
+        payload = self.payload(ident)
+        payload["request"].update(agent="codex", callback_mode=mode)
+        payload.update(command=["unused-codex"], timeout=1, cwd=str(self.root.parent),
+                       ack_path=str(self.root.parent / f"{ident}-ack"),
+                       canceled_path=str(self.root.parent / f"{ident}-cancel"))
+        turn = mock.Mock(turn_id=turn_id)
+        with mock.patch.dict(os.environ, {"CODEX_LONG_TASK_DELIVERY_LOCK_FDS": "[]"}), \
+                mock.patch.object(sys, "stdin", io.StringIO(json.dumps(payload))), \
+                mock.patch.object(cli.signal, "signal"), \
+                mock.patch.object(native_queue, "hosted_socket", return_value=Path("/s.sock")), \
+                mock.patch.object(delivery_engine, "start_desktop_app_server_turn", return_value=turn), \
+                mock.patch.object(delivery_engine, "release_retained_target_lease") as release, \
+                mock.patch.object(delivery_engine, "wait_for_remote_delivery",
+                                  return_value={"returncode": 0}) as wait, \
+                mock.patch.object(native_queue, "publish") as publish, \
+                mock.patch.object(cli.subprocess, "Popen") as child, \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            delivery_engine.delivery_worker_main()
+        child.assert_not_called()  # Never a headless resume beside the daemon.
+        publish.assert_not_called()
+        return json.loads(output.getvalue()), release, wait
+
+    def test_a_queue_route_turn_on_the_daemon_is_published_once(self):
+        # K3 PR 14: a message (or Desktop callback) started as a turn is handed over once, like `codex queue`:
+        # 121 (awaiting its ACK, never re-sent), and its lease does not hold later deliveries back.
+        from harness_reins.engine import native_queue
+
+        result, release, wait = self.run_hosted("hosted-queue", "codex-queue", "turn-1")
+        self.assertEqual(result["returncode"], native_queue.PUBLISHED_RETURN_CODE)
+        release.assert_called()
+        wait.assert_not_called()
+        # A turn whose id is unknown is waited on for its ACK instead, never published again.
+        result, release, wait = self.run_hosted("hosted-unknown", "codex-queue", None)
+        wait.assert_called_once()
+        # A cli callback waits for its ACK or the turn's end, as a resume does.
+        result, release, wait = self.run_hosted("hosted-cli", "cli", "turn-1")
+        wait.assert_called_once()
+
     def test_claude_resume_names_the_target_its_worker_holds(self):
         from harness_reins.harness.claude import session as claude_session
 

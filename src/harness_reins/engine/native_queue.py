@@ -48,7 +48,7 @@ def hosted_request(payload: dict[str, object]) -> dict[str, object] | None:
     `codex exec resume` would load the same thread a second time and write it beside the daemon, so for
     such a thread the queue is the only safe route. A thread that is not loaded keeps the headless resume.
     """
-    from ..harness.codex import app_server, threads
+    from ..harness.codex import threads
     from . import dispatch
 
     request = payload.get("request")
@@ -64,7 +64,7 @@ def hosted_request(payload: dict[str, object]) -> dict[str, object] | None:
     try:
         if not threads.loaded_on_daemon(thread, env):
             return None
-    except (app_server.AppServerProtocolError, OSError, ValueError):
+    except Exception:  # Any failure here keeps the headless resume rather than costing a delivery attempt.
         return None
     route = route_fields()
     route["callback_codex_home"] = str(threads.codex_home(env).resolve())

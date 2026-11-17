@@ -338,6 +338,8 @@ class CodexRouteTests(unittest.TestCase):
             self.assertIsNone(native_queue.hosted_request(self.payload(target={"kind": "cwd"})))
         with mock.patch.object(threads, "loaded_on_daemon", side_effect=app_server.AppServerProtocolError("down")):
             self.assertIsNone(native_queue.hosted_request(self.payload()))
+        with mock.patch.object(threads, "loaded_on_daemon", side_effect=KeyError("bug")):
+            self.assertIsNone(native_queue.hosted_request(self.payload()))
 
 
 if __name__ == "__main__":

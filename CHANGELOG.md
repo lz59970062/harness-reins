@@ -32,8 +32,10 @@
   Codex Desktop over SSH, or `codex resume --remote`) starts as a new turn in that thread on the
   daemon, instead of a headless `codex exec resume` that would write the same thread a second time.
   The turn keeps the thread's own settings and adds only the Reins queue and address book as
-  writable folders, so the ACK needs no approval. A read-only thread gets the callback through
-  `codex queue`; a thread that is not loaded keeps the headless resume.
+  writable folders, so the ACK needs no approval. Messages and Codex Desktop callbacks for a loaded
+  thread arrive the same way (handed over once, never re-sent), so a Codex peer can `reins reply`.
+  A read-only thread gets the callback through `codex queue`; a thread that is not loaded keeps the
+  headless resume, and messages for it still wait in its `codex queue`.
 - Fixed: with the daemon's default resume timeout (no limit), a `codex-queue` or App Server callback
   crashed after writing its receipt and was reported as an unknown outcome.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session

@@ -22,7 +22,7 @@ Reins resumes this thread with the permissions recorded when you submit (`worksp
 `--sandbox-mode danger-full-access --approval-policy never` (or have `REINS_SANDBOX_MODE` and
 `REINS_APPROVAL_POLICY` set) so the resumed turn can still run commands and ACK.
 
-A callback that arrives through the `codex queue` (Codex Desktop, or a read-only thread) runs with this
+A callback or message that arrives through the `codex queue` (this thread was closed, or is read-only) runs with this
 thread's own permissions, and `~/.reins` may be read-only to it. If `reins ack` (or `send`, `reply`)
 fails with `Read-only file system`, retry that exact command once with escalated permissions and a
 short justification ("acknowledge the Reins callback"); do not relaunch anything.

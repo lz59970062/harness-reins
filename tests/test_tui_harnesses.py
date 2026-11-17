@@ -349,13 +349,17 @@ class CodexRouteTests(unittest.TestCase):
         self.assertEqual(queued["callback_mode"], "codex-queue")
         self.assertIn(capabilities.CODEX_QUEUE, queued["requires"])
         native_queue.validate_route(queued)
+        already = self.payload(callback_mode="codex-queue")
+        self.assertIs(native_queue.hosted_request(already), already["request"])
 
     def test_everything_else_keeps_its_route(self) -> None:
         with mock.patch.object(threads, "loaded_on_daemon", return_value=False):
             self.assertIsNone(native_queue.hosted_socket(self.payload()))
         with mock.patch.object(threads, "loaded_on_daemon", return_value=True):
             self.assertIsNone(native_queue.hosted_socket(self.payload(agent="claude")))
-            self.assertIsNone(native_queue.hosted_socket(self.payload(callback_mode="codex-queue")))
+            # A queued message or Desktop callback for a loaded thread also becomes a turn there.
+            self.assertIsNotNone(native_queue.hosted_socket(self.payload(callback_mode="codex-queue")))
+            self.assertIsNone(native_queue.hosted_socket(self.payload(callback_mode="manual")))
             self.assertIsNone(native_queue.hosted_socket(self.payload(target={"kind": "cwd"})))
         for failure in (app_server.AppServerProtocolError("down"), KeyError("bug")):
             with mock.patch.object(threads, "loaded_on_daemon", side_effect=failure):

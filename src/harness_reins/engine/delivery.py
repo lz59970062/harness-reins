@@ -845,17 +845,24 @@ def delivery_worker_main() -> int:
                 "delivery_state": "blocked",
                 "error": "this agent receives callbacks only from a live `reins wait`; no resume was attempted",
             }
-        elif payload.get("request", {}).get("callback_mode") == "codex-queue":
-            payload["prompt"] = prompt
-            result = native_queue.publish(payload)
         elif (hosted := native_queue.hosted_socket(payload)) is not None:
             payload["prompt"] = prompt
             desktop_delivery = start_desktop_app_server_turn(payload, hosted=hosted)
-            if desktop_delivery is not None:
+            if (desktop_delivery is not None and desktop_delivery.turn_id is not None
+                    and payload["request"].get("callback_mode") == "codex-queue"):
+                # A queue-route message or callback is handed over once and waits for its ACK, as with
+                # `codex queue`: never sent again, and it must not hold later ones for this thread back.
+                if delivery_context is not None:
+                    release_retained_target_lease(*delivery_context)
+                result = {"returncode": native_queue.PUBLISHED_RETURN_CODE, "delivery": "codex_app_server_turn"}
+            elif desktop_delivery is not None:
                 result = wait_for_remote_delivery(payload, desktop_delivery, timeout or PUBLISHED_ACK_TIMEOUT)
             else:  # A read-only thread, or the daemon would not start the turn: queue it there instead.
                 payload["request"] = native_queue.hosted_request(payload)
                 result = native_queue.publish(payload)
+        elif payload.get("request", {}).get("callback_mode") == "codex-queue":
+            payload["prompt"] = prompt
+            result = native_queue.publish(payload)
         elif (desktop_delivery := start_desktop_app_server_turn(payload)) is not None:
             result = wait_for_remote_delivery(payload, desktop_delivery, timeout or PUBLISHED_ACK_TIMEOUT)
         elif (isinstance(payload.get("request"), dict) and payload["request"].get("wake") == "never"

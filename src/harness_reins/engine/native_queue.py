@@ -46,7 +46,11 @@ def _hosted_environment(payload: dict[str, object]) -> dict[str, str]:
 
 
 def hosted_socket(payload: dict[str, object]) -> Path | None:
-    """The Codex app-server daemon's socket, when a `cli` Codex callback's thread is loaded there.
+    """The Codex app-server daemon's socket, when a Codex callback's thread is loaded there.
+
+    For `cli` callbacks and for `codex-queue` ones (messages, Desktop): a turn on a thread that is already
+    loaded starts no process, so it keeps the queue's "wake nothing" promise, and it can make the Reins
+    directories writable for the ACK or reply, which a queued message cannot.
 
     A thread opened in the Reins panel (or Codex Desktop over SSH, or `codex resume --remote`) lives on the
     daemon. A headless `codex exec resume` would load the same thread a second time and write it beside the
@@ -58,7 +62,7 @@ def hosted_socket(payload: dict[str, object]) -> Path | None:
     from . import dispatch
 
     request = payload.get("request")
-    if (not isinstance(request, dict) or request.get("callback_mode") != "cli"
+    if (not isinstance(request, dict) or request.get("callback_mode") not in ("cli", "codex-queue")
             or dispatch.request_agent(request) != "codex"):
         return None
     target = request.get("target")
@@ -78,6 +82,8 @@ def hosted_request(payload: dict[str, object]) -> dict[str, object]:
 
     request = payload["request"]
     assert isinstance(request, dict)
+    if request.get("callback_mode") == "codex-queue":
+        return request
     route = route_fields()
     route["callback_codex_home"] = str(threads.codex_home(_hosted_environment(payload)).resolve())
     requires = [*request.get("requires", []), capabilities.CODEX_QUEUE]

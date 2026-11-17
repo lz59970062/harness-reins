@@ -324,6 +324,7 @@ Zellij 默认就能用鼠标滚轮滚动，每个窗格有自己的回滚历史�
 | V20 | 用协议分叉 Codex 线程 | **通过。** `thread/fork` 返回新线程，带着原来的对话，加载在守护进程上，可以直接 `codex resume --remote` 打开 |
 | V21 | 投递进守护进程上的线程 | **通过。** 线程已加载且空闲时，`codex queue --thread <id> --message …` 由守护进程自己开始新一轮；未加载时加 `--resume` 才会加载并运行。守护进程上线程的工具环境没有 Desktop 标记，所以这些线程派的任务原本会走 `codex exec resume`，等于第二个写入者；现在投递前查到线程在守护进程上，就改走 `codex queue`（端到端实测：没有起 `codex exec`，回调作为新一轮出现在 Reins 窗格里）。这一轮用线程自己的权限：`workspace-write` 下 `~/.reins` 只读，ACK 要提权，或者把 `~/.reins` 加进 Codex 配置的 `writable_roots`（`--remote` 客户端不接受这个覆盖） |
 | V22 | 回调那一轮的沙箱 | **通过。** 守护进程上线程的 `turn/start` 接受 `sandboxPolicy`，`writableRoots` 里的目录这一轮就能写（对照：同样的 `workspace-write` 不加时被拒），并延续到之后的轮次；`thread/resume` 返回线程当前的 `sandbox`。所以 Reins 对已加载的线程直接开一轮，在线程原有策略上只追加队列和通讯录目录，不改 cwd 和审批设置；只读线程不放宽，改走 `codex queue`。端到端实测：队列放在工作区和 `/tmp` 之外，agent 的 `reins ack` 不用提权就写入，没有起 `codex exec` |
+| V23 | 发给 Codex 会话的消息 | **改过后通过。** 消息默认走 `codex queue`，线程按自己的权限运行，`reins reply` 因 `~/.reins` 只读失败（实测：exec 建的线程审批策略是 never，连提权都不行）。现在线程已加载在守护进程上时，消息也作为守护进程上的一轮送达，带上队列和通讯录的写权限；只交付一次、不重发，和 `codex queue` 的语义一样。实测：Codex 和 Pi 对端都自己 ACK 并回复；Claude、Codex、Pi 子 agent 的新建、continue、fork 都走通 |
 | V13 | 其他 | `--bg` 拒绝没信任过的目录（“Workspace not trusted”）；`claude rm` 只删后台任务，有对话的 transcript 保留；会话记录文件只有 `status`，没有 `state`；刚起来还没收到提示的后台会话，`claude agents` 报 `state: blocked`、`status: idle`；从 Claude 会话里启动 `claude` 会继承 `CLAUDE_CODE_CHILD_SESSION` 等变量，不保存 transcript，所以 Reins 启动 Claude 时清掉这些变量 |
 
 **V4 的过程：**

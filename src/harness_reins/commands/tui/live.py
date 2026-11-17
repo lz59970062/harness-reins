@@ -111,9 +111,11 @@ class Zellij:
     """`zellij action` on the session the panel runs in (or on ``session`` from outside it)."""
 
     def __init__(self, executable: str, *, session: Optional[str] = None, config_dir: Optional[str] = None,
-                 run: Run = subprocess.run, environment: Optional[Mapping[str, str]] = None) -> None:
+                 run: Run = subprocess.run, environment: Optional[Mapping[str, str]] = None,
+                 own_session: Optional[str] = None) -> None:
         self.executable = executable
         self.session = session
+        self.own_session = own_session  # The only session end() may end, when set.
         self.config_dir = config_dir
         self.run = run
         self.environment = zellij_environment(os.environ if environment is None else environment)
@@ -159,6 +161,11 @@ class Zellij:
     def focus(self, pane: str) -> None:
         self._action("focus-pane-id", pane)
 
+    def rename(self, pane: str, name: str) -> None:
+        """A name the pane keeps: unlike `new-pane --name`, a program setting its terminal title does not replace it
+        (Claude Code sets "Claude Code"; measured on Zellij 0.46.0)."""
+        self._action("rename-pane", "--pane-id", pane, name)
+
     def detach(self) -> None:
         self._action("detach")
 
@@ -167,6 +174,9 @@ class Zellij:
         name = self.session or os.environ.get("ZELLIJ_SESSION_NAME")
         if not name:
             raise RuntimeError("cannot tell which Zellij session to end")
+        if self.own_session and name != self.own_session:
+            raise RuntimeError(f"this panel runs in the Zellij session {name}, not {self.own_session}; "
+                               "it does not end other sessions")
         argv = [self.executable, *(["--config-dir", self.config_dir] if self.config_dir else []), "kill-session", name]
         try:
             result = self.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
@@ -180,9 +190,13 @@ class Zellij:
 _PANE_NAME = re.compile(r"claude ([0-9a-f]{8})\b")
 
 
-def pane_name(handle: str, title: str) -> str:
-    """How Reins names a session pane; attached_handles reads the handle back from it."""
-    return f"claude {handle}" + (f" {title}" if title and title != handle else "")
+def pane_name(handle: str, title: str, address: Optional[str] = None) -> str:
+    """How Reins names a session pane: its address and title, so a person tells panes apart.
+
+    attached_handles reads the handle back from the start.
+    """
+    return (f"claude {handle}" + (f" @{address}" if address else "")
+            + (f" {title}" if title and title != handle else ""))
 
 
 # The pane beside the panel until the first session opens; launch.write_config names it.
@@ -199,7 +213,18 @@ def _is_panel(pane: Mapping[str, object]) -> bool:
 
 
 def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool, direction: str = BELOW,
-          cwd: Optional[str] = None) -> None:
+          cwd: Optional[str] = None, keep_name: bool = False) -> None:
+    """``keep_name``: rename the new pane so its program's own terminal title does not replace ``name``."""
+    pane = _place(zellij, argv, name=name, close_on_exit=close_on_exit, direction=direction, cwd=cwd)
+    if keep_name and pane.startswith("terminal_"):
+        try:
+            zellij.rename(pane, name)
+        except (RuntimeError, OSError):
+            pass  # Only the frame's label; the pane itself works.
+
+
+def _place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool, direction: str = BELOW,
+           cwd: Optional[str] = None) -> str:
     """Open a pane on the right without narrowing the panel.
 
     The first one takes the hint pane's place; later ones split the newest
@@ -209,8 +234,8 @@ def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bo
     panes = [pane for pane in zellij.panes() if not pane.get("is_plugin") and not pane.get("exited")]
     hint = next((pane for pane in panes if pane.get("title") == HINT_TITLE), None)
     if hint is not None:
-        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, replace=f"terminal_{hint.get('id')}")
-        return
+        return zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd,
+                               replace=f"terminal_{hint.get('id')}")
     # Every pane but the panel is on the right. Names cannot tell: a shell renames its pane. Only tiled panes in
     # the panel's own tab count, so a split never pulls the user to another tab or into a floating pane.
     panel_tab = next((pane.get("tab_id") for pane in panes if _is_panel(pane)), None)
@@ -218,9 +243,8 @@ def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bo
              and not pane.get("is_floating") and pane.get("tab_id") == panel_tab]
     if right:
         zellij.focus(f"terminal_{max(int(pane['id']) for pane in right)}")
-        zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction=direction)
-        return
-    zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction="right")
+        return zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction=direction)
+    return zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction="right")
 
 
 def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[str, str]:
@@ -359,14 +383,35 @@ class LiveBackend:
         records.sort(key=lambda record: -(_when(record.get("submitted_at")) or 0))
         return records[:MAX_ROWS]
 
-    def _views(self) -> list[SessionView]:
+    def _views(self, panes: Optional[list] = None) -> list[SessionView]:
         views = claude_agents.session_views(self.environment, run=self.run)
-        handles = attached_handles(self.zellij.panes()) if self.zellij else {}
+        if panes is None:
+            panes = self.zellij.panes() if self.zellij else []
+        handles = attached_handles(panes)
         return [replace(view, state=sessions.ATTACHED) if view.state == sessions.RUNNING and view.handle in handles
                 else view for view in views]
 
+    def _name_panes(self, panes: list, views: Sequence[SessionView], addresses: Mapping[str, str]) -> None:
+        """Give open session panes their current name: older panes, renamed sessions, new addresses."""
+        if self.zellij is None:
+            return
+        titles = {f"terminal_{pane.get('id')}": pane.get("title") for pane in panes}
+        handles = attached_handles(panes)
+        for view in views:
+            pane = handles.get(view.handle or "")
+            if pane is None:
+                continue
+            name = pane_name(view.handle or "", view.name or view.session[:8], addresses.get(view.session))
+            if titles.get(pane) != name:
+                try:
+                    self.zellij.rename(pane, name)
+                except (RuntimeError, OSError):
+                    return
+
     def sessions(self) -> Sequence[SessionRow]:
-        views = {view.session: view for view in self._views()}
+        panes = self.zellij.panes() if self.zellij else []
+        live_views = self._views(panes)
+        views = {view.session: view for view in live_views}
         tasks = self._task_records()
         running: dict[str, int] = {}
         for record in tasks:
@@ -382,6 +427,7 @@ class LiveBackend:
         goals = {row.session: row.task for row in self.goals() if not row.state.startswith(FINISHED_GOAL_PREFIXES)}
         addresses = {str(record.get("session")): str(record["name"]) for record in link.sessions(self.root)
                      if isinstance(record.get("name"), str)}
+        self._name_panes(panes, live_views, addresses)
         choices = self._choices()
         latest: dict[str, float] = {}
         for record in tasks:
@@ -490,7 +536,8 @@ class LiveBackend:
     def _settings(self) -> str:
         return claude_background.settings_argument(skill_install.agent_command_names())
 
-    def _attach(self, view_title: str, handle: str, direction: str = BELOW) -> ActionResult:
+    def _attach(self, view_title: str, handle: str, direction: str = BELOW,
+                address: Optional[str] = None) -> ActionResult:
         if self.zellij is None:
             return ActionResult(False, "not inside the Reins Zellij session")
         handles = attached_handles(self.zellij.panes())
@@ -498,8 +545,8 @@ class LiveBackend:
             self.zellij.focus(handles[handle])
             return ActionResult(True, f"{view_title} is already open; moved to its pane")
         place(self.zellij, self._pane(claude_background.attach_command(handle, self.environment)),
-              name=pane_name(handle, view_title),
-              close_on_exit=True, direction=direction)
+              name=pane_name(handle, view_title, address),
+              close_on_exit=True, direction=direction, keep_name=True)
         return ActionResult(True, f"opened {view_title}")
 
     def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
@@ -521,7 +568,7 @@ class LiveBackend:
                                                   settings=self._settings(), run=self.run)
             else:
                 handle = view.handle or session[:8]
-            return self._attach(title, handle, direction)
+            return self._attach(title, handle, direction, address=self._session_name(session))
         except claude_background.StartedCopy:
             return ActionResult(False, f"{title} was opened somewhere else just now; try again when it closes")
         except (claude_background.BackgroundError, RuntimeError, OSError) as exc:

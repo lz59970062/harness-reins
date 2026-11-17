@@ -191,7 +191,8 @@ WIZARD_SECONDS = 3.0
 
 
 def _panes(executable: str, directory: Path) -> Optional[list]:
-    result = _zellij(executable, directory, "--session", SESSION_NAME, "action", "list-panes", "--json", "--all")
+    result = _zellij(executable, directory, "--session", SESSION_NAME, "action", "list-panes", "--json", "--all",
+                     "--command")
     try:
         panes = json.loads(result.stdout) if result.returncode == 0 else None
     except ValueError:
@@ -201,19 +202,35 @@ def _panes(executable: str, directory: Path) -> Optional[list]:
 
 def has_panel(panes: list) -> bool:
     """Whether the Reins panel still runs in the session: a person can close its pane like any other."""
-    return any(pane.get("title") == "Reins" and not pane.get("exited") and not pane.get("is_plugin")
+    return any(not pane.get("exited") and not pane.get("is_plugin")
+               and (pane.get("title") == "Reins" or "_tui-panel" in str(pane.get("terminal_command") or ""))
                for pane in panes)
 
 
-def ask(question: str) -> bool:
-    """Yes unless the person says no; no when nobody can answer (stdin is not a terminal)."""
+# What runs in a pane Reins opened and can open again; anything else (a shell, a command) may hold work.
+_REOPENABLE = (" attach ", "_tui-hint", "_tui-panel", " log ")
+
+
+def holds_work(panes: list) -> bool:
+    """Whether closing the session would close something besides views Reins can reopen."""
+    for pane in panes:
+        if pane.get("is_plugin") or pane.get("exited"):
+            continue
+        command = f" {pane.get('terminal_command') or ''} "
+        if not any(word in command for word in _REOPENABLE):
+            return True
+    return False
+
+
+def ask(question: str, default: bool = True) -> bool:
+    """The person's answer, ``default`` on a plain Enter; no when nobody can answer (stdin is not a terminal)."""
     if not sys.stdin.isatty():
         return False
     try:
-        answer = input(question + " [Y/n] ").strip().lower()
+        answer = input(question + (" [Y/n] " if default else " [y/N] ")).strip().lower()
     except EOFError:
         return False
-    return answer in ("", "y", "yes")
+    return default if not answer else answer in ("y", "yes")
 
 
 def zellij_servers(marker: str, proc: Path = Path("/proc")) -> set[int]:
@@ -382,8 +399,10 @@ def main(args: argparse.Namespace) -> int:
                       "(Ctrl+Q in the panel, or Alt+q) and run `reins tui` again to get it back; your Claude "
                       "sessions keep running.", file=sys.stderr)
                 return 1
+            busy = holds_work(panes)
             if ask("reins tui: the Reins panel was closed in this screen. Start the screen again? Your Claude "
-                   "sessions keep running; terminals open in it close."):
+                   "sessions keep running" + ("; the terminals open in it close, with anything running in them."
+                                              if busy else "."), default=not busy):
                 _zellij(zellij, directory, "kill-session", SESSION_NAME)
                 _zellij(zellij, directory, "delete-session", "--force", SESSION_NAME)
                 state = session_state(zellij, directory)
@@ -479,4 +498,4 @@ def panel_main(args: argparse.Namespace) -> int:
 
     root = layout.queue_dir(args).expanduser().absolute()
     zellij = zellij_executable() or "zellij"
-    return run_panel(LiveBackend(queue_root=root, zellij=Zellij(zellij)))
+    return run_panel(LiveBackend(queue_root=root, zellij=Zellij(zellij, own_session=SESSION_NAME)))

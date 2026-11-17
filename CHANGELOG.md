@@ -20,6 +20,7 @@
   `Ctrl+Q` in the panel leaves or ends the screen (for Mac terminals that do not send Option as Alt),
   `reins tui` offers to start the screen again when its panel was closed and says so when run inside
   it, and Zellij's own right-click menu is off.
+  Session panes keep a title with the session's address and name instead of Claude Code's own.
   Its Zellij keeps its session index in a local temporary directory, so a `~/.cache` on a network
   filesystem (JuiceFS, NFS) cannot stall it; a Zellij that never answers is stopped with a message.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session

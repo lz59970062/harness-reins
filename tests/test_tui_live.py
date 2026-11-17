@@ -32,6 +32,7 @@ class FakeZellij:
         self.pane_list = list(panes)
         self.opened: list[tuple] = []
         self.focused: list[str] = []
+        self.renamed: list[tuple] = []
 
     def panes(self):
         return list(self.pane_list)
@@ -42,6 +43,9 @@ class FakeZellij:
 
     def focus(self, pane):
         self.focused.append(pane)
+
+    def rename(self, pane, name):
+        self.renamed.append((pane, name))
 
 
 def write(path: Path, record: dict) -> None:
@@ -139,6 +143,28 @@ class ActionTests(LiveCase):
             self.assertTrue(self.backend.open_session(SESSION).ok)
             [(argv, name, direction, close)] = self.zellij.opened
             self.assertEqual((bare(argv), name, close), ([CLAUDE, "attach", SESSION[:8]], f"claude {SESSION[:8]} plots", True))
+
+    def test_a_session_pane_keeps_a_name_with_its_address(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.RUNNING, handle=SESSION[:8],
+                                  name="plots")]
+        with mock.patch.object(live.link, "sessions", return_value=[{"name": "lab", "session": SESSION}]):
+            self.assertTrue(self.backend.open_session(SESSION).ok)
+        name = f"claude {SESSION[:8]} @lab plots"
+        self.assertEqual(self.zellij.opened[-1][1], name)
+        # Renamed, so Claude Code's own terminal title ("Claude Code") does not replace it.
+        self.assertEqual(self.zellij.renamed, [("terminal_9", name)])
+
+    def test_the_list_renames_open_panes_that_lost_their_name(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.RUNNING, handle=SESSION[:8],
+                                  name="plots")]
+        self.zellij.pane_list = [{"id": 4, "is_plugin": False, "title": "Claude Code",
+                                  "terminal_command": f"{CLAUDE} attach {SESSION[:8]}"}]
+        [row] = self.backend.sessions()
+        self.assertEqual(row.state, sessions.ATTACHED)
+        self.assertEqual(self.zellij.renamed, [("terminal_4", f"claude {SESSION[:8]} plots")])
+        self.zellij.pane_list[0]["title"] = f"claude {SESSION[:8]} plots"
+        self.backend.sessions()
+        self.assertEqual(len(self.zellij.renamed), 1)  # Already right: left alone.
 
     def test_open_resumes_a_closed_session_first(self) -> None:
         closed = SessionView(agent="claude", session=SESSION, state=sessions.CLOSED, cwd="/w")
@@ -562,6 +588,33 @@ class LaunchTests(unittest.TestCase):
         launch.write_config(self.root / "z", ["reins", "_tui-panel"])
         self.assertIn("context_menu_enabled false", (self.root / "z" / "config.kdl").read_text())
         self.assertIn("Use Option as Meta key", launch.HINT_TEXT)
+
+    def test_a_screen_with_a_shell_asks_with_no_as_the_default(self) -> None:
+        views = [{"id": 4, "title": "Claude Code", "is_plugin": False,
+                  "terminal_command": "env -u X /opt/claude attach 2a6ab451"},
+                 {"id": 5, "title": "log 1234", "is_plugin": False, "terminal_command": "/r/_entry.py log 1234abcd"}]
+        self.assertFalse(launch.holds_work(views))
+        self.assertEqual(self.run_main(panes=views)[3].call_args.kwargs["default"], True)
+        shell = views + [{"id": 6, "title": "~/w", "is_plugin": False, "terminal_command": "env -u X /bin/bash"}]
+        self.assertTrue(launch.holds_work(shell))
+        self.assertEqual(self.run_main(panes=shell)[3].call_args.kwargs["default"], False)
+
+    def test_a_renamed_panel_pane_still_counts(self) -> None:
+        renamed = [{"id": 0, "title": "my notes", "is_plugin": False, "terminal_command": "/r/_entry.py _tui-panel"}]
+        self.assertTrue(launch.has_panel(renamed))
+        self.run_main(panes=renamed)[3].assert_not_called()
+
+    def test_the_panel_never_ends_another_zellij_session(self) -> None:
+        ran = []
+        zellij = live.Zellij("zellij", own_session="reins",
+                             run=lambda argv, **k: ran.append(argv) or subprocess.CompletedProcess(argv, 0, "", ""))
+        with mock.patch.dict(os.environ, {"ZELLIJ_SESSION_NAME": "someone-else"}):
+            with self.assertRaisesRegex(RuntimeError, "does not end other sessions"):
+                zellij.end()
+        self.assertEqual(ran, [])
+        with mock.patch.dict(os.environ, {"ZELLIJ_SESSION_NAME": "reins"}):
+            zellij.end()
+        self.assertEqual(ran[-1][-2:], ["kill-session", "reins"])
 
     def test_leaving_detaches_or_ends_the_session(self) -> None:
         ran = []

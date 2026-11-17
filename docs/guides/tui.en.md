@@ -30,7 +30,9 @@ The Reins panel on the left has four tabs:
 - **Goals**: plans and progress.
 - **Messages**: messages between sessions.
 
-The panel opens the panes on the right: a session pane runs `claude attach`, a log pane runs `reins log`. The panel
+The panel opens the panes on the right: a session pane runs `claude attach`, a log pane runs `reins log`. A
+session pane's title reads `claude <id> @address title`, the same names as the panel; Claude Code's own terminal
+title does not replace it. The panel
 keeps its width: the first pane takes the hint's place on the right, and later sessions, logs and terminals open
 below or to the right of the newest pane there (`d` switches which), instead of squeezing the panel.
 

@@ -29,6 +29,8 @@ class SessionRow:
     goal: Optional[str] = None      # The active goal's task text, if any.
     started_at: Optional[float] = None
     address: Optional[str] = None   # Its name in the Reins address book, what `reins send` takes.
+    pinned: bool = False            # Kept at the top of the list (the panel's own choice, not Claude's).
+    archived: bool = False          # Left out of the list until it is shown again or wakes up.
 
 
 @dataclass(frozen=True)
@@ -104,8 +106,20 @@ class Backend(Protocol):
     def health(self) -> Sequence[str]:
         """What `reins doctor` finds wrong, one plain line each; empty when Reins is ready."""
 
-    def name_session(self, session: str, name: str) -> ActionResult:
-        """Put the session in the address book under ``name`` (`reins session register`)."""
+    def name_session(self, session: str, name: str, rename: bool = False) -> ActionResult:
+        """Put the session in the address book under ``name`` (`reins session register`).
+
+        With ``rename`` the session's old name goes; a name another session holds is still refused.
+        """
+
+    def fork_session(self, session: str, direction: str = BELOW) -> ActionResult:
+        """Start a new session from a copy of this one's conversation, and open it in a pane."""
+
+    def pin_session(self, session: str, pinned: bool) -> ActionResult:
+        """Keep the session at the top of the list, or stop doing so."""
+
+    def archive_session(self, session: str, archived: bool) -> ActionResult:
+        """Leave the session out of the list (stopping it first if it runs), or bring it back."""
 
 
 @dataclass
@@ -177,10 +191,45 @@ class FakeBackend:
     def health(self) -> Sequence[str]:
         return list(self.problems)
 
-    def name_session(self, session: str, name: str) -> ActionResult:
-        self.calls.append(("name", session, name))
+    def name_session(self, session: str, name: str, rename: bool = False) -> ActionResult:
+        self.calls.append(("rename", session, name) if rename else ("name", session, name))
         row = self._find(session)
         if row is None:
             return ActionResult(False, f"no session {session[:8]}")
+        if any(r.address == name and r.session != session for r in self.session_rows):
+            return ActionResult(False, f"{name} already names another session")
         self.session_rows = [replace(r, address=name) if r is row else r for r in self.session_rows]
         return ActionResult(True, f"named {row.title} {name}")
+
+    def fork_session(self, session: str, direction: str = BELOW) -> ActionResult:
+        self.calls.append(("fork", session, direction))
+        row = self._find(session)
+        if row is None:
+            return ActionResult(False, f"no session {session[:8]}")
+        return ActionResult(True, f"forked {row.title}")
+
+    def _change(self, session: str, **changes: object) -> Optional[SessionRow]:
+        row = self._find(session)
+        if row is not None:
+            self.session_rows = [replace(r, **changes) if r is row else r for r in self.session_rows]
+        return row
+
+    def pin_session(self, session: str, pinned: bool) -> ActionResult:
+        self.calls.append(("pin" if pinned else "unpin", session))
+        row = self._change(session, pinned=pinned)
+        if row is None:
+            return ActionResult(False, f"no session {session[:8]}")
+        return ActionResult(True, f"{'pinned' if pinned else 'unpinned'} {row.title}")
+
+    def archive_session(self, session: str, archived: bool) -> ActionResult:
+        self.calls.append(("archive" if archived else "unarchive", session))
+        row = self._find(session)
+        if row is None:
+            return ActionResult(False, f"no session {session[:8]}")
+        if archived and row.state in (sessions.FOREIGN, sessions.HEADLESS):
+            return ActionResult(False, f"{row.title} is open elsewhere; close it there first")
+        changes: dict = {"archived": archived}
+        if archived and row.state in (sessions.ATTACHED, sessions.RUNNING):
+            changes.update(state=sessions.STOPPED, activity=None)
+        self._change(session, **changes)
+        return ActionResult(True, f"{'archived' if archived else 'unarchived'} {row.title}")

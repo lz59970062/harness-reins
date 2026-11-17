@@ -36,7 +36,7 @@ from textual.widgets.option_list import Option
 from textual.worker import get_current_worker
 
 from ...core import sessions
-from .backend import BELOW, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow
+from .backend import BELOW, BESIDE, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow
 
 SESSIONS_TAB = "tab-sessions"
 TASKS_TAB = "tab-tasks"
@@ -102,9 +102,9 @@ def _time_of(timestamp: Optional[float]) -> str:
     return time.strftime("%H:%M:%S", time.localtime(timestamp))
 
 
-def _session_sort_key(row: SessionRow) -> Tuple[bool, float]:
-    # Sessions with a process first, then newest first.
-    return (row.state not in _PROCESS_STATES, -(row.started_at or 0.0))
+def _session_sort_key(row: SessionRow) -> Tuple[bool, bool, float]:
+    # Pinned sessions first, then sessions with a process, then newest first.
+    return (not row.pinned, row.state not in _PROCESS_STATES, -(row.started_at or 0.0))
 
 
 def _fit(text: str, width: int) -> str:
@@ -120,8 +120,9 @@ def _session_cells(row: SessionRow) -> List[Any]:
     # Which session, where it runs and what it is doing come first: the panel is narrow.
     cells: List[Any] = [
         _MARKS.get(row.state, "?"),
-        _fit(("@%s " % row.address if row.address else "") + row.title, TITLE_CELLS),
-        _where(row),
+        _fit(("\u2605 " if row.pinned else "") + ("@%s " % row.address if row.address else "") + row.title,
+             TITLE_CELLS),
+        "archived" if row.archived else _where(row),
         # Claude reports "blocked" both for a session waiting on a denied tool call and for one
         # waiting for its first prompt; either way it waits for a person.
         "waiting" if row.activity == sessions.BLOCKED else (row.activity or ""),
@@ -130,9 +131,35 @@ def _session_cells(row: SessionRow) -> List[Any]:
         row.agent,
         _fit(_shorten_cwd(row.cwd), DIRECTORY_CELLS),
     ]
-    if row.state == sessions.CLOSED:
+    if row.state == sessions.CLOSED or row.archived:
         return [Text(str(cell), style="dim") for cell in cells]
     return cells
+
+
+def _session_menu(row: SessionRow) -> List[Tuple[str, str]]:
+    """What a right click (or o) on a session offers, in the order shown."""
+    running = row.state in (sessions.ATTACHED, sessions.RUNNING)
+    elsewhere = row.state in (sessions.FOREIGN, sessions.HEADLESS)
+    options: List[Tuple[str, str]] = []
+    if row.state != sessions.HEADLESS:
+        options += [("open-below", "Open below"), ("open-right", "Open to the right")]
+    if row.cwd:
+        options += [("fork", "Fork into a new session"),
+                    ("shell", "Terminal in its directory")]
+    options.append(("message", "Send a message..."))
+    options.append(("unpin", "Unpin") if row.pinned else ("pin", "Pin to the top"))
+    if row.address:
+        options += [("copy-address", "Copy address  @%s" % row.address), ("rename", "Rename address...")]
+    else:
+        options.append(("name", "Name it and copy its address..."))
+    options.append(("copy-id", "Copy Claude session id"))
+    if running:
+        options.append(("stop", "Stop..."))
+    if row.archived:
+        options.append(("unarchive", "Unarchive"))
+    elif not elsewhere:
+        options.append(("archive", "Stop and archive..." if running else "Archive"))
+    return options
 
 
 def _message_cells(row: MessageRow) -> List[Any]:
@@ -276,6 +303,8 @@ class PanelTable(DataTable):
     _last_click: Tuple[float, int] = (0.0, -1)
 
     def _post_selected_message(self) -> None:
+        # DataTable's own hook for "the highlighted row was chosen" (checked against Textual 8.2.8); if a
+        # Textual release renames it, the double-click tests fail.
         if not self._clicked_once:
             super()._post_selected_message()
 
@@ -352,11 +381,13 @@ class ReinsPanel(App[None]):
     #status.error {
         color: $text-error;
     }
-    ConfirmScreen, TextPromptScreen {
+    ConfirmScreen, TextPromptScreen, MenuScreen {
         align: center middle;
     }
     #dialog {
         width: 64;
+        max-width: 100%;
+        max-height: 100%;
         height: auto;
         padding: 1 2;
         border: thick $primary;
@@ -391,6 +422,8 @@ class ReinsPanel(App[None]):
         Binding("t", "open_terminal", "Shell"),
         Binding("m", "send_message", "Msg"),
         Binding("c", "cancel_callback", "Cancel"),
+        Binding("o", "session_menu", "Menu", show=False),
+        Binding("a", "toggle_archived", "Archived", show=False),
         # One key for where Enter, l and t put their pane; the footer shows the current choice.
         Binding("d", "split('right')", "Split ↓"),
         Binding("d", "split('down')", "Split →"),
@@ -404,7 +437,9 @@ class ReinsPanel(App[None]):
         self._pending: set = set()
         self._refresh_seconds = max(0.5, float(refresh_seconds))
         self._main_screen: Optional[Any] = None
-        self._session_rows: List[SessionRow] = []
+        self._session_rows: List[SessionRow] = []  # The rows shown, in table order.
+        self._show_archived = False
+        self._archived_count = 0
         self._task_rows: List[TaskRow] = []
         self._goal_rows: List[GoalRow] = []
         self._message_rows: List[MessageRow] = []
@@ -497,8 +532,10 @@ class ReinsPanel(App[None]):
     def _render(self, data: Dict[str, Optional[Sequence[Any]]], error: Optional[str]) -> None:
         fresh = data.get("sessions")
         if fresh is not None:
-            self._session_rows = sorted(fresh, key=_session_sort_key)
-            self._session_titles = {row.session: row.title for row in self._session_rows}
+            every = sorted(fresh, key=_session_sort_key)
+            self._session_titles = {row.session: row.title for row in every}
+            self._archived_count = sum(1 for row in every if row.archived)
+            self._session_rows = [row for row in every if self._show_archived or not row.archived]
             self._fill(
                 self.query_one("#sessions-table", DataTable),
                 [(row.session, _session_cells(row)) for row in self._session_rows],
@@ -628,6 +665,7 @@ class ReinsPanel(App[None]):
         except Exception as exc:  # the panel shows it; it never crashes
             result = ActionResult(False, "%s failed: %s" % (label, exc))
         if worker.is_cancelled:
+            self._pending.discard(once)  # No UI left to tell; still let the same action run again.
             return
         self.call_from_thread(self._finish_action, result, once)
 
@@ -720,6 +758,9 @@ class ReinsPanel(App[None]):
         if row is None:
             self._show_status("no session selected", ok=False)
             return
+        self._confirm_stop(row)
+
+    def _confirm_stop(self, row: SessionRow) -> None:
         self.push_screen(
             ConfirmScreen("Stop session %s? The conversation is kept." % row.title),
             lambda yes: self._stop_confirmed(row, yes),
@@ -781,6 +822,9 @@ class ReinsPanel(App[None]):
         if row is None:
             self._show_status("no session selected", ok=False)
             return
+        self._ask_message(row)
+
+    def _ask_message(self, row: SessionRow) -> None:
         self.push_screen(
             TextPromptScreen("Message for %s" % row.title),
             lambda text: self._message_ready(row, text),
@@ -815,7 +859,7 @@ class ReinsPanel(App[None]):
     # ------------------------------------------------------------ right click
 
     def session_right_click(self, row_index: int) -> None:
-        """Right click on a session: copy its address, or give it one first."""
+        """Right click on a session: its menu (open, fork, pin, name, copy, stop, archive)."""
         if self._modal_open() or not 0 <= row_index < len(self._session_rows):
             return
         table = self.query_one("#sessions-table", DataTable)
@@ -823,33 +867,83 @@ class ReinsPanel(App[None]):
         table.move_cursor(row=row_index)
         self.open_session_menu(self._session_rows[row_index])
 
+    def action_session_menu(self) -> None:
+        if self._modal_open():
+            return
+        if self._active_tab() != SESSIONS_TAB:
+            self._show_status("o opens a session's menu from the Sessions tab (press 1)")
+            return
+        row = self._selected_session()
+        if row is None:
+            self._show_status("no session selected", ok=False)
+            return
+        self.open_session_menu(row)
+
+    def action_toggle_archived(self) -> None:
+        if self._modal_open():
+            return
+        self._show_archived = not self._show_archived
+        if self._show_archived:
+            self._show_status("showing archived sessions (a hides them)" if self._archived_count
+                              else "no archived sessions")
+        else:
+            self._show_status("archived sessions hidden (a shows them)")
+        self.refresh_data()
+
     def open_session_menu(self, row: SessionRow) -> None:
-        options = [("copy-address", "Copy address  @%s" % row.address) if row.address
-                   else ("name", "Name it and copy its address..."),
-                   ("copy-id", "Copy session id")]
-        self.push_screen(MenuScreen(row.title, options), lambda choice: self._menu_chosen(row, choice))
+        self.push_screen(MenuScreen(row.title, _session_menu(row)), lambda choice: self._menu_chosen(row, choice))
 
     def _menu_chosen(self, row: SessionRow, choice: Optional[str]) -> None:
-        if choice == "copy-address" and row.address:
+        backend = self._backend
+        if choice in ("open-below", "open-right"):
+            self._open(row.session, row.title, BELOW if choice == "open-below" else BESIDE)
+        elif choice == "fork":
+            self._run_action("fork", backend.fork_session, row.session, self._direction, once=("fork", row.session),
+                             busy="forking %s..." % row.title)
+        elif choice == "shell":
+            self._run_action("terminal", backend.open_terminal, row.cwd or os.getcwd(), self._direction)
+        elif choice == "message":
+            self._ask_message(row)
+        elif choice in ("pin", "unpin"):
+            self._run_action("pin", backend.pin_session, row.session, choice == "pin")
+        elif choice == "copy-address" and row.address:
             self._copy(row.address, "address")
         elif choice == "copy-id":
-            self._copy(row.session, "session id")
+            self._copy(row.session, "Claude session id")
         elif choice == "name":
             self.push_screen(
                 TextPromptScreen("Name for %s (lowercase letters, digits, - or _)" % row.title,
                                  initial=_suggested_name(row)),
                 lambda name: self._name_given(row, name),
             )
+        elif choice == "rename":
+            self.push_screen(
+                TextPromptScreen("New name for @%s (lowercase letters, digits, - or _)" % row.address,
+                                 initial=row.address or ""),
+                lambda name: self._name_given(row, name, rename=True),
+            )
+        elif choice == "stop":
+            self._confirm_stop(row)
+        elif choice == "archive":
+            if row.state in (sessions.ATTACHED, sessions.RUNNING):
+                self.push_screen(
+                    ConfirmScreen("Stop and archive %s? The conversation is kept." % row.title),
+                    lambda yes: yes and self._run_action("archive", backend.archive_session, row.session, True),
+                )
+            else:
+                self._run_action("archive", backend.archive_session, row.session, True)
+        elif choice == "unarchive":
+            self._run_action("unarchive", backend.archive_session, row.session, False)
 
-    def _name_given(self, row: SessionRow, name: Optional[str]) -> None:
+    def _name_given(self, row: SessionRow, name: Optional[str], rename: bool = False) -> None:
         name = (name or "").strip()
-        if name:
-            self._name_worker(row.session, name)
+        if name and not (rename and name == row.address):
+            self._name_worker(row.session, name, rename)
 
     @work(thread=True, group="actions")
-    def _name_worker(self, session: str, name: str) -> None:
+    def _name_worker(self, session: str, name: str, rename: bool = False) -> None:
         try:
-            result = self._backend.name_session(session, name)
+            result = self._backend.name_session(session, name, rename)
         except Exception as exc:
             self.call_from_thread(self._show_status, "name: %s" % exc, False)
             return

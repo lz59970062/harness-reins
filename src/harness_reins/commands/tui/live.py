@@ -1,7 +1,8 @@
 """The panel's live backend: Claude's own session list, the Reins queue, and the Zellij session around it.
 
 Nothing here keeps state between calls (design invariant 2): each read asks
-Claude, the queue files and Zellij again.
+Claude, the queue files and Zellij again. The only thing the panel stores is
+which sessions the user pinned or archived, in one small file of its own.
 """
 from __future__ import annotations
 
@@ -21,13 +22,14 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from ...core import sessions
+from ...core.messages import Refused
 from ...core.sessions import SessionView
 from ...engine import claude_background
 from ...harness.claude import agents as claude_agents
 from ...harness.claude import session as claude_session
 from ...install import skills as skill_install
 from ...runtime import worker_command
-from ...store import layout, link
+from ...store import layout, link, records
 from .backend import BELOW, ActionResult, GoalRow, MessageRow, SessionRow, TaskRow
 
 Run = Callable[..., "subprocess.CompletedProcess[str]"]
@@ -239,6 +241,16 @@ def read_record(path: Path) -> Optional[dict]:
     return value if isinstance(value, dict) else None
 
 
+def tui_root(root: Path) -> Path:
+    """The panel's own files; beside the default queue, like the address book."""
+    root = root.expanduser().absolute()
+    return root.parent / "tui" if root.name == "queue" else root / "tui"
+
+
+CHOICES = ("pinned", "archived")
+PROCESS_STATES = (sessions.ATTACHED, sessions.RUNNING, sessions.FOREIGN, sessions.HEADLESS)
+
+
 def session_of(record: Optional[Mapping[str, object]]) -> Optional[str]:
     """The session a task or callback record belongs to."""
     for key in ("target", "origin"):
@@ -353,6 +365,12 @@ class LiveBackend:
         goals = {row.session: row.task for row in self.goals() if not row.state.startswith(FINISHED_GOAL_PREFIXES)}
         addresses = {str(record.get("session")): str(record["name"]) for record in link.sessions(self.root)
                      if isinstance(record.get("name"), str)}
+        choices = self._choices()
+        latest: dict[str, float] = {}
+        for record in tasks:
+            session = session_of(record)
+            if session:
+                latest[session] = max(latest.get(session, 0.0), _when(record.get("submitted_at")) or 0.0)
         # Closed sessions are listed when Reins has worked with them lately: that is how a user finds them again.
         for record in tasks:
             session = session_of(record)
@@ -360,12 +378,49 @@ class LiveBackend:
                 views[session] = SessionView(agent="claude", session=session, state=sessions.CLOSED,
                                              cwd=record.get("cwd") if isinstance(record.get("cwd"), str) else None,
                                              started_at=_when(record.get("submitted_at")))
+        def archived(view: SessionView) -> bool:
+            # Archived until it does something again: runs, gets a task, or has a result waiting.
+            since = choices["archived"].get(view.session)
+            return (since is not None and view.state not in PROCESS_STATES and not pending.get(view.session)
+                    and latest.get(view.session, 0.0) <= since)
+
         return [SessionRow(session=view.session, agent=view.agent, state=view.state,
                            title=view.name or view.session[:8], cwd=view.cwd, activity=view.activity, host=view.host,
                            tasks_running=running.get(view.session, 0), callbacks_pending=pending.get(view.session, 0),
                            goal=goals.get(view.session), started_at=view.started_at,
-                           address=addresses.get(view.session))
+                           address=addresses.get(view.session), pinned=view.session in choices["pinned"],
+                           archived=archived(view))
                 for view in views.values()]
+
+    def _choices_path(self) -> Path:
+        return tui_root(self.root) / "sessions.json"
+
+    def _choices(self) -> dict[str, dict[str, float]]:
+        """Which sessions the user pinned or archived, and when."""
+        record = read_record(self._choices_path()) or {}
+        result: dict[str, dict[str, float]] = {}
+        for key in CHOICES:
+            value = record.get(key)
+            result[key] = ({str(session): float(when) for session, when in value.items()
+                            if isinstance(when, (int, float)) and not isinstance(when, bool)}
+                           if isinstance(value, dict) else {})
+        return result
+
+    def _choose(self, key: str, session: str, on: bool) -> None:
+        choices = self._choices()
+        if on:
+            choices[key][session] = self.now()
+        else:
+            choices[key].pop(session, None)
+        path = self._choices_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        records.write_private_text(path, json.dumps(choices, indent=2, sort_keys=True) + "\n")
+
+    def _view(self, session: str) -> Optional[SessionView]:
+        view = next((view for view in self._views() if view.session == session), None)
+        if view is None:
+            view = claude_agents.session_view(session, self.environment, views=(), run=self.run)
+        return view
 
     def tasks(self) -> Sequence[TaskRow]:
         callbacks = self._callback_states()
@@ -431,9 +486,7 @@ class LiveBackend:
         return ActionResult(True, f"opened {view_title}")
 
     def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
-        view = next((view for view in self._views() if view.session == session), None)
-        if view is None:
-            view = claude_agents.session_view(session, self.environment, views=(), run=self.run)
+        view = self._view(session)
         if view is None:
             return ActionResult(False, f"no Claude session {session[:8]} on this machine")
         title = view.name or session[:8]
@@ -468,6 +521,48 @@ class LiveBackend:
             return self._attach(handle, handle)
         except (claude_background.BackgroundError, RuntimeError, OSError) as exc:
             return ActionResult(False, str(exc))
+
+    def fork_session(self, session: str, direction: str = BELOW) -> ActionResult:
+        view = self._view(session)
+        if view is None:
+            return ActionResult(False, f"no Claude session {session[:8]} on this machine")
+        title = view.name or session[:8]
+        if not view.cwd:
+            return ActionResult(False, f"cannot tell which directory {title} belongs to")
+        name = f"{title} (fork)"
+        try:
+            handle = claude_background.fork(session, view.cwd, self.environment, name=name if view.name else None,
+                                            settings=self._settings(), run=self.run)
+            return self._attach(name, handle, direction)
+        except (claude_background.BackgroundError, RuntimeError, OSError) as exc:
+            return ActionResult(False, str(exc))
+
+    def pin_session(self, session: str, pinned: bool) -> ActionResult:
+        try:
+            self._choose("pinned", session, pinned)
+        except OSError as exc:
+            return ActionResult(False, f"cannot save the pin: {exc}")
+        return ActionResult(True, ("pinned " if pinned else "unpinned ") + session[:8])
+
+    def archive_session(self, session: str, archived: bool) -> ActionResult:
+        view = self._view(session) if archived else None
+        title = (view.name if view else None) or session[:8]
+        if view is not None and view.state in (sessions.FOREIGN, sessions.HEADLESS):
+            return ActionResult(False, f"{title} is open elsewhere; close it there first")
+        stopped = ""
+        if view is not None and view.state in (sessions.ATTACHED, sessions.RUNNING) and view.handle:
+            try:
+                claude_background.stop(view.handle, self.environment, run=self.run)
+            except claude_background.BackgroundError as exc:
+                return ActionResult(False, str(exc))
+            stopped = "stopped and "
+        try:
+            self._choose("archived", session, archived)
+        except OSError as exc:
+            return ActionResult(False, f"cannot save the archive: {exc}")
+        if not archived:
+            return ActionResult(True, f"{title} is back in the list")
+        return ActionResult(True, f"{stopped}archived {title}; it comes back when it gets work, or press a to see it")
 
     def stop_session(self, session: str) -> ActionResult:
         view = next((view for view in self._views() if view.session == session), None)
@@ -522,21 +617,29 @@ class LiveBackend:
     def send_message(self, recipient: str, text: str) -> ActionResult:
         name = self._session_name(recipient) if sessions.FULL_ID.fullmatch(recipient) else recipient
         if name is None:
-            return ActionResult(False, "this session has no Reins name yet; ask it to run `reins session register`")
+            return ActionResult(False, "this session has no Reins name yet: "
+                                       "right-click it (or press o) and name it first")
         return self._reins("send", name, "--message", text)
 
     def cancel_callback(self, callback: str) -> ActionResult:
         return self._reins("cancel", "--id", callback)
 
-    def name_session(self, session: str, name: str) -> ActionResult:
-        view = next((view for view in self._views() if view.session == session), None)
-        if view is None:
-            view = claude_agents.session_view(session, self.environment, views=(), run=self.run)
+    def name_session(self, session: str, name: str, rename: bool = False) -> ActionResult:
+        view = self._view(session)
         if view is None:
             return ActionResult(False, f"no Claude session {session[:8]} on this machine")
         arguments = ["session", "register", name, "--agent", view.agent, "--session", session]
         if view.cwd:
             arguments += ["--cwd", view.cwd]
+        if rename:
+            # --replace drops this session's old name, but would also take the name from another session.
+            try:
+                holder = link.load_session(self.root, name)
+            except Refused as exc:
+                return ActionResult(False, str(exc))
+            if holder is not None and holder.get("session") != session:
+                return ActionResult(False, f"{name} already names another session; choose another name")
+            arguments.append("--replace")
         return self._reins(*arguments)
 
     def health(self) -> Sequence[str]:

@@ -228,6 +228,101 @@ class ActionTests(LiveCase):
         self.assertEqual(ran[-1][-5:], ["cancel", "--id", "t1-c1", "--queue-dir", str(self.root)])
 
 
+class MenuActionTests(LiveCase):
+    def rows(self):
+        return {row.session: row for row in self.backend.sessions()}
+
+    def test_pins_are_kept_in_a_file_of_the_panels_own(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.STOPPED, handle=SESSION[:8])]
+        self.assertTrue(self.backend.pin_session(SESSION, True).ok)
+        self.assertTrue(self.rows()[SESSION].pinned)
+        self.assertEqual(live.tui_root(self.root), self.home / "tui")
+        self.assertIn(SESSION, json.loads((self.home / "tui" / "sessions.json").read_text())["pinned"])
+        self.assertTrue(self.backend.pin_session(SESSION, False).ok)
+        self.assertFalse(self.rows()[SESSION].pinned)
+
+    def test_a_broken_choices_file_is_ignored(self) -> None:
+        write(self.home / "tui" / "sessions.json", {"pinned": [SESSION], "archived": {SESSION: "soon"}})
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.STOPPED, handle=SESSION[:8])]
+        row = self.rows()[SESSION]
+        self.assertEqual((row.pinned, row.archived), (False, False))
+
+    def test_archive_stops_a_running_session_and_hides_it_until_it_has_work(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.RUNNING, handle=SESSION[:8],
+                                  name="plots")]
+        with mock.patch.object(claude_background, "stop") as stop:
+            result = self.backend.archive_session(SESSION, True)
+        self.assertTrue(result.ok)
+        self.assertIn("stopped and archived plots", result.message)
+        self.assertEqual(stop.call_args.args[0], SESSION[:8])
+        # Claude now reports it stopped: archived.
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.STOPPED, handle=SESSION[:8])]
+        self.assertTrue(self.rows()[SESSION].archived)
+        # Running again (opened elsewhere, or woken for a callback): back in the list.
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.RUNNING, handle=SESSION[:8])]
+        self.assertFalse(self.rows()[SESSION].archived)
+        # A task submitted after archiving brings it back too; an older one does not.
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.STOPPED, handle=SESSION[:8])]
+        self.task("t-old", SESSION, state="completed")
+        self.assertTrue(self.rows()[SESSION].archived)
+        self.task("t-new", SESSION, submitted_at=self.now + 5)
+        self.assertFalse(self.rows()[SESSION].archived)
+
+    def test_a_pending_callback_brings_an_archived_session_back(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.STOPPED, handle=SESSION[:8])]
+        self.assertTrue(self.backend.archive_session(SESSION, True).ok)
+        self.assertTrue(self.rows()[SESSION].archived)
+        write(self.root / "pending" / "t9-c1.json", {"target": {"kind": "session", "session": SESSION}})
+        self.assertFalse(self.rows()[SESSION].archived)
+
+    def test_archive_refuses_a_session_open_elsewhere_and_unarchive_restores(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.FOREIGN, pid=4)]
+        with mock.patch.object(claude_background, "stop") as stop:
+            self.assertFalse(self.backend.archive_session(SESSION, True).ok)
+        stop.assert_not_called()
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.CLOSED, cwd="/w")]
+        self.assertTrue(self.backend.archive_session(SESSION, True).ok)
+        self.assertTrue(self.rows()[SESSION].archived)
+        self.assertTrue(self.backend.archive_session(SESSION, False).ok)
+        self.assertFalse(self.rows()[SESSION].archived)
+
+    def test_fork_starts_a_named_copy_and_opens_it(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.FOREIGN, pid=4, name="plots",
+                                  cwd="/w")]
+        with mock.patch.object(claude_background, "fork", return_value="b438bfb5") as fork:
+            result = self.backend.fork_session(SESSION, "right")
+        self.assertTrue(result.ok, result.message)
+        self.assertEqual(fork.call_args.args[:2], (SESSION, "/w"))
+        self.assertEqual(fork.call_args.kwargs["name"], "plots (fork)")
+        self.assertIn("reins ack", fork.call_args.kwargs["settings"])
+        argv, name, direction, close = self.zellij.opened[-1]
+        self.assertEqual((bare(argv), name, direction), ([CLAUDE, "attach", "b438bfb5"],
+                                                          "claude b438bfb5 plots (fork)", "right"))
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.STOPPED)]
+        with mock.patch.object(live.claude_agents, "session_view", return_value=None):
+            self.assertIn("which directory", self.backend.fork_session(SESSION).message)
+
+    def test_rename_replaces_the_old_name_but_never_takes_anothers(self) -> None:
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.RUNNING, handle=SESSION[:8], cwd="/w")]
+        ran = []
+
+        def run(argv, **kwargs):
+            ran.append(argv)
+            return subprocess.CompletedProcess(argv, 0, stdout="ok\n", stderr="")
+
+        self.backend.run = run
+        self.assertTrue(self.backend.name_session(SESSION, "lab2", rename=True).ok)
+        self.assertIn("--replace", ran[-1])
+        with mock.patch.object(live.link, "load_session", return_value={"name": "taken", "session": OTHER}):
+            refused = self.backend.name_session(SESSION, "taken", rename=True)
+        self.assertFalse(refused.ok)
+        self.assertIn("already names another session", refused.message)
+        self.assertEqual(len(ran), 1)
+        bad = self.backend.name_session(SESSION, "Bad Name", rename=True)
+        self.assertFalse(bad.ok)
+        self.assertIn("not a usable session name", bad.message)
+
+
 class PlacementTests(unittest.TestCase):
     def test_the_first_pane_replaces_the_hint_and_later_ones_stack_below(self) -> None:
         zellij = FakeZellij([{"id": 0, "title": "Reins"}, {"id": 1, "title": live.HINT_TITLE}])

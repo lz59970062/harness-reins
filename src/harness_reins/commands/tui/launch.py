@@ -413,7 +413,8 @@ HINT_TEXT = """Select a session on the left and press Enter (or double-click it)
   l       follow a task's log                        s   stop a session
   t       a terminal in the session's directory      m   message a session
   d       later panes open below / to the right      c   cancel a callback
-  1-4     Sessions, Tasks, Goals, Messages      right-click a session: copy its address
+  o       session menu (or right-click a session)    a   show archived sessions
+  1-4     Sessions, Tasks, Goals, Messages
 
 Alt+arrows  move between panes      Alt+x  close a pane      Alt+f  fullscreen
 Alt+d       leave (run `reins tui` to come back)     Alt+q  end this screen

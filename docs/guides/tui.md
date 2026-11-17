@@ -41,17 +41,36 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 | `m` | 给选中的会话发消息 |
 | `s` | 停止会话（会先确认）。对话保留，之后 `Enter` 还能打开 |
 | `c` | 取消任务的回调（会先确认） |
+| `o` 或右键 | 打开选中会话的菜单（见下） |
+| `a` | 显示 / 隐藏已归档的会话 |
 | `1`–`4` | 切换标签页 |
 
 面板每 3 秒自动刷新。最上面一行是 `reins doctor` 的检查结果：没问题显示 “Reins is ready”，有问题会逐条列出该怎么处理。
 
-## 复制会话地址
+## 会话菜单
 
-在会话上**右键**，可以复制它在 Reins 通讯录里的地址，再到别的对话里告诉 agent “发给 @这个地址”，它就会用 `reins send` 送过去。已经有名字的会话，标题前面会显示 `@名字`。
+在会话上**右键**，或者选中后按 `o`，会弹出它的菜单：
 
-- 有名字：菜单里选 “Copy address”。
+| 菜单项 | 作用 |
+| --- | --- |
+| Open below / Open to the right | 在下方或右边打开，不用先按 `d` 切换 |
+| Fork into a new session | 带着这段对话另开一个新会话（新 ID），原会话不受影响。在 Desktop 里开着的会话也能分叉 |
+| Terminal in its directory | 在会话目录里开终端，同 `t` |
+| Send a message... | 给它发消息，同 `m` |
+| Pin to the top / Unpin | 置顶。只影响 Reins 面板，不改 Claude 自己的列表 |
+| Copy address / Name it... / Rename address... | 复制、登记或修改它在 Reins 通讯录里的地址（见下） |
+| Copy Claude session id | 复制 Claude Code 的会话 ID，就是 `claude attach`、`claude --resume` 用的那个 |
+| Stop... | 停止会话（会先确认），同 `s` |
+| Archive / Stop and archive... / Unarchive | 归档：从列表里收起；还在运行的会先停止（会先确认）。对话保留。它再运行、派出新任务或有回调待处理时，会自动回到列表；按 `a` 能看到已归档的会话 |
+
+置顶和归档只记在 Reins 自己的文件里（`~/.reins/tui/sessions.json`），不会删除任何对话。Claude Code 外部改不了会话标题，也没有删除单个对话的命令，所以菜单里没有这两项；标题可以在会话里用 `/rename` 改。
+
+### 复制会话地址
+
+地址是会话在 Reins 通讯录里的名字。复制后，到别的对话里告诉 agent “发给 @这个地址”，它就会用 `reins send` 送过去。已经有名字的会话，标题前面会显示 `@名字`，置顶的会话前面有 `★`。
+
+- 有名字：选 “Copy address”；要换名字选 “Rename address...”，旧名字随之作废。别的会话已经在用的名字不会被抢走。
 - 还没有名字：选 “Name it and copy its address...”，面板会建议一个名字，确认后登记进通讯录并复制。
-- 也可以复制会话 ID。
 
 复制走终端的剪贴板协议（OSC 52）。如果粘贴出来是空的，是终端没允许程序写剪贴板（比如 iTerm2 要在设置里打开 “Applications in terminal may access clipboard”）；复制的内容也会显示在面板底部，可以手动选中。
 

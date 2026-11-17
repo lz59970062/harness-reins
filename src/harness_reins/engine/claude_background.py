@@ -236,6 +236,23 @@ def resume(session: str, cwd: str, environment: Mapping[str, str] = os.environ, 
     return short
 
 
+def fork(session: str, cwd: str, environment: Mapping[str, str] = os.environ, *, name: Optional[str] = None,
+         settings: Optional[str] = None, run: Run = subprocess.run) -> str:
+    """Start a background copy of ``session``'s conversation under a new id; returns its short id.
+
+    The original is left as it is, open or not.
+    """
+    arguments = ["--bg", "--resume", session, "--fork-session"]
+    if name:
+        arguments += ["--name", name]
+    if settings:
+        arguments += ["--settings", settings]
+    short = _short_id(_claude(arguments, environment, cwd=cwd, run=run, scope=True))
+    if short == session[:8]:
+        raise BackgroundError(f"Claude resumed {session[:8]} instead of forking it")
+    return short
+
+
 def stop(handle: str, environment: Mapping[str, str] = os.environ, *, run: Run = subprocess.run) -> None:
     """Stop a background session's process; its conversation stays."""
     _claude(["stop", handle], environment, run=run)

@@ -46,20 +46,43 @@ below or to the right of the newest pane there (`d` switches which), instead of 
 | `m` | Send the selected session a message |
 | `s` | Stop a session, after a confirmation. The conversation stays, and `Enter` opens it again |
 | `c` | Cancel a task's callback, after a confirmation |
+| `o` or right-click | Open the selected session's menu (below) |
+| `a` | Show or hide archived sessions |
 | `1`–`4` | Switch tabs |
 
 The panel refreshes itself every 3 seconds. Its top line shows what `reins doctor` finds: "Reins is ready", or one
 line per problem with what to do.
 
-## Copying a session's address
+## The session menu
 
-**Right-click** a session to copy its address in the Reins address book; in another conversation, ask the agent to
-send to that address and it uses `reins send`. A session that has a name shows it as `@name` before its title.
+**Right-click** a session, or select it and press `o`, for its menu:
 
-- Named: choose "Copy address".
+| Item | Does |
+| --- | --- |
+| Open below / Open to the right | Open it there, without switching `d` first |
+| Fork into a new session | Start a new session (a new id) with a copy of this conversation; the original is untouched. Works on a session open in the desktop app too |
+| Terminal in its directory | Same as `t` |
+| Send a message... | Same as `m` |
+| Pin to the top / Unpin | Keep it at the top. Only the Reins panel changes, not Claude's own list |
+| Copy address / Name it... / Rename address... | Copy, add or change its address in the Reins address book (below) |
+| Copy Claude session id | Copy Claude Code's session id, the one `claude attach` and `claude --resume` take |
+| Stop... | Same as `s`, after a confirmation |
+| Archive / Stop and archive... / Unarchive | Fold it out of the list, stopping it first if it runs (after a confirmation). The conversation stays. It comes back by itself when it runs again, starts a task, or has a callback waiting; `a` shows archived sessions |
+
+Pins and archives live only in a file of Reins' own (`~/.reins/tui/sessions.json`); nothing is deleted. Claude Code
+cannot rename a session or delete one conversation from outside it, so the menu has neither; rename a session with
+`/rename` inside it.
+
+### Copying a session's address
+
+The address is the session's name in the Reins address book. Copy it, then in another conversation ask the agent to
+send to that address and it uses `reins send`. A session that has a name shows it as `@name` before its title; a
+pinned one shows `★`.
+
+- Named: choose "Copy address". "Rename address..." gives it a new name and drops the old one; a name another session
+  holds is refused, never taken over.
 - Not named yet: choose "Name it and copy its address...", accept or change the suggested name, and the panel adds it
   to the address book and copies it.
-- "Copy session id" copies the id instead.
 
 Copying uses the terminal's clipboard protocol (OSC 52). If a paste comes out empty, the terminal does not let
 programs write the clipboard (in iTerm2, enable "Applications in terminal may access clipboard"); the copied text is

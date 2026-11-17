@@ -152,6 +152,19 @@ class ResumeTests(BackgroundCase):
         self.assertEqual(background.start("/w", {}, run=fake), "abcdef12")
         self.assertEqual(fake.claude_calls(), [["--bg"]])
 
+    def test_fork_starts_a_named_copy_under_a_new_id(self) -> None:
+        # Measured on Claude 2.1.326: `--bg --resume ID --fork-session --name N` prints the new short id and
+        # carries the conversation; the original session is not touched.
+        fake = FakeClaude(short="b438bfb5")
+        short = background.fork(SESSION, "/w", {}, name="plots (fork)", settings='{"x":1}', run=fake)
+        self.assertEqual(short, "b438bfb5")
+        self.assertEqual(fake.claude_calls(), [["--bg", "--resume", SESSION, "--fork-session", "--name",
+                                                "plots (fork)", "--settings", '{"x":1}']])
+
+    def test_fork_that_resumed_the_original_is_an_error(self) -> None:
+        with self.assertRaises(background.BackgroundError):
+            background.fork(SESSION, "/w", {}, run=FakeClaude())
+
     def test_commands_run_without_the_parent_session(self) -> None:
         fake = mock.Mock(wraps=FakeClaude())
         background.stop("08e8651e", {"CLAUDECODE": "1", "PATH": "/bin"}, run=fake)

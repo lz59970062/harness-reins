@@ -8,10 +8,13 @@
   forks. `reins tui <id>` opens a session by its id or by the id of a task it started. The npm
   package includes Zellij 0.46.0 and the Textual panel; with pip, install `harness-reins[tui]` and
   Zellij. Not on Windows. The panel keeps its width while panes open below or beside each other
-  (`d` switches), `t` opens a terminal in a session's directory, a right click copies a session's
-  address-book name (naming it first if needed), and its top line shows what `reins doctor` finds.
+  (`d` switches), `t` opens a terminal in a session's directory, and its top line shows what
+  `reins doctor` finds.
   Zellij's modal Ctrl keys are replaced by a few Alt keys, so Ctrl keys reach Claude Code.
   A click selects a row and a double click or Enter opens it; repeat clicks while a pane opens are ignored.
+  A right click (or `o`) on a session opens its menu: open below or to the right, fork into a new
+  session, terminal, message, pin to the top, copy, add or rename its address, copy its Claude
+  session id, stop, and archive (`a` shows archived sessions; one comes back when it has work again).
   Its Zellij keeps its session index in a local temporary directory, so a `~/.cache` on a network
   filesystem (JuiceFS, NFS) cannot stall it; a Zellij that never answers is stopped with a message.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session

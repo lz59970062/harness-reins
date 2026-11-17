@@ -17,7 +17,7 @@ from dataclasses import replace
 try:
     import textual  # noqa: F401
     from textual import events
-    from textual.widgets import DataTable, Input, Static, TabbedContent
+    from textual.widgets import DataTable, Input, OptionList, Static, TabbedContent
 
     from harness_reins.commands.tui import panel
     from harness_reins.commands.tui.backend import (
@@ -367,6 +367,22 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         await pilot.click("#sessions-table", offset=(4, 1), button=3)
         await settle(app, pilot)
 
+    async def choose(self, app, pilot, option):
+        """Pick ``option`` in the open menu, as arrows and Enter would."""
+        self.assertIsInstance(app.screen, panel.MenuScreen)
+        menu = app.screen.query_one("#menu", OptionList)
+        menu.highlighted = menu.get_option_index(option)
+        await pilot.press("enter")
+        await settle(app, pilot)
+
+    def first_row(self, app):
+        table = app.query_one("#sessions-table", DataTable)
+        return table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value if table.row_count else None
+
+    def shown(self, app):
+        table = app.query_one("#sessions-table", DataTable)
+        return [key.value for key in table.rows]
+
     async def test_right_click_copies_a_named_sessions_address(self):
         backend = make_backend()
         backend.session_rows = [replace(row, address="lab") if row.session == SESSION_D else row
@@ -378,9 +394,7 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await settle(app, pilot)
             self.assertTrue(str(app.query_one("#sessions-table", DataTable).get_row_at(0)[1]).startswith("@lab "))
             await self.right_click_first_session(app, pilot)
-            self.assertIsInstance(app.screen, panel.MenuScreen)
-            await pilot.press("enter")  # first option: Copy address @lab
-            await settle(app, pilot)
+            await self.choose(app, pilot, "copy-address")
             self.assertEqual(copied, ["lab"])
             self.assertIn("copied address lab", status_text(app))
 
@@ -392,13 +406,144 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         async with app.run_test() as pilot:
             await settle(app, pilot)
             await self.right_click_first_session(app, pilot)
-            await pilot.press("enter")  # Name it and copy its address...
-            await settle(app, pilot)
+            await self.choose(app, pilot, "name")
             self.assertIsInstance(app.screen, panel.TextPromptScreen)
             await pilot.press("enter")  # accept the suggested name
             await settle(app, pilot)
             self.assertIn(("name", SESSION_D, "attached-one"), backend.calls)
             self.assertEqual(copied, ["attached-one"])
+
+    def test_the_menu_offers_what_fits_the_session(self):
+        rows = {row.session: row for row in make_backend().session_rows}
+        ids = lambda row: [key for key, _ in panel._session_menu(row)]
+        running = ids(rows[SESSION_A])
+        self.assertEqual(running[:4], ["open-below", "open-right", "fork", "shell"])
+        self.assertIn("stop", running)
+        self.assertIn("archive", running)
+        self.assertIn("Stop and archive...", dict(panel._session_menu(rows[SESSION_A])).values())
+        foreign = ids(rows[SESSION_B])  # Open in the desktop app: fork it, but neither stop nor archive it here.
+        self.assertIn("fork", foreign)
+        self.assertNotIn("stop", foreign)
+        self.assertNotIn("archive", foreign)
+        closed = ids(rows[SESSION_C])
+        self.assertIn("archive", closed)
+        self.assertNotIn("stop", closed)
+        named = ids(replace(rows[SESSION_C], address="lab", pinned=True, archived=True))
+        self.assertIn("rename", named)
+        self.assertIn("unpin", named)
+        self.assertIn("unarchive", named)
+        self.assertNotIn("name", named)
+        self.assertNotIn("fork", ids(replace(rows[SESSION_C], cwd=None)))
+        self.assertIn("Copy Claude session id", dict(panel._session_menu(rows[SESSION_C])).values())
+
+    async def test_o_opens_the_menu_and_open_to_the_right_opens_there(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "open-right")
+            self.assertIn(("open", SESSION_D, "right"), backend.calls)
+
+    async def test_pinning_moves_a_session_to_the_top(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            self.assertEqual(self.shown(app)[-1], SESSION_C)
+            table = app.query_one("#sessions-table", DataTable)
+            table.move_cursor(row=table.get_row_index(SESSION_C))
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "pin")
+            self.assertEqual(self.shown(app)[0], SESSION_C)
+            self.assertTrue(str(table.get_row_at(0)[1]).startswith("\u2605 "))
+
+    async def test_archive_hides_a_session_and_a_shows_archived_ones(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            table = app.query_one("#sessions-table", DataTable)
+            table.move_cursor(row=table.get_row_index(SESSION_C))
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "archive")  # Closed: no question asked.
+            self.assertIn(("archive", SESSION_C), backend.calls)
+            self.assertNotIn(SESSION_C, self.shown(app))
+            await pilot.press("a")
+            await settle(app, pilot)
+            self.assertIn(SESSION_C, self.shown(app))
+            self.assertEqual(str(table.get_row_at(table.get_row_index(SESSION_C))[2]), "archived")
+            table.move_cursor(row=table.get_row_index(SESSION_C))
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "unarchive")
+            self.assertIn(("unarchive", SESSION_C), backend.calls)
+            await pilot.press("a")
+            await settle(app, pilot)
+            self.assertIn(SESSION_C, self.shown(app))
+
+    async def test_archiving_a_running_session_asks_first(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("o")  # First row: the attached session D.
+            await settle(app, pilot)
+            await self.choose(app, pilot, "archive")
+            self.assertIsInstance(app.screen, panel.ConfirmScreen)
+            await pilot.press("n")
+            await settle(app, pilot)
+            self.assertNotIn(("archive", SESSION_D), backend.calls)
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "archive")
+            await pilot.press("y")
+            await settle(app, pilot)
+            self.assertIn(("archive", SESSION_D), backend.calls)
+            self.assertNotIn(SESSION_D, self.shown(app))
+
+    async def test_fork_opens_the_copy_where_panes_go(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("d")  # Later panes to the right.
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "fork")
+            self.assertIn(("fork", SESSION_D, "right"), backend.calls)
+            self.assertIn("forked attached one", status_text(app))
+
+    async def test_rename_an_address_and_a_taken_name_is_refused(self):
+        backend = make_backend()
+        backend.session_rows = [replace(row, address="lab") if row.session == SESSION_D
+                                else replace(row, address="ppt") if row.session == SESSION_B else row
+                                for row in backend.session_rows]
+        app = make_app(backend)
+        copied = []
+        app.copy_to_clipboard = copied.append
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "rename")
+            self.assertIsInstance(app.screen, panel.TextPromptScreen)
+            app.screen.query_one(Input).value = "lab2"
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertIn(("rename", SESSION_D, "lab2"), backend.calls)
+            self.assertEqual(copied, ["lab2"])
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "rename")
+            app.screen.query_one(Input).value = "ppt"
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertIn("already names another session", status_text(app))
+            self.assertTrue(status_is_error(app))
 
     def test_suggested_names_fit_the_address_book(self):
         row = make_backend().session_rows[0]

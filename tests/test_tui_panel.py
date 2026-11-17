@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+import threading
 import unittest
 from dataclasses import replace
 
@@ -45,9 +46,9 @@ GOAL_1 = "9090190-0000-4000-8000-00000000000a"
 MSG_1 = "m5m5m5m5-0000-4000-8000-00000000000b"
 
 
-def make_backend() -> "FakeBackend":
+def make_backend(cls: type = None) -> "FakeBackend":
     home = os.path.expanduser("~")
-    return FakeBackend(
+    return (cls or FakeBackend)(
         session_rows=[
             SessionRow(
                 session=SESSION_A, agent="claude", state=sessions.RUNNING,
@@ -172,6 +173,52 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(("open", SESSION_D), backend.calls)
             self.assertEqual(status_text(app), "opened attached one")
             self.assertFalse(status_is_error(app))
+
+    async def test_clicking_again_while_a_session_opens_does_not_open_it_twice(self):
+        release = threading.Event()
+
+        class SlowBackend(FakeBackend):
+            def open_session(self, session, direction="down"):
+                release.wait(5)
+                return super().open_session(session, direction)
+
+        backend = make_backend(SlowBackend)
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            app.query_one("#sessions-table", DataTable).focus()
+            for _ in range(4):
+                await pilot.press("enter")
+            await pilot.pause()
+            self.assertEqual(status_text(app), "opening attached one...")
+            release.set()
+            await settle(app, pilot)
+            self.assertEqual(backend.calls.count(("open", SESSION_D)), 1)
+            self.assertEqual(status_text(app), "opened attached one")
+            await pilot.press("enter")  # Once it is done, opening again works (it jumps to the pane).
+            await settle(app, pilot)
+            self.assertEqual(backend.calls.count(("open", SESSION_D)), 2)
+
+    async def test_a_click_selects_and_a_double_click_opens(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            table = app.query_one("#sessions-table", DataTable)
+            for _ in range(2):  # Clicking the highlighted row again still only selects it.
+                await pilot.click("#sessions-table", offset=(4, 1))
+                await pilot.pause(0.6)
+            await settle(app, pilot)
+            self.assertEqual(backend.calls, [])
+            await pilot.click("#sessions-table", offset=(4, 2))
+            await pilot.pause(0.6)
+            self.assertEqual(table.cursor_row, 1)
+            self.assertEqual(backend.calls, [])
+            await pilot.double_click("#sessions-table", offset=(4, 2))
+            await settle(app, pilot)
+            opened = [call for call in backend.calls if call[0] == "open"]
+            self.assertEqual(len(opened), 1)
+            self.assertEqual(opened[0][1], app._session_rows[1].session)
 
     async def test_open_foreign_session_shows_refusal(self):
         backend = make_backend()

@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from rich.cells import cell_len
 from rich.text import Text
+from textual.coordinate import Coordinate
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -261,7 +262,47 @@ class MenuScreen(ModalScreen[Optional[str]]):
             self.dismiss(None)
 
 
-class SessionTable(DataTable):
+DOUBLE_CLICK_SECONDS = 0.5
+
+
+class PanelTable(DataTable):
+    """A table where a click only selects a row; a double click (or Enter) acts on it.
+
+    A plain DataTable treats a click on the highlighted row as Enter, so a
+    single click opened a pane, and a few quick clicks opened several.
+    """
+
+    _clicked_once = False
+    _last_click: Tuple[float, int] = (0.0, -1)
+
+    def _post_selected_message(self) -> None:
+        if not self._clicked_once:
+            super()._post_selected_message()
+
+    async def _on_click(self, event: events.Click) -> None:
+        chain = getattr(event, "chain", None)
+        if chain is None:  # Textual without Click.chain: time it here.
+            row = event.style.meta.get("row", -1) if event.style else -1
+            now = time.monotonic()
+            last, last_row = self._last_click
+            chain = 2 if row == last_row and now - last < DOUBLE_CLICK_SECONDS else 1
+            self._last_click = (0.0, -1) if chain > 1 else (now, row)
+        # Textual also runs each base class's own click handler unless this stops it; DataTable's would select.
+        event.prevent_default()
+        meta = event.style.meta if event.style else {}
+        if chain >= 2 and meta.get("row", -1) >= 0 and self.row_count:
+            event.stop()
+            self.cursor_coordinate = Coordinate(min(meta["row"], self.row_count - 1), max(meta.get("column", 0), 0))
+            super()._post_selected_message()
+            return
+        self._clicked_once = True
+        try:
+            await super()._on_click(event)
+        finally:
+            self._clicked_once = False
+
+
+class SessionTable(PanelTable):
     """The sessions table: a right click opens the session's menu instead of selecting the row."""
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
@@ -359,6 +400,8 @@ class ReinsPanel(App[None]):
         super().__init__()
         self._backend = backend
         self._direction = BELOW
+        # Actions still running, so a second click while a pane is on its way does not open another.
+        self._pending: set = set()
         self._refresh_seconds = max(0.5, float(refresh_seconds))
         self._main_screen: Optional[Any] = None
         self._session_rows: List[SessionRow] = []
@@ -373,11 +416,11 @@ class ReinsPanel(App[None]):
             with TabPane("Sessions", id=SESSIONS_TAB):
                 yield SessionTable(id="sessions-table", cursor_type="row", zebra_stripes=True)
             with TabPane("Tasks", id=TASKS_TAB):
-                yield DataTable(id="tasks-table", cursor_type="row", zebra_stripes=True)
+                yield PanelTable(id="tasks-table", cursor_type="row", zebra_stripes=True)
             with TabPane("Goals", id=GOALS_TAB):
-                yield DataTable(id="goals-table", cursor_type="row", zebra_stripes=True)
+                yield PanelTable(id="goals-table", cursor_type="row", zebra_stripes=True)
             with TabPane("Messages", id=MESSAGES_TAB):
-                yield DataTable(id="messages-table", cursor_type="row", zebra_stripes=True)
+                yield PanelTable(id="messages-table", cursor_type="row", zebra_stripes=True)
         yield Static("", id="status")
         yield Footer()
 
@@ -564,11 +607,21 @@ class ReinsPanel(App[None]):
             return None
         return max(running, key=lambda row: row.started_at or 0.0)
 
-    def _run_action(self, label: str, action: Callable[..., ActionResult], *args: Any) -> None:
-        self._action_worker(label, action, *args)
+    def _run_action(self, label: str, action: Callable[..., ActionResult], *args: Any,
+                    once: Optional[Tuple[str, str]] = None, busy: str = "") -> None:
+        """Run ``action`` off the UI thread; with ``once``, ignore the same action while it is still running."""
+        if once is not None:
+            if once in self._pending:
+                self._show_status(busy or "still working on it...")
+                return
+            self._pending.add(once)
+            if busy:
+                self._show_status(busy)
+        self._action_worker(label, action, once, *args)
 
     @work(thread=True, group="actions")
-    def _action_worker(self, label: str, action: Callable[..., ActionResult], *args: Any) -> None:
+    def _action_worker(self, label: str, action: Callable[..., ActionResult], once: Optional[Tuple[str, str]],
+                       *args: Any) -> None:
         worker = get_current_worker()
         try:
             result = action(*args)
@@ -576,11 +629,16 @@ class ReinsPanel(App[None]):
             result = ActionResult(False, "%s failed: %s" % (label, exc))
         if worker.is_cancelled:
             return
-        self.call_from_thread(self._finish_action, result)
+        self.call_from_thread(self._finish_action, result, once)
 
-    def _finish_action(self, result: ActionResult) -> None:
+    def _finish_action(self, result: ActionResult, once: Optional[Tuple[str, str]] = None) -> None:
+        self._pending.discard(once)
         self._show_status(result.message, ok=result.ok)
         self.refresh_data()
+
+    def _open(self, session: str, title: str, direction: str) -> None:
+        self._run_action("open", self._backend.open_session, session, direction,
+                         once=("open", session), busy="opening %s..." % title)
 
     # -------------------------------------------------------------- actions
 
@@ -622,7 +680,7 @@ class ReinsPanel(App[None]):
             if row is None:
                 self._show_status("no session selected", ok=False)
                 return
-            self._run_action("open", self._backend.open_session, row.session, direction)
+            self._open(row.session, row.title, direction)
         elif tab == TASKS_TAB:
             row = self._selected_task()
             if row is None:
@@ -631,7 +689,7 @@ class ReinsPanel(App[None]):
             if not row.session:
                 self._show_status("task %s has no session" % row.task[:8], ok=False)
                 return
-            self._run_action("open", self._backend.open_session, row.session, direction)
+            self._open(row.session, row.session[:8], direction)
         else:
             self._show_status("enter opens a session from the Sessions or Tasks tab")
 
@@ -649,7 +707,8 @@ class ReinsPanel(App[None]):
         directory = (directory or "").strip()
         if not directory:
             return
-        self._run_action("new session", self._backend.new_session, "claude", directory)
+        self._run_action("new session", self._backend.new_session, "claude", directory, once=("new", directory),
+                         busy="starting a session in %s..." % directory)
 
     def action_stop_session(self) -> None:
         if self._modal_open():
@@ -680,7 +739,8 @@ class ReinsPanel(App[None]):
             if row is None:
                 self._show_status("no task selected", ok=False)
                 return
-            self._run_action("log", self._backend.show_log, row.task, direction)
+            self._run_action("log", self._backend.show_log, row.task, direction, once=("log", row.task),
+                             busy="opening the log of %s..." % row.task[:8])
         elif tab == SESSIONS_TAB:
             row = self._selected_session()
             if row is None:
@@ -690,7 +750,8 @@ class ReinsPanel(App[None]):
             if task is None:
                 self._show_status("%s has no running task" % row.title)
                 return
-            self._run_action("log", self._backend.show_log, task.task, direction)
+            self._run_action("log", self._backend.show_log, task.task, direction, once=("log", task.task),
+                             busy="opening the log of %s..." % task.task[:8])
         else:
             self._show_status("l follows a task from the Sessions or Tasks tab")
 

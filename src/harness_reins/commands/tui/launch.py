@@ -407,7 +407,7 @@ def main(args: argparse.Namespace) -> int:
     return 0  # Not reached.
 
 
-HINT_TEXT = """Select a session on the left and press Enter to open it here.
+HINT_TEXT = """Select a session on the left and press Enter (or double-click it) to open it here.
 
   Enter   open the session (or jump to its pane)    n   new session
   l       follow a task's log                        s   stop a session

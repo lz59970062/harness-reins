@@ -38,7 +38,7 @@ below or to the right of the newest pane there (`d` switches which), instead of 
 
 | Key | Does |
 | --- | --- |
-| `Enter` | Open the selected session, or jump to its pane if it is already open. On Tasks, open the session that started the task |
+| `Enter` or double-click | Open the selected session, or jump to its pane if it is already open. On Tasks, open the session that started the task. A single click only selects |
 | `n` | Start a new Claude Code session in a directory you choose |
 | `l` | Follow a task's output |
 | `t` | Open a terminal in the selected session's directory |
@@ -83,7 +83,7 @@ To stop a session, select it in the panel and press `s`: its process stops and t
 
 ## What opening a session does
 
-You only press `Enter`; Reins picks the way from the session's state:
+You only press `Enter` or double-click; Reins picks the way from the session's state:
 
 | Session | Reins |
 | --- | --- |

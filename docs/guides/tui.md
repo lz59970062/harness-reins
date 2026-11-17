@@ -112,12 +112,12 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 | Harness | 会话列表来自 | 会话窗格运行 | 关掉窗格后 | 打开期间的回调 |
 | --- | --- | --- | --- | --- |
 | Claude Code | `claude agents` | `claude attach`，后台会话 | 照常运行 | 会话里的 Reins hook |
-| Codex | Codex 的 app-server 守护进程 | `codex resume --remote`，守护进程上的线程 | 留在守护进程上，空闲后由它卸载 | `codex queue`，作为这个线程的新一轮 |
+| Codex | Codex 的 app-server 守护进程 | `codex resume --remote`，守护进程上的线程 | 留在守护进程上，空闲后由它卸载 | 守护进程上这个线程的新一轮 |
 | Pi | Pi 的会话文件 | `reins pi`，带 Reins 扩展和写入租约的 Pi | Pi 随窗格结束 | Reins 的 Pi 扩展 |
 | DeepSeek Harness | Reins 通讯录和任务记录 | 不打开：它没有终端界面 | | 它自己运行的 `reins wait` |
 
 - **Codex** 会话通过 Codex 共享的 app-server 守护进程（`codex app-server daemon`）打开，所以 Reins 窗格、通过 SSH 连接的 Codex Desktop 和 `codex resume --remote` 看到的是同一个线程。守护进程没在运行时，Reins 会先启动它。不带 `--remote` 打开的 Codex 窗口自己写线程：面板显示它开在别的终端里，不会再打开一份。新建的 Codex 会话发出第一条消息后才会出现在列表里。
-- Codex 收到回调时用的是线程自己的权限。在 Codex 默认的 `workspace-write` 沙箱里，`~/.reins` 是只读的，agent 会申请提权来运行 `reins ack`。不想每次确认，就在 `~/.codex/config.toml` 的 `[sandbox_workspace_write]` 里把 `~/.reins` 加进 `writable_roots`。
+- Codex 收到回调时保留线程自己的设置，只把 Reins 的队列和通讯录目录加进可写目录，所以 agent 不用申请提权就能 ACK；线程留在守护进程上期间一直有这项权限。
 - **Pi** 没有守护进程，会话就活在它的窗格里。在别处带着 Reins 扩展打开的 Pi 会话显示为开在别的终端；不带扩展打开的看不到。
 - **DeepSeek Harness**：有 Reins 名字或派过任务的会话会列出来，可以发消息、复制地址、看任务日志。打开请用 DeepSeek Harness 的网页版或桌面版。
 

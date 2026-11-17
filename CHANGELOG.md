@@ -29,9 +29,11 @@
   Its Zellij keeps its session index in a local temporary directory, so a `~/.cache` on a network
   filesystem (JuiceFS, NFS) cannot stall it; a Zellij that never answers is stopped with a message.
 - A Codex callback for a thread loaded on the Codex app-server daemon (open in the Reins panel,
-  Codex Desktop over SSH, or `codex resume --remote`) goes through `codex queue` as a new turn in
-  that thread, instead of a headless `codex exec resume` that would write the same thread a second
-  time. A thread that is not loaded keeps the headless resume.
+  Codex Desktop over SSH, or `codex resume --remote`) starts as a new turn in that thread on the
+  daemon, instead of a headless `codex exec resume` that would write the same thread a second time.
+  The turn keeps the thread's own settings and adds only the Reins queue and address book as
+  writable folders, so the ACK needs no approval. A read-only thread gets the callback through
+  `codex queue`; a thread that is not loaded keeps the headless resume.
 - Fixed: with the daemon's default resume timeout (no limit), a `codex-queue` or App Server callback
   crashed after writing its receipt and was reported as an unknown outcome.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session

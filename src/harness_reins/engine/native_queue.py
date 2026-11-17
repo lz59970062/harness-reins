@@ -40,13 +40,19 @@ def route_fields() -> dict[str, str]:
     return {"callback_codex_bin": executable, "callback_codex_home": str(layout.codex_home().resolve())}
 
 
-def hosted_request(payload: dict[str, object]) -> dict[str, object] | None:
-    """A `cli` Codex callback rerouted through `codex queue`, when its thread is loaded on the shared daemon.
+def _hosted_environment(payload: dict[str, object]) -> dict[str, str]:
+    session = payload.get("environment")
+    return resume_environment.merged(os.environ, session) if isinstance(session, dict) else dict(os.environ)
+
+
+def hosted_socket(payload: dict[str, object]) -> Path | None:
+    """The Codex app-server daemon's socket, when a `cli` Codex callback's thread is loaded there.
 
     A thread opened in the Reins panel (or Codex Desktop over SSH, or `codex resume --remote`) lives on the
-    Codex app-server daemon, which runs a queued message by itself (design V21). A headless
-    `codex exec resume` would load the same thread a second time and write it beside the daemon, so for
-    such a thread the queue is the only safe route. A thread that is not loaded keeps the headless resume.
+    daemon. A headless `codex exec resume` would load the same thread a second time and write it beside the
+    daemon, so such a callback goes to the daemon instead: a turn started over its protocol (with the queue
+    writable, delivery.start_desktop_app_server_turn), else `codex queue` (design V21, V22). A thread that
+    is not loaded keeps the headless resume. Any failure here keeps it too, rather than costing an attempt.
     """
     from ..harness.codex import threads
     from . import dispatch
@@ -59,15 +65,21 @@ def hosted_request(payload: dict[str, object]) -> dict[str, object] | None:
     thread = target.get("session") if isinstance(target, dict) and target.get("kind") == "session" else None
     if not isinstance(thread, str) or not thread:
         return None
-    session = payload.get("environment")
-    env = resume_environment.merged(os.environ, session) if isinstance(session, dict) else dict(os.environ)
     try:
-        if not threads.loaded_on_daemon(thread, env):
-            return None
-    except Exception:  # Any failure here keeps the headless resume rather than costing a delivery attempt.
+        env = _hosted_environment(payload)
+        return threads.socket_path(env) if threads.loaded_on_daemon(thread, env) else None
+    except Exception:
         return None
+
+
+def hosted_request(payload: dict[str, object]) -> dict[str, object]:
+    """The request with the `codex queue` route, for a hosted thread the daemon would not start a turn on."""
+    from ..harness.codex import threads
+
+    request = payload["request"]
+    assert isinstance(request, dict)
     route = route_fields()
-    route["callback_codex_home"] = str(threads.codex_home(env).resolve())
+    route["callback_codex_home"] = str(threads.codex_home(_hosted_environment(payload)).resolve())
     requires = [*request.get("requires", []), capabilities.CODEX_QUEUE]
     return dict(request, **route, callback_mode="codex-queue", requires=sorted(set(requires)))
 

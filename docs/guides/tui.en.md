@@ -137,7 +137,7 @@ Every harness opens in its own interface, and Reins keeps the same promise for e
 | Harness | Listed from | A session pane runs | When its pane closes | Callbacks while it is open |
 | --- | --- | --- | --- | --- |
 | Claude Code | `claude agents` | `claude attach`, a background session | It keeps running | The Reins hook in the session |
-| Codex | Codex's app-server daemon | `codex resume --remote`, the thread on the daemon | It stays on the daemon, which unloads it once idle | `codex queue`, as a new turn in that thread |
+| Codex | Codex's app-server daemon | `codex resume --remote`, the thread on the daemon | It stays on the daemon, which unloads it once idle | A new turn in that thread on the daemon |
 | Pi | Pi's session files | `reins pi`, Pi with the Reins extension and writer lease | Pi ends with its pane | The Reins Pi extension |
 | DeepSeek Harness | The Reins address book and tasks | Nothing: it has no terminal interface | | Its live `reins wait` |
 
@@ -145,9 +145,8 @@ Every harness opens in its own interface, and Reins keeps the same promise for e
   Codex Desktop over SSH and `codex resume --remote` all show the same thread. Reins starts the daemon when it is not
   running. A Codex window opened without `--remote` writes its thread itself: the panel shows it as open in a
   terminal and does not open it again. A new Codex session appears in the list after its first message.
-- A Codex callback runs with the thread's own permissions. In Codex's default `workspace-write` sandbox, `~/.reins` is
-  read-only, so the agent asks to run `reins ack` with escalated permissions. To skip that prompt, add `~/.reins` to
-  `writable_roots` under `[sandbox_workspace_write]` in `~/.codex/config.toml`.
+- A Codex callback keeps the thread's own settings and adds only the Reins queue and address book to its writable
+  folders, so the agent can ACK without asking; the thread keeps that access while it is loaded.
 - **Pi** has no daemon: its session lives in its pane. Pi sessions opened elsewhere with the Reins extension show as
   open in a terminal; one opened without it cannot be seen.
 - **DeepSeek Harness** sessions that have a Reins name or started tasks are listed so you can message them, copy

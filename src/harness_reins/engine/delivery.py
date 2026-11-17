@@ -580,22 +580,50 @@ def desktop_submission_pending(root: Path, request: dict[str, object]) -> bool:
             and record.get("queue_dir") == str(root.resolve()))
 
 
-def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.DesktopAppServerDelivery | None:
+def hosted_sandbox(current: object, request: dict[str, object]) -> dict[str, object] | None:
+    """The thread's own sandbox with the Reins queue and address book added as writable roots.
+
+    None when nothing needs adding (no sandbox, or one that writes anywhere). Raises ValueError for a
+    read-only thread: widening that would be an escalation, so the callback goes through the queue instead.
+    """
+    if not isinstance(current, dict) or current.get("type") in ("dangerFullAccess", "externalSandbox"):
+        return None
+    if current.get("type") != "workspaceWrite":
+        raise ValueError(f"the thread's sandbox is {current.get('type')!r}")
+    roots = [str(root) for root in current.get("writableRoots") or [] if isinstance(root, str)]
+    for key in ("queue_dir", "link_dir"):
+        value = request.get(key)
+        if isinstance(value, str) and value and Path(value).is_absolute() and value not in roots:
+            roots.append(value)
+    return dict(current, writableRoots=roots)
+
+
+def start_desktop_app_server_turn(payload: dict[str, object], *,
+                                  hosted: Path | None = None) -> app_server.DesktopAppServerDelivery | None:
+    """Start the callback as a turn over the Codex App Server protocol.
+
+    ``hosted``: the daemon socket of a thread loaded there (native_queue.hosted_socket). The turn keeps the
+    thread's own cwd, approval settings and sandbox, adding only the Reins directories as writable roots so
+    the ACK works (design V22; the roots stay for the thread's later turns while it is loaded). None means
+    the turn was not started and nothing was sent, so the caller may use another route.
+    """
     request = payload.get("request")
     if not isinstance(request, dict):
         return None
-    if request.get("callback_mode") == "app-server":
+    if hosted is None and request.get("callback_mode") == "app-server":
         from . import native
         return native.start_delivery(payload)
     if request.get("callback_mode") == "manual":
         raise app_server.CallbackTransportBlocked("manual callback mode does not launch an Agent")
     if dispatch.request_agent(request) != "codex":
         return None  # The Desktop App Server delivery path is Codex-only.
-    socket_path = app_server.desktop_app_server_socket(request)
+    socket_path = hosted or app_server.desktop_app_server_socket(request)
     target = request.get("target")
-    sandbox_policy = app_server.desktop_sandbox_policy(request)
-    explicit_desktop = request.get("callback_mode") == "desktop"
-    if socket_path is None or sandbox_policy is None or not isinstance(target, dict) or not isinstance(target.get("session"), str):
+    sandbox_policy = None if hosted else app_server.desktop_sandbox_policy(request)
+    explicit_desktop = hosted is None and request.get("callback_mode") == "desktop"
+    fallback = "the Codex queue" if hosted else "CLI"
+    if (socket_path is None or (sandbox_policy is None and hosted is None) or not isinstance(target, dict)
+            or not isinstance(target.get("session"), str)):
         if explicit_desktop:
             raise app_server.CallbackTransportBlocked("Desktop callbacks require a bound session, an App Server socket and workspace-write callback policy")
         return None
@@ -619,16 +647,21 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
             raise app_server.CallbackTargetBusy("original session still has an active turn")
         turn_params: dict[str, object] = {
             "threadId": target["session"],
-            "cwd": str(payload["cwd"]),
             "input": [{"type": "text", "text": str(payload["prompt"])}],
-            "sandboxPolicy": sandbox_policy,
         }
-        approval_policy = request.get("approval_policy")
-        if isinstance(approval_policy, str) and approval_policy:
-            turn_params["approvalPolicy"] = approval_policy
-        approvals_reviewer = request.get("approvals_reviewer")
-        if isinstance(approvals_reviewer, str) and approvals_reviewer:
-            turn_params["approvalsReviewer"] = approvals_reviewer
+        if hosted is not None:
+            # A thread someone may be watching keeps its own settings; only the Reins directories are added.
+            sandbox_policy = hosted_sandbox(resumed.get("sandbox") if isinstance(resumed, dict) else None, request)
+            if sandbox_policy is not None:
+                turn_params["sandboxPolicy"] = sandbox_policy
+        else:
+            turn_params.update(cwd=str(payload["cwd"]), sandboxPolicy=sandbox_policy)
+            approval_policy = request.get("approval_policy")
+            if isinstance(approval_policy, str) and approval_policy:
+                turn_params["approvalPolicy"] = approval_policy
+            approvals_reviewer = request.get("approvals_reviewer")
+            if isinstance(approvals_reviewer, str) and approvals_reviewer:
+                turn_params["approvalsReviewer"] = approvals_reviewer
         if delivery_context is not None:
             root, callback = delivery_context
             # The parent deadline begins before this worker's startup and RPC
@@ -677,13 +710,13 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
             if explicit_desktop:
                 raise app_server.CallbackTransportBlocked("explicit Desktop route rejected the callback; CLI fallback disabled") from exc
             print(
-                f"reins: desktop App Server rejected turn/start: {exc}; falling back to CLI",
+                f"reins: App Server rejected turn/start: {exc}; falling back to {fallback}",
                 file=sys.stderr,
             )
         else:
             if explicit_desktop:
                 raise app_server.CallbackTransportBlocked("explicit Desktop route could not resume the bound session; CLI fallback disabled") from exc
-            print(f"reins: desktop App Server delivery unavailable: {exc}; falling back to CLI", file=sys.stderr)
+            print(f"reins: App Server delivery unavailable: {exc}; falling back to {fallback}", file=sys.stderr)
         return None
     except (OSError, ValueError, TypeError, app_server.AppServerProtocolError) as exc:
         if turn_start_submitted:
@@ -695,7 +728,7 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
             return app_server.DesktopAppServerDelivery(None, target["session"], None)
         if explicit_desktop:
             raise app_server.CallbackTransportBlocked("explicit Desktop route is unavailable; CLI fallback disabled") from exc
-        print(f"reins: desktop App Server delivery unavailable: {exc}; falling back to CLI", file=sys.stderr)
+        print(f"reins: App Server delivery unavailable: {exc}; falling back to {fallback}", file=sys.stderr)
         return None
     finally:
         if connection is not None:
@@ -815,10 +848,14 @@ def delivery_worker_main() -> int:
         elif payload.get("request", {}).get("callback_mode") == "codex-queue":
             payload["prompt"] = prompt
             result = native_queue.publish(payload)
-        elif (hosted := native_queue.hosted_request(payload)) is not None:
-            payload["request"] = hosted
+        elif (hosted := native_queue.hosted_socket(payload)) is not None:
             payload["prompt"] = prompt
-            result = native_queue.publish(payload)
+            desktop_delivery = start_desktop_app_server_turn(payload, hosted=hosted)
+            if desktop_delivery is not None:
+                result = wait_for_remote_delivery(payload, desktop_delivery, timeout or PUBLISHED_ACK_TIMEOUT)
+            else:  # A read-only thread, or the daemon would not start the turn: queue it there instead.
+                payload["request"] = native_queue.hosted_request(payload)
+                result = native_queue.publish(payload)
         elif (desktop_delivery := start_desktop_app_server_turn(payload)) is not None:
             result = wait_for_remote_delivery(payload, desktop_delivery, timeout or PUBLISHED_ACK_TIMEOUT)
         elif (isinstance(payload.get("request"), dict) and payload["request"].get("wake") == "never"

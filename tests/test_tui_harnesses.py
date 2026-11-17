@@ -316,30 +316,80 @@ class ReopenableTests(unittest.TestCase):
         self.assertFalse(launch.reopenable("vim attach notes"))
 
 
+class HostedDaemon(FakeConnection):
+    """The daemon as the callback worker sees it: resume reports the thread's sandbox, turn/start starts."""
+
+    def __init__(self, sandbox, status="idle"):
+        super().__init__()
+        self.sandbox = sandbox
+        self.status = status
+
+    def request(self, method, params):
+        self.requests.append((method, params))
+        if method == "initialize":
+            return {}
+        if method == "thread/resume":
+            return {"thread": {"id": params["threadId"], "status": {"type": self.status}}, "sandbox": self.sandbox}
+        if method == "turn/start":
+            return {"turn": {"id": "turn-1"}}
+        raise AssertionError(method)
+
+
 class CodexRouteTests(unittest.TestCase):
     def payload(self, **request):
         base = {"id": "t1-c1", "agent": "codex", "callback_mode": "cli", "requires": [capabilities.CLI_RESUME],
-                "target": {"kind": "session", "session": THREAD}}
-        return {"request": {**base, **request}, "timeout": 10}
+                "target": {"kind": "session", "session": THREAD}, "queue_dir": "/r/queue", "link_dir": "/r/link",
+                "approval_policy": "on-request", "sandbox_mode": "workspace-write"}
+        return {"request": {**base, **request}, "timeout": 10, "prompt": "[reins] t1-c1", "cwd": "/elsewhere"}
 
-    def test_a_thread_loaded_on_the_daemon_gets_the_queue(self) -> None:
+    def test_a_thread_loaded_on_the_daemon_is_hosted(self) -> None:
         with mock.patch.object(threads, "loaded_on_daemon", return_value=True):
-            hosted = native_queue.hosted_request(self.payload())
-        self.assertEqual(hosted["callback_mode"], "codex-queue")
-        self.assertIn(capabilities.CODEX_QUEUE, hosted["requires"])
-        native_queue.validate_route(hosted)
+            self.assertEqual(native_queue.hosted_socket(self.payload()).name, "app-server-control.sock")
+        queued = native_queue.hosted_request(self.payload())
+        self.assertEqual(queued["callback_mode"], "codex-queue")
+        self.assertIn(capabilities.CODEX_QUEUE, queued["requires"])
+        native_queue.validate_route(queued)
 
     def test_everything_else_keeps_its_route(self) -> None:
         with mock.patch.object(threads, "loaded_on_daemon", return_value=False):
-            self.assertIsNone(native_queue.hosted_request(self.payload()))
+            self.assertIsNone(native_queue.hosted_socket(self.payload()))
         with mock.patch.object(threads, "loaded_on_daemon", return_value=True):
-            self.assertIsNone(native_queue.hosted_request(self.payload(agent="claude")))
-            self.assertIsNone(native_queue.hosted_request(self.payload(callback_mode="codex-queue")))
-            self.assertIsNone(native_queue.hosted_request(self.payload(target={"kind": "cwd"})))
-        with mock.patch.object(threads, "loaded_on_daemon", side_effect=app_server.AppServerProtocolError("down")):
-            self.assertIsNone(native_queue.hosted_request(self.payload()))
-        with mock.patch.object(threads, "loaded_on_daemon", side_effect=KeyError("bug")):
-            self.assertIsNone(native_queue.hosted_request(self.payload()))
+            self.assertIsNone(native_queue.hosted_socket(self.payload(agent="claude")))
+            self.assertIsNone(native_queue.hosted_socket(self.payload(callback_mode="codex-queue")))
+            self.assertIsNone(native_queue.hosted_socket(self.payload(target={"kind": "cwd"})))
+        for failure in (app_server.AppServerProtocolError("down"), KeyError("bug")):
+            with mock.patch.object(threads, "loaded_on_daemon", side_effect=failure):
+                self.assertIsNone(native_queue.hosted_socket(self.payload()))
+
+    def start(self, daemon, payload=None):
+        from harness_reins.engine import delivery
+        with mock.patch.object(delivery.app_server, "AppServerConnection", daemon), \
+                mock.patch.object(delivery, "retain_target_lease"):
+            return delivery.start_desktop_app_server_turn(payload or self.payload(), hosted=Path("/s.sock"))
+
+    def test_the_turn_keeps_the_threads_settings_and_adds_only_the_reins_directories(self) -> None:
+        daemon = HostedDaemon({"type": "workspaceWrite", "writableRoots": ["/data"], "networkAccess": True})
+        started = self.start(daemon)
+        self.assertIsNotNone(started)
+        params = dict(daemon.requests)["turn/start"]
+        self.assertEqual(params["sandboxPolicy"], {"type": "workspaceWrite", "networkAccess": True,
+                                                   "writableRoots": ["/data", "/r/queue", "/r/link"]})
+        # Its cwd and approval settings stay the thread's own, for later turns too.
+        self.assertNotIn("cwd", params)
+        self.assertNotIn("approvalPolicy", params)
+        self.assertEqual(params["input"], [{"type": "text", "text": "[reins] t1-c1"}])
+
+    def test_an_unsandboxed_thread_gets_no_policy_and_a_read_only_one_no_turn(self) -> None:
+        daemon = HostedDaemon({"type": "dangerFullAccess"})
+        self.assertIsNotNone(self.start(daemon))
+        self.assertNotIn("sandboxPolicy", dict(daemon.requests)["turn/start"])
+        daemon = HostedDaemon({"type": "readOnly", "networkAccess": False})
+        self.assertIsNone(self.start(daemon))  # The worker queues it instead; widening read-only is an escalation.
+        self.assertNotIn("turn/start", dict(daemon.requests))
+
+    def test_a_busy_thread_waits(self) -> None:
+        with self.assertRaises(app_server.CallbackTargetBusy):
+            self.start(HostedDaemon({"type": "workspaceWrite"}, status="active"))
 
 
 if __name__ == "__main__":

@@ -148,7 +148,7 @@ Desktop 用户没有这个问题，因为 Desktop 本来就能看各个会话的
 | Harness | 托管者 | 回调投递 |
 |---|---|---|
 | Claude | 官方后台会话（`--bg`、`attach`、`stop`、`rm`） | 现有的 Stop / SessionStart hook（`asyncRewake`） |
-| Codex | Codex 自己的 app-server 守护进程；Reins 窗格运行 `codex resume --remote`（V16） | 线程在守护进程上时走 `codex queue`（V21），否则沿用 `codex exec resume` |
+| Codex | Codex 自己的 app-server 守护进程；Reins 窗格运行 `codex resume --remote`（V16） | 线程在守护进程上时在守护进程上开新一轮，并把队列加进可写目录（V22；只读线程走 `codex queue`），否则沿用 `codex exec resume` |
 | Pi | Reins 的 Zellij 窗格运行 `reins pi`，Pi 随窗格结束 | Pi extension 的信箱 |
 | DSH | 不托管：没有终端界面，用它自己的网页版或桌面版 | 现有的 live 通道 |
 
@@ -323,6 +323,7 @@ Zellij 默认就能用鼠标滚轮滚动，每个窗格有自己的回滚历史�
 | V19 | 用协议新建 Codex 线程 | **不可用。** `thread/start` 建出的线程在第一轮之前 rollout 是空的，`codex resume` 报 “no rollout found”。所以新建会话由 `codex --remote` 自己的窗口创建，面板在线程出现在列表里后给窗格改名 |
 | V20 | 用协议分叉 Codex 线程 | **通过。** `thread/fork` 返回新线程，带着原来的对话，加载在守护进程上，可以直接 `codex resume --remote` 打开 |
 | V21 | 投递进守护进程上的线程 | **通过。** 线程已加载且空闲时，`codex queue --thread <id> --message …` 由守护进程自己开始新一轮；未加载时加 `--resume` 才会加载并运行。守护进程上线程的工具环境没有 Desktop 标记，所以这些线程派的任务原本会走 `codex exec resume`，等于第二个写入者；现在投递前查到线程在守护进程上，就改走 `codex queue`（端到端实测：没有起 `codex exec`，回调作为新一轮出现在 Reins 窗格里）。这一轮用线程自己的权限：`workspace-write` 下 `~/.reins` 只读，ACK 要提权，或者把 `~/.reins` 加进 Codex 配置的 `writable_roots`（`--remote` 客户端不接受这个覆盖） |
+| V22 | 回调那一轮的沙箱 | **通过。** 守护进程上线程的 `turn/start` 接受 `sandboxPolicy`，`writableRoots` 里的目录这一轮就能写（对照：同样的 `workspace-write` 不加时被拒），并延续到之后的轮次；`thread/resume` 返回线程当前的 `sandbox`。所以 Reins 对已加载的线程直接开一轮，在线程原有策略上只追加队列和通讯录目录，不改 cwd 和审批设置；只读线程不放宽，改走 `codex queue`。端到端实测：队列放在工作区和 `/tmp` 之外，agent 的 `reins ack` 不用提权就写入，没有起 `codex exec` |
 | V13 | 其他 | `--bg` 拒绝没信任过的目录（“Workspace not trusted”）；`claude rm` 只删后台任务，有对话的 transcript 保留；会话记录文件只有 `status`，没有 `state`；刚起来还没收到提示的后台会话，`claude agents` 报 `state: blocked`、`status: idle`；从 Claude 会话里启动 `claude` 会继承 `CLAUDE_CODE_CHILD_SESSION` 等变量，不保存 transcript，所以 Reins 启动 Claude 时清掉这些变量 |
 
 **V4 的过程：**

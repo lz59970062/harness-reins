@@ -1312,7 +1312,9 @@ def process_selected(root: Path, args: argparse.Namespace, path: Path) -> bool:
         elif result.returncode == 125 and not acked:
             queued = (request.get("callback_mode") == "codex-queue"
                       or (root / "native-queue" / f"{request_id}.json").exists())
-            delivery_name = "Codex queue" if queued else "Pi" if dispatch.request_agent(request) == "pi" else "Desktop"
+            agent = dispatch.request_agent(request)
+            delivery_name = ("Codex queue" if queued else "Pi" if agent == "pi"
+                             else "Codex App Server" if agent == "codex" else "Desktop")
             request["last_error"] = delivery_name + " callback outcome is unknown; automatic retry suppressed to prevent duplicate delivery"
             request["retain_target_lease"] = True
             destination_dir = root / "failed"

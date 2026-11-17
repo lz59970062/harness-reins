@@ -36,7 +36,7 @@ from textual.widgets.option_list import Option
 from textual.worker import get_current_worker
 
 from ...core import sessions
-from .backend import BELOW, BESIDE, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow
+from .backend import BELOW, BESIDE, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow, short_id
 
 SESSIONS_TAB = "tab-sessions"
 TASKS_TAB = "tab-tasks"
@@ -64,8 +64,15 @@ _MARKS = {
 _PROCESS_STATES = (sessions.ATTACHED, sessions.RUNNING, sessions.FOREIGN, sessions.HEADLESS)
 
 
+AGENT_NAMES = {"claude": "Claude Code", "codex": "Codex", "pi": "Pi", "dsh": "DeepSeek Harness"}
+COPY_ID_LABELS = {"claude": "Claude session id", "codex": "Codex thread id", "pi": "Pi session file",
+                  "dsh": "DeepSeek Harness session id"}
+
+
 def _where(row: SessionRow) -> str:
     """State and host in plain words: here, background, Desktop, terminal, ..."""
+    if row.agent == "dsh" and row.state == sessions.CLOSED:
+        return "DSH app"
     if row.state == sessions.ATTACHED:
         return "here"
     if row.state == sessions.RUNNING:
@@ -123,12 +130,12 @@ def _session_cells(row: SessionRow) -> List[Any]:
         _fit(("\u2605 " if row.pinned else "") + ("@%s " % row.address if row.address else "") + row.title,
              TITLE_CELLS),
         "archived" if row.archived else _where(row),
+        row.agent,
         # Claude reports "blocked" both for a session waiting on a denied tool call and for one
         # waiting for its first prompt; either way it waits for a person.
         "waiting" if row.activity == sessions.BLOCKED else (row.activity or ""),
         str(row.tasks_running) if row.tasks_running else "",
         str(row.callbacks_pending) if row.callbacks_pending else "",
-        row.agent,
         _fit(_shorten_cwd(row.cwd), DIRECTORY_CELLS),
     ]
     if row.state == sessions.CLOSED or row.archived:
@@ -137,28 +144,34 @@ def _session_cells(row: SessionRow) -> List[Any]:
 
 
 def _session_menu(row: SessionRow) -> List[Tuple[str, str]]:
-    """What a right click (or o) on a session offers, in the order shown."""
+    """What a right click (or o) on a session offers, in the order shown; it depends on the harness.
+
+    Only Claude sessions are stopped from here: Codex unloads idle threads itself and a Pi session ends with
+    its pane. DeepSeek Harness sessions have no terminal window to open. Pi has no fork Reins can start.
+    """
     running = row.state in (sessions.ATTACHED, sessions.RUNNING)
     elsewhere = row.state in (sessions.FOREIGN, sessions.HEADLESS)
     options: List[Tuple[str, str]] = []
-    if row.state != sessions.HEADLESS:
+    if row.state != sessions.HEADLESS and row.agent != "dsh":
         options += [("open-below", "Open below"), ("open-right", "Open to the right")]
+    if row.agent in ("claude", "codex") and (row.cwd or row.agent == "codex"):
+        options.append(("fork", "Fork into a new session"))
     if row.cwd:
-        options += [("fork", "Fork into a new session"),
-                    ("shell", "Terminal in its directory")]
+        options.append(("shell", "Terminal in its directory"))
     options.append(("message", "Send a message..."))
     options.append(("unpin", "Unpin") if row.pinned else ("pin", "Pin to the top"))
     if row.address:
         options += [("copy-address", "Copy address  @%s" % row.address), ("rename", "Rename address...")]
     else:
         options.append(("name", "Name it and copy its address..."))
-    options.append(("copy-id", "Copy Claude session id"))
-    if running:
+    options.append(("copy-id", "Copy " + COPY_ID_LABELS.get(row.agent, "session id")))
+    stops = running and row.agent == "claude"
+    if stops:
         options.append(("stop", "Stop..."))
     if row.archived:
         options.append(("unarchive", "Unarchive"))
-    elif not elsewhere:
-        options.append(("archive", "Stop and archive..." if running else "Archive"))
+    elif not elsewhere and not (row.agent == "pi" and running):
+        options.append(("archive", "Stop and archive..." if stops else "Archive"))
     return options
 
 
@@ -387,7 +400,7 @@ def _suggested_name(row: SessionRow) -> str:
     """An address-book name from the session's title: lowercase letters, digits and '-'."""
     name = "".join(ch if ch.isascii() and ch.isalnum() else "-" for ch in row.title.lower())
     name = "-".join(part for part in name.split("-") if part)[:32].strip("-")
-    return name if name and not name.startswith("-") else "s-" + row.session[:8]
+    return name if name and not name.startswith("-") else "s-" + short_id(row.session)
 
 
 class ReinsPanel(App[None]):
@@ -505,7 +518,7 @@ class ReinsPanel(App[None]):
     def on_mount(self) -> None:
         self._main_screen = self.screen
         self.query_one("#sessions-table", DataTable).add_columns(
-            "", "Session", "Where", "Activity", "Tasks", "Callbacks", "Agent", "Directory"
+            "", "Session", "Where", "Agent", "Activity", "Tasks", "Callbacks", "Directory"
         )
         self.query_one("#tasks-table", DataTable).add_columns(
             "Task", "Title", "State", "Session", "Callback"
@@ -640,7 +653,7 @@ class ReinsPanel(App[None]):
     def _session_display(self, session: Optional[str]) -> str:
         if not session:
             return ""
-        return self._session_titles.get(session, session[:8])
+        return self._session_titles.get(session, short_id(session))
 
     def _show_status(self, message: str, ok: bool = True) -> None:
         bar = self.query_one("#status", Static)
@@ -770,7 +783,7 @@ class ReinsPanel(App[None]):
             if not row.session:
                 self._show_status("task %s has no session" % row.task[:8], ok=False)
                 return
-            self._open(row.session, row.session[:8], direction)
+            self._open(row.session, self._session_display(row.session), direction)
         else:
             self._show_status("enter opens a session from the Sessions or Tasks tab")
 
@@ -779,17 +792,40 @@ class ReinsPanel(App[None]):
             return
         row = self._selected_session() if self._active_tab() == SESSIONS_TAB else None
         initial = row.cwd if row is not None and row.cwd else os.getcwd()
+        self._new_session_worker(initial)
+
+    @work(thread=True, group="actions")
+    def _new_session_worker(self, initial: str) -> None:
+        try:
+            agents = list(self._backend.new_agents())
+        except Exception as exc:
+            self.call_from_thread(self._show_status, "new session: %s" % exc, False)
+            return
+        self.call_from_thread(self._choose_new_agent, agents, initial)
+
+    def _choose_new_agent(self, agents: List[str], initial: str) -> None:
+        if self._modal_open():
+            return
+        if not agents:
+            self._show_status("no Claude Code, Codex or Pi found on PATH", ok=False)
+        elif len(agents) == 1:
+            self._ask_new_directory(agents[0], initial)
+        else:
+            self.push_screen(MenuScreen("New session in", [(agent, AGENT_NAMES.get(agent, agent)) for agent in agents]),
+                             lambda agent: agent and self._ask_new_directory(agent, initial))
+
+    def _ask_new_directory(self, agent: str, initial: str) -> None:
         self.push_screen(
-            TextPromptScreen("Directory for the new session (agent: claude)", initial=initial),
-            self._new_session_ready,
+            TextPromptScreen("Directory for the new %s session" % AGENT_NAMES.get(agent, agent), initial=initial),
+            lambda directory: self._new_session_ready(agent, directory),
         )
 
-    def _new_session_ready(self, directory: Optional[str]) -> None:
+    def _new_session_ready(self, agent: str, directory: Optional[str]) -> None:
         directory = (directory or "").strip()
         if not directory:
             return
-        self._run_action("new session", self._backend.new_session, "claude", directory, once=("new", directory),
-                         busy="starting a session in %s..." % directory)
+        self._run_action("new session", self._backend.new_session, agent, directory, once=("new", directory),
+                         busy="starting a %s session in %s..." % (AGENT_NAMES.get(agent, agent), directory))
 
     def action_stop_session(self) -> None:
         if self._modal_open():
@@ -800,6 +836,15 @@ class ReinsPanel(App[None]):
         row = self._selected_session()
         if row is None:
             self._show_status("no session selected", ok=False)
+            return
+        if row.agent == "codex":
+            self._show_status("Codex unloads an idle thread by itself; close its pane with Alt+x")
+            return
+        if row.agent == "pi":
+            self._show_status("a Pi session ends with its pane: close the pane with Alt+x")
+            return
+        if row.agent == "dsh":
+            self._show_status("stop a DeepSeek Harness session in its own app")
             return
         self._confirm_stop(row)
 
@@ -929,7 +974,7 @@ class ReinsPanel(App[None]):
         self.push_screen(
             MenuScreen("Leave Reins", [
                 ("detach", "Leave; it keeps running, reins tui comes back"),
-                ("end", "End the screen; Claude sessions keep running"),
+                ("end", "End the screen; Claude and Codex keep running, Pi in it ends"),
             ]),
             lambda choice: choice and self._run_action("leave", self._backend.leave, choice == "end"),
         )
@@ -964,7 +1009,7 @@ class ReinsPanel(App[None]):
         elif choice == "copy-address" and row.address:
             self._copy(row.address, "address")
         elif choice == "copy-id":
-            self._copy(row.session, "Claude session id")
+            self._copy(row.session, COPY_ID_LABELS.get(row.agent, "session id"))
         elif choice == "name":
             self.push_screen(
                 TextPromptScreen("Name for %s (lowercase letters, digits, - or _)" % row.title,
@@ -980,7 +1025,7 @@ class ReinsPanel(App[None]):
         elif choice == "stop":
             self._confirm_stop(row)
         elif choice == "archive":
-            if row.state in (sessions.ATTACHED, sessions.RUNNING):
+            if row.agent == "claude" and row.state in (sessions.ATTACHED, sessions.RUNNING):
                 self.push_screen(
                     ConfirmScreen("Stop and archive %s? The conversation is kept." % row.title),
                     lambda yes: yes and self._run_action("archive", backend.archive_session, row.session, True),

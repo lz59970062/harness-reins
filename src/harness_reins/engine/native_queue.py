@@ -40,6 +40,38 @@ def route_fields() -> dict[str, str]:
     return {"callback_codex_bin": executable, "callback_codex_home": str(layout.codex_home().resolve())}
 
 
+def hosted_request(payload: dict[str, object]) -> dict[str, object] | None:
+    """A `cli` Codex callback rerouted through `codex queue`, when its thread is loaded on the shared daemon.
+
+    A thread opened in the Reins panel (or Codex Desktop over SSH, or `codex resume --remote`) lives on the
+    Codex app-server daemon, which runs a queued message by itself (design V21). A headless
+    `codex exec resume` would load the same thread a second time and write it beside the daemon, so for
+    such a thread the queue is the only safe route. A thread that is not loaded keeps the headless resume.
+    """
+    from ..harness.codex import app_server, threads
+    from . import dispatch
+
+    request = payload.get("request")
+    if (not isinstance(request, dict) or request.get("callback_mode") != "cli"
+            or dispatch.request_agent(request) != "codex"):
+        return None
+    target = request.get("target")
+    thread = target.get("session") if isinstance(target, dict) and target.get("kind") == "session" else None
+    if not isinstance(thread, str) or not thread:
+        return None
+    session = payload.get("environment")
+    env = resume_environment.merged(os.environ, session) if isinstance(session, dict) else dict(os.environ)
+    try:
+        if not threads.loaded_on_daemon(thread, env):
+            return None
+    except (app_server.AppServerProtocolError, OSError, ValueError):
+        return None
+    route = route_fields()
+    route["callback_codex_home"] = str(threads.codex_home(env).resolve())
+    requires = [*request.get("requires", []), capabilities.CODEX_QUEUE]
+    return dict(request, **route, callback_mode="codex-queue", requires=sorted(set(requires)))
+
+
 def validate_route(request: dict[str, object]) -> None:
     target = request.get("target")
     if (request.get("agent", "codex") != "codex" or not isinstance(target, dict)
@@ -78,6 +110,12 @@ def inspect_route(request: dict[str, object], *, timeout: float) -> dict[str, ob
                 "end_to_end_verified": False, "action": str(exc)}
 
 
+def queue_timeout(limit: object) -> float:
+    """At most 30 s for `codex queue`, a short CLI call. The daemon's resume limit is None by default (no
+    limit, for long resumed turns); that must not reach float() after the receipt is written."""
+    return 30.0 if limit is None else min(30.0, max(1.0, float(limit)))
+
+
 def publish(payload: dict[str, object]) -> dict[str, object]:
     from . import delivery
 
@@ -104,7 +142,7 @@ def publish(payload: dict[str, object]) -> dict[str, object]:
                                          str(request["target"]["session"]), "--message", str(payload["prompt"])], env)
         result = subprocess.run(command, env=env, stdin=subprocess.DEVNULL,
                                 capture_output=True, text=True, encoding="utf-8",
-                                timeout=min(30, max(1, float(payload["timeout"]))))
+                                timeout=queue_timeout(payload.get("timeout")))
     except OSError as exc:
         record.update(state="not_started", error=str(exc))
         records.write_request(receipt, record)

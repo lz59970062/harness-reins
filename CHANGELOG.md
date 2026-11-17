@@ -21,8 +21,19 @@
   `reins tui` offers to start the screen again when its panel was closed and says so when run inside
   it, and Zellij's own right-click menu is off.
   Session panes keep a title with the session's address and name instead of Claude Code's own.
+  Codex and Pi sessions are listed and open too, each in its own interface: a Codex thread through
+  Codex's shared app-server daemon (`codex resume --remote`), so the pane, Codex Desktop over SSH
+  and the daemon share one thread; a Pi session under `reins pi`. `n` asks which harness to start,
+  Codex threads fork from the menu, and DeepSeek Harness sessions Reins knows are listed for
+  messages and tasks. The Agent column sits beside Where.
   Its Zellij keeps its session index in a local temporary directory, so a `~/.cache` on a network
   filesystem (JuiceFS, NFS) cannot stall it; a Zellij that never answers is stopped with a message.
+- A Codex callback for a thread loaded on the Codex app-server daemon (open in the Reins panel,
+  Codex Desktop over SSH, or `codex resume --remote`) goes through `codex queue` as a new turn in
+  that thread, instead of a headless `codex exec resume` that would write the same thread a second
+  time. A thread that is not loaded keeps the headless resume.
+- Fixed: with the daemon's default resume timeout (no limit), a `codex-queue` or App Server callback
+  crashed after writing its receipt and was reported as an unknown outcome.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session
   (`claude --bg --resume`) under the same id, and the Reins hook delivers into it. You can look in
   with `claude attach` at any time without forking the conversation. On Linux, Claude Code's

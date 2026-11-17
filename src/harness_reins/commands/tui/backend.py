@@ -9,6 +9,8 @@ or `zellij action`), so the panel calls it off the UI thread.
 """
 from __future__ import annotations
 
+import os
+import re
 from dataclasses import dataclass, field, replace
 from typing import Optional, Protocol, Sequence
 
@@ -17,8 +19,8 @@ from ...core import sessions
 
 @dataclass(frozen=True)
 class SessionRow:
-    session: str             # Full session id.
-    agent: str               # "claude" for now; "codex", "pi", "dsh" in 0.15.
+    session: str             # Full session id; a Pi session is its absolute session file.
+    agent: str               # "claude", "codex", "pi" or "dsh".
     state: str               # One of core.sessions.STATES.
     title: str               # The harness's own name for it, else a short id.
     cwd: Optional[str] = None
@@ -31,6 +33,18 @@ class SessionRow:
     address: Optional[str] = None   # Its name in the Reins address book, what `reins send` takes.
     pinned: bool = False            # Kept at the top of the list (the panel's own choice, not Claude's).
     archived: bool = False          # Left out of the list until it is shown again or wakes up.
+
+
+_FILE_ID = re.compile(r"_([0-9A-Za-z-]+)\.jsonl\Z")
+
+
+def short_id(session: str) -> str:
+    """Eight characters a person can tell sessions apart by: an id's start, or for a Pi session file the
+    end of the id in its name."""
+    if os.path.isabs(session):
+        match = _FILE_ID.search(os.path.basename(session))
+        return (match.group(1) if match else os.path.basename(session)).replace("-", "")[-8:]
+    return session[:8]
 
 
 @dataclass(frozen=True)
@@ -85,6 +99,9 @@ class Backend(Protocol):
     def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
         """Show it in a pane: jump to its pane if one has it, else resume and attach (section 5)."""
 
+    def new_agents(self) -> Sequence[str]:
+        """The harnesses a new session can start in, the first being the default."""
+
     def new_session(self, agent: str, cwd: str) -> ActionResult:
         """Start a new session in ``cwd`` and open it in a pane."""
 
@@ -134,6 +151,7 @@ class FakeBackend:
     message_rows: list[MessageRow] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
     calls: list[tuple[str, ...]] = field(default_factory=list)
+    agents: list[str] = field(default_factory=lambda: ["claude"])
 
     def sessions(self) -> Sequence[SessionRow]:
         return list(self.session_rows)
@@ -155,12 +173,17 @@ class FakeBackend:
         row = self._find(session)
         if row is None:
             return ActionResult(False, f"no session {session[:8]}")
+        if row.agent == "dsh":
+            return ActionResult(False, "DeepSeek Harness has no terminal window")
         if row.state == sessions.FOREIGN:
             return ActionResult(False, f"{row.title} is open in another window; close it there to open it here")
         if row.state == sessions.HEADLESS:
             return ActionResult(False, f"{row.title} is finishing a headless turn; open it again in a moment")
         self.session_rows = [replace(r, state=sessions.ATTACHED) if r is row else r for r in self.session_rows]
         return ActionResult(True, f"opened {row.title}")
+
+    def new_agents(self) -> Sequence[str]:
+        return list(self.agents)
 
     def new_session(self, agent: str, cwd: str) -> ActionResult:
         self.calls.append(("new", agent, cwd))
@@ -169,7 +192,7 @@ class FakeBackend:
     def stop_session(self, session: str) -> ActionResult:
         self.calls.append(("stop", session))
         row = self._find(session)
-        if row is None or row.state not in (sessions.ATTACHED, sessions.RUNNING):
+        if row is None or row.agent != "claude" or row.state not in (sessions.ATTACHED, sessions.RUNNING):
             return ActionResult(False, "only a session Reins hosts can be stopped here")
         self.session_rows = [replace(r, state=sessions.STOPPED, activity=None) if r is row else r
                              for r in self.session_rows]

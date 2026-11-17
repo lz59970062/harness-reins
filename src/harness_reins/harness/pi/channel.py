@@ -624,6 +624,26 @@ def _fresh_session(profile: Path, cwd: Path) -> str:
     return session
 
 
+def _write_header(session: str, cwd: Path) -> None:
+    """Pi's documented first line, with the id the file is named by."""
+    ident = Path(session).stem.split("_", 1)[-1]
+    private_files.write_request(Path(session), {"type": "session", "version": 3, "id": ident, "cwd": str(cwd),
+                                                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())})
+
+
+def create_session(cwd: str) -> str:
+    """A new managed session file for ``reins pi --session``. A caller that picks the path itself, like the
+    Reins panel, knows which session a new Pi window is on before Pi starts."""
+    directory = Path(cwd).expanduser().resolve()
+    if not directory.is_dir():
+        raise ValueError("Pi working directory is not a directory")
+    session = _fresh_session(Path(route_fields()["pi_profile_dir"]), directory)
+    if Path(session).exists():
+        raise ValueError("A new Pi session file already exists; try again")
+    _write_header(session, directory)
+    return session
+
+
 def _verify_owner_identity(directory: Path, nonce: str) -> bool:
     from ...install import services
     from ...install import skills as skill_install
@@ -713,9 +733,7 @@ def managed_pi(args: argparse.Namespace) -> int:
         if not Path(session).exists():
             if args.session:
                 raise ValueError("The requested Pi session does not exist")
-            private_files.write_request(Path(session), {"type": "session", "version": 3,
-                                  "id": str(uuid.uuid4()), "cwd": str(cwd),
-                                  "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())})
+            _write_header(session, cwd)
         session_header(session)
         try:
             existing = read_record(directory / "owner.json")

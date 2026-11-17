@@ -135,8 +135,9 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             # cwd under HOME shortens to ~, an absolute path stays.
             self.assertEqual(str(table.get_row_at(0)[7]), "~/att")
             self.assertEqual(str(table.get_row_at(2)[7]), "/home/u/motion")
-            self.assertEqual(str(table.get_row_at(2)[4]), "2")   # running tasks
-            self.assertEqual(str(table.get_row_at(2)[5]), "1")   # pending callbacks
+            self.assertEqual(str(table.get_row_at(2)[3]), "claude")  # the harness, beside where it runs
+            self.assertEqual(str(table.get_row_at(2)[5]), "2")   # running tasks
+            self.assertEqual(str(table.get_row_at(2)[6]), "1")   # pending callbacks
 
             tasks = app.query_one("#tasks-table", DataTable)
             self.assertEqual(tasks.row_count, 3)
@@ -270,7 +271,7 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             table.focus()
             table.move_cursor(row=2)  # cwd /home/u/motion
             await pilot.press("n")
-            await pilot.pause()
+            await settle(app, pilot)
             self.assertIsInstance(app.screen, panel.TextPromptScreen)
             box = app.screen.query_one("#dialog-input", Input)
             self.assertEqual(box.value, "/home/u/motion")
@@ -279,9 +280,9 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertNotIsInstance(app.screen, panel.TextPromptScreen)
             self.assertEqual(backend.calls, [])
-            # Enter submits the directory with the fixed "claude" agent.
+            # With only Claude Code installed there is nothing to choose: Enter submits the directory.
             await pilot.press("n")
-            await pilot.pause()
+            await settle(app, pilot)
             await pilot.press("enter")
             await settle(app, pilot)
             self.assertIn(("new", "claude", "/home/u/motion"), backend.calls)
@@ -441,6 +442,55 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("name", named)
         self.assertNotIn("fork", ids(replace(rows[SESSION_C], cwd=None)))
         self.assertIn("Copy Claude session id", dict(panel._session_menu(rows[SESSION_C])).values())
+
+    def test_each_harness_gets_the_menu_it_can_use(self):
+        codex = SessionRow(session=SESSION_A, agent="codex", state=sessions.RUNNING, title="t", cwd="/w")
+        ids = lambda row: [key for key, _ in panel._session_menu(row)]
+        # Codex: open and fork go through its daemon; it unloads idle threads itself, so there is no stop.
+        self.assertEqual(ids(codex)[:4], ["open-below", "open-right", "fork", "shell"])
+        self.assertNotIn("stop", ids(codex))
+        self.assertIn(("archive", "Archive"), panel._session_menu(codex))
+        self.assertIn("Copy Codex thread id", dict(panel._session_menu(codex)).values())
+        # Pi: no fork Reins can start, and an open session ends with its pane rather than by stop or archive.
+        pi = replace(codex, agent="pi", session="/p/s_x.jsonl", state=sessions.ATTACHED)
+        self.assertNotIn("fork", ids(pi))
+        self.assertNotIn("stop", ids(pi))
+        self.assertNotIn("archive", ids(pi))
+        self.assertIn("archive", ids(replace(pi, state=sessions.CLOSED)))
+        # DeepSeek Harness: nothing to open in a terminal; messages and names still work.
+        dsh = replace(codex, agent="dsh", state=sessions.CLOSED)
+        self.assertNotIn("open-below", ids(dsh))
+        self.assertNotIn("fork", ids(dsh))
+        self.assertIn("message", ids(dsh))
+        self.assertEqual(panel._where(dsh), "DSH app")
+
+    async def test_new_asks_which_harness_when_there_are_several(self):
+        backend = make_backend()
+        backend.agents = ["claude", "codex", "pi"]
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("n")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "codex")
+            self.assertIsInstance(app.screen, panel.TextPromptScreen)
+            self.assertIn("Codex", app.screen._prompt)
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertEqual([call[:2] for call in backend.calls if call[0] == "new"], [("new", "codex")])
+
+    async def test_s_on_a_codex_session_explains_instead_of_stopping(self):
+        backend = make_backend()
+        backend.session_rows = [replace(row, agent="codex") if row.session == SESSION_D else row
+                                for row in backend.session_rows]
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("s")
+            await settle(app, pilot)
+            self.assertNotIsInstance(app.screen, panel.ConfirmScreen)
+            self.assertIn("unloads an idle thread", status_text(app))
+            self.assertNotIn(("stop", SESSION_D), backend.calls)
 
     async def test_o_opens_the_menu_and_open_to_the_right_opens_there(self):
         backend = make_backend()

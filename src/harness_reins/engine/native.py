@@ -105,7 +105,7 @@ def start_delivery(payload: dict[str, object]) -> NativeAppServerDelivery:
     except (ValueError, TypeError) as exc:
         raise app_server.CallbackTransportBlocked(str(exc)) from exc
     target = request["target"]["session"]
-    connection = app_server.AppServerConnection(path, min(15.0, max(1.0, float(payload["timeout"]))))
+    connection = app_server.AppServerConnection(path, min(15.0, max(1.0, float(payload.get("timeout") or 15.0))))
     context = app_server.desktop_delivery_context(payload)
     submitted = False
     try:

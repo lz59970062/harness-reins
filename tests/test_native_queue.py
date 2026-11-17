@@ -79,6 +79,14 @@ class NativeQueueTests(unittest.TestCase):
         self.assertEqual(receipt["message_id"], MESSAGE)
         self.assertEqual(receipt["state"], "queued")
 
+    def test_the_daemons_default_no_limit_still_publishes(self):
+        # `reins daemon` passes timeout None by default; publishing used to crash on it after writing its
+        # receipt, which the daemon then reported as an unknown outcome.
+        self.payload["timeout"] = None
+        value, run = self.publish()
+        self.assertEqual(value["returncode"], native_queue.PUBLISHED_RETURN_CODE)
+        self.assertEqual(run.call_args.kwargs["timeout"], 30.0)
+
     def test_second_publication_never_calls_codex(self):
         self.publish()
         value, run = self.publish()

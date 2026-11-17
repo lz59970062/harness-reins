@@ -1,8 +1,8 @@
 # Terminal UI: reins tui
 
-One terminal and one login show every Claude Code session on this machine, with the tasks, goals and messages they
-started, and open any session in a pane beside them in Claude Code's own interface. A session only ever has one
-process, so nothing forks.
+One terminal and one login show every Claude Code, Codex and Pi session on this machine, with the tasks, goals and
+messages they started, and open any session in a pane beside them in its own harness's interface. A session only
+ever has one process, so nothing forks.
 
 ```bash
 reins tui
@@ -30,9 +30,11 @@ The Reins panel on the left has four tabs:
 - **Goals**: plans and progress.
 - **Messages**: messages between sessions.
 
-The panel opens the panes on the right: a session pane runs `claude attach`, a log pane runs `reins log`. A
-session pane's title reads `claude <id> @address title`, the same names as the panel; Claude Code's own terminal
-title does not replace it. The panel
+The panel opens the panes on the right: a session pane runs `claude attach`, `codex resume --remote` or `reins pi`
+(see [Codex, Pi and DeepSeek Harness](#codex-pi-and-deepseek-harness)), a log pane runs `reins log`. A session
+pane's title reads `<harness> <id> @address title`, such as `claude 08e8651e @lab motion plots`, the same names as
+the panel; the harness's own terminal title does not replace it, and a pane you rename gets its name back within 3
+seconds, since the panel finds a session's pane by that name. The panel
 keeps its width: the first pane takes the hint's place on the right, and later sessions, logs and terminals open
 below or to the right of the newest pane there (`d` switches which), instead of squeezing the panel.
 
@@ -41,12 +43,12 @@ below or to the right of the newest pane there (`d` switches which), instead of 
 | Key | Does |
 | --- | --- |
 | `Enter` or double-click | Open the selected session, or jump to its pane if it is already open. On Tasks, open the session that started the task. A single click only selects |
-| `n` | Start a new Claude Code session in a directory you choose |
+| `n` | Start a new Claude Code, Codex or Pi session in a directory you choose; with more than one installed, it asks which |
 | `l` | Follow a task's output |
 | `t` | Open a terminal in the selected session's directory |
 | `d` | Switch whether new panes open below or to the right; the footer shows which |
 | `m` | Send the selected session a message |
-| `s` | Stop a session, after a confirmation. The conversation stays, and `Enter` opens it again |
+| `s` | Stop a Claude Code session, after a confirmation. The conversation stays, and `Enter` opens it again |
 | `c` | Cancel a task's callback, after a confirmation |
 | `o` or right-click | Open the selected session's menu (below) |
 | `a` | Show or hide archived sessions |
@@ -67,13 +69,14 @@ line per problem with what to do.
 | Send a message... | Same as `m` |
 | Pin to the top / Unpin | Keep it at the top. Only the Reins panel changes, not Claude's own list |
 | Copy address / Name it... / Rename address... | Copy, add or change its address in the Reins address book (below) |
-| Copy Claude session id | Copy Claude Code's session id, the one `claude attach` and `claude --resume` take |
+| Copy Claude session id / Codex thread id / Pi session file | Copy the id the harness itself takes: `claude --resume`, `codex resume`, `pi --session` |
 | Stop... | Same as `s`, after a confirmation |
 | Archive / Stop and archive... / Unarchive | Fold it out of the list, stopping it first if it runs (after a confirmation). The conversation stays. It comes back by itself when it runs again, starts a task, or has a callback waiting; `a` shows archived sessions |
 
 Pins and archives live only in a file of Reins' own (`~/.reins/tui/sessions.json`); nothing is deleted. Claude Code
 cannot rename a session or delete one conversation from outside it, so the menu has neither; rename a session with
-`/rename` inside it.
+`/rename` inside it. The menu shows only what a session's harness supports: Stop is for Claude Code, Fork for Claude
+Code and Codex, and a DeepSeek Harness session has no Open.
 
 ### Copying a session's address
 
@@ -105,11 +108,11 @@ the terminal. Clicking a pane and scrolling with the wheel work too.
 | Keys | Does | The session |
 | --- | --- | --- |
 | `Alt+←/→/↑/↓` | Move between panes | |
-| `Alt+x` | Close the focused pane | Keeps running in the background |
+| `Alt+x` | Close the focused pane | Claude Code and Codex keep running in the background; a Pi session ends |
 | `Alt+f` | Fullscreen the focused pane, or back | |
 | `Alt+=` / `Alt+-` | Grow / shrink the focused pane | |
 | `Alt+d` | Leave for now; run `reins tui` to come back | Layout and panes stay |
-| `Alt+q` | End the whole screen | Claude sessions keep running in the background |
+| `Alt+q` | End the whole screen | Claude Code and Codex keep running in the background; Pi sessions in it end |
 
 `Ctrl+Q` in the panel also leaves: choose to leave for now (as `Alt+d`) or end the whole screen (as `Alt+q`).
 
@@ -122,14 +125,37 @@ key works:
 Until then, use `Ctrl+Q` in the panel to leave or end the screen.
 
 If the panel's pane gets closed, run `reins tui` again: it offers to start the screen again. Claude sessions keep
-running, and a double click in the new panel opens them again. Run inside the screen, `reins tui` says that you are
+running (and Codex threads stay on their daemon), and a double click in the new panel opens them again. Run inside the screen, `reins tui` says that you are
 already there.
 
 To stop a session, select it in the panel and press `s`: its process stops and the conversation stays.
 
+## Codex, Pi and DeepSeek Harness
+
+Every harness opens in its own interface, and Reins keeps the same promise for each: one process per session.
+
+| Harness | Listed from | A session pane runs | When its pane closes | Callbacks while it is open |
+| --- | --- | --- | --- | --- |
+| Claude Code | `claude agents` | `claude attach`, a background session | It keeps running | The Reins hook in the session |
+| Codex | Codex's app-server daemon | `codex resume --remote`, the thread on the daemon | It stays on the daemon, which unloads it once idle | `codex queue`, as a new turn in that thread |
+| Pi | Pi's session files | `reins pi`, Pi with the Reins extension and writer lease | Pi ends with its pane | The Reins Pi extension |
+| DeepSeek Harness | The Reins address book and tasks | Nothing: it has no terminal interface | | Its live `reins wait` |
+
+- **Codex** sessions open through Codex's shared app-server daemon (`codex app-server daemon`), so the Reins pane,
+  Codex Desktop over SSH and `codex resume --remote` all show the same thread. Reins starts the daemon when it is not
+  running. A Codex window opened without `--remote` writes its thread itself: the panel shows it as open in a
+  terminal and does not open it again. A new Codex session appears in the list after its first message.
+- A Codex callback runs with the thread's own permissions. In Codex's default `workspace-write` sandbox, `~/.reins` is
+  read-only, so the agent asks to run `reins ack` with escalated permissions. To skip that prompt, add `~/.reins` to
+  `writable_roots` under `[sandbox_workspace_write]` in `~/.codex/config.toml`.
+- **Pi** has no daemon: its session lives in its pane. Pi sessions opened elsewhere with the Reins extension show as
+  open in a terminal; one opened without it cannot be seen.
+- **DeepSeek Harness** sessions that have a Reins name or started tasks are listed so you can message them, copy
+  their address and follow their tasks. Open them in DeepSeek Harness's web or desktop app.
+
 ## What opening a session does
 
-You only press `Enter` or double-click; Reins picks the way from the session's state:
+You only press `Enter` or double-click; Reins picks the way from the session's state. For a Claude Code session:
 
 | Session | Reins |
 | --- | --- |

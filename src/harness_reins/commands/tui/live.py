@@ -1,8 +1,9 @@
-"""The panel's live backend: Claude's own session list, the Reins queue, and the Zellij session around it.
+"""The panel's live backend: each harness's own session list, the Reins queue, and the Zellij session around it.
 
 Nothing here keeps state between calls (design invariant 2): each read asks
-Claude, the queue files and Zellij again. The only thing the panel stores is
-which sessions the user pinned or archived, in one small file of its own.
+Claude (`claude agents`), the Codex daemon, Pi's session files, the queue files
+and Zellij again. The only thing the panel stores is which sessions the user
+pinned or archived, in one small file of its own.
 """
 from __future__ import annotations
 
@@ -27,10 +28,14 @@ from ...core.sessions import SessionView
 from ...engine import claude_background
 from ...harness.claude import agents as claude_agents
 from ...harness.claude import session as claude_session
+from ...harness.codex import app_server as codex_app_server
+from ...harness.codex import threads as codex_threads
+from ...harness.pi import channel as pi_channel
+from ...harness.pi import sessions as pi_sessions
 from ...install import skills as skill_install
 from ...runtime import worker_command
 from ...store import layout, link, records
-from .backend import BELOW, ActionResult, GoalRow, MessageRow, SessionRow, TaskRow
+from .backend import BELOW, ActionResult, GoalRow, MessageRow, SessionRow, TaskRow, short_id
 
 Run = Callable[..., "subprocess.CompletedProcess[str]"]
 
@@ -187,15 +192,21 @@ class Zellij:
             raise RuntimeError(f"zellij kill-session failed: {(result.stderr or result.stdout or '').strip()}")
 
 
-_PANE_NAME = re.compile(r"claude ([0-9a-f]{8})\b")
+# Harnesses whose sessions open in a Reins pane. DeepSeek Harness has no terminal interface.
+PANE_AGENTS = ("claude", "codex", "pi")
+NEW_AGENTS = PANE_AGENTS
+_PANE_NAME = re.compile(r"(claude|codex|pi) ([0-9a-f]{8})\b")
+CODEX_NEW_PREFIX = "codex new "
+DSH_NO_WINDOW = ("DeepSeek Harness has no terminal window; open this session in its web or desktop app. "
+                 "Messages and logs work here.")
 
 
-def pane_name(handle: str, title: str, address: Optional[str] = None) -> str:
-    """How Reins names a session pane: its address and title, so a person tells panes apart.
+def pane_name(handle: str, title: str, address: Optional[str] = None, agent: str = "claude") -> str:
+    """How Reins names a session pane: harness, handle, address and title, so a person tells panes apart.
 
-    attached_handles reads the handle back from the start.
+    attached_handles reads the harness and handle back from the start.
     """
-    return (f"claude {handle}" + (f" @{address}" if address else "")
+    return (f"{agent} {handle}" + (f" @{address}" if address else "")
             + (f" {title}" if title and title != handle else ""))
 
 
@@ -213,14 +224,16 @@ def _is_panel(pane: Mapping[str, object]) -> bool:
 
 
 def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool, direction: str = BELOW,
-          cwd: Optional[str] = None, keep_name: bool = False) -> None:
-    """``keep_name``: rename the new pane so its program's own terminal title does not replace ``name``."""
+          cwd: Optional[str] = None, keep_name: bool = False) -> str:
+    """Open a pane and return its id. ``keep_name``: rename it so its program's own terminal title does not
+    replace ``name``."""
     pane = _place(zellij, argv, name=name, close_on_exit=close_on_exit, direction=direction, cwd=cwd)
     if keep_name and pane.startswith("terminal_"):
         try:
             zellij.rename(pane, name)
         except (RuntimeError, OSError):
             pass  # Only the frame's label; the pane itself works.
+    return pane
 
 
 def _place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool, direction: str = BELOW,
@@ -247,8 +260,8 @@ def _place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: b
     return zellij.new_pane(argv, name=name, close_on_exit=close_on_exit, cwd=cwd, direction="right")
 
 
-def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[str, str]:
-    """Session panes that are still open: handle -> pane id.
+def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[tuple[str, str], str]:
+    """Session panes that are still open: (harness, handle) -> pane id.
 
     Zellij reports a pane's command only while it knows the foreground
     process, so the pane name Reins gave it is read first.
@@ -259,18 +272,27 @@ def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[str, str]:
             continue
         name = pane.get("title")
         match = _PANE_NAME.match(name) if isinstance(name, str) else None
-        handle = match.group(1) if match else None
+        key = (match.group(1), match.group(2)) if match else None
         command = pane.get("terminal_command")
-        if handle is None and isinstance(command, str):
+        if key is None and isinstance(command, str):
             try:
                 words = shlex.split(command)
             except ValueError:
                 words = []
             if len(words) >= 3 and words[-2] == "attach" and Path(words[-3]).name.startswith("claude"):
-                handle = words[-1]
-        if handle:
-            found[handle] = f"terminal_{pane.get('id')}"
+                key = ("claude", words[-1])
+        if key:
+            found[key] = f"terminal_{pane.get('id')}"
     return found
+
+
+def mark_attached(view: SessionView, handles: Mapping[tuple[str, str], str]) -> SessionView:
+    """A session whose one process shows in a Reins pane. Pi has no daemon: its process is the pane's."""
+    if (view.agent, view.handle or "") not in handles:
+        return view
+    if view.state == sessions.RUNNING or (view.agent == "pi" and view.state == sessions.FOREIGN):
+        return replace(view, state=sessions.ATTACHED)
+    return view
 
 
 def read_record(path: Path) -> Optional[dict]:
@@ -353,7 +375,9 @@ def health_lines(report: Mapping[str, object]) -> list[str]:
 class LiveBackend:
     def __init__(self, *, queue_root: Optional[Path] = None, environment: Optional[Mapping[str, str]] = None,
                  zellij: Optional[Zellij] = None, run: Run = subprocess.run,
-                 now: Callable[[], float] = time.time) -> None:
+                 now: Callable[[], float] = time.time,
+                 codex_connect: Optional[codex_threads.Connect] = None,
+                 codex_writers: Optional[Callable[[], Mapping[str, tuple[int, bool]]]] = None) -> None:
         self.root = (queue_root or layout.queue_dir(None)).expanduser().absolute()
         given = dict(os.environ if environment is None else environment)
         self.environment = user_environment(given)
@@ -361,6 +385,12 @@ class LiveBackend:
         self.zellij = zellij
         self.run = run
         self.now = now
+        self._codex_connect = codex_connect
+        self._codex_writers = codex_writers
+        self._agents: dict[str, str] = {}  # session -> harness, as last listed; tells which harness to ask.
+        self._remembered: dict[str, SessionView] = {}  # Sessions only Reins knows of (DeepSeek Harness).
+        # New Codex windows whose thread is not listed yet (Codex lists it after its first turn): pane, cwd, when.
+        self._codex_new: list[tuple[str, str, float]] = []
 
     # Reads.
 
@@ -383,13 +413,30 @@ class LiveBackend:
         records.sort(key=lambda record: -(_when(record.get("submitted_at")) or 0))
         return records[:MAX_ROWS]
 
+    # Each harness's own list. One that fails (no daemon, unreadable files) leaves only its rows out.
+
+    def _codex_others(self) -> Mapping[str, tuple[int, bool]]:
+        return self._codex_writers() if self._codex_writers else codex_threads.writers()
+
+    def _codex_views(self) -> list[SessionView]:
+        try:
+            return codex_threads.session_views(self.environment, connect=self._codex_connect,
+                                               others=self._codex_others())
+        except (codex_app_server.AppServerProtocolError, OSError, ValueError):
+            return []
+
+    def _pi_views(self) -> list[SessionView]:
+        try:
+            return pi_sessions.session_views(self.environment)
+        except (OSError, ValueError):
+            return []
+
     def _views(self, panes: Optional[list] = None) -> list[SessionView]:
-        views = claude_agents.session_views(self.environment, run=self.run)
+        views = [*claude_agents.session_views(self.environment, run=self.run), *self._codex_views(), *self._pi_views()]
         if panes is None:
             panes = self.zellij.panes() if self.zellij else []
         handles = attached_handles(panes)
-        return [replace(view, state=sessions.ATTACHED) if view.state == sessions.RUNNING and view.handle in handles
-                else view for view in views]
+        return [mark_attached(view, handles) for view in views]
 
     def _name_panes(self, panes: list, views: Sequence[SessionView], addresses: Mapping[str, str]) -> None:
         """Give open session panes their current name: older panes, renamed sessions, new addresses."""
@@ -397,16 +444,35 @@ class LiveBackend:
             return
         titles = {f"terminal_{pane.get('id')}": pane.get("title") for pane in panes}
         handles = attached_handles(panes)
+        self._adopt_codex_windows(panes, views, handles)
         for view in views:
-            pane = handles.get(view.handle or "")
+            pane = handles.get((view.agent, view.handle or ""))
             if pane is None:
                 continue
-            name = pane_name(view.handle or "", view.name or view.session[:8], addresses.get(view.session))
+            name = pane_name(view.handle or "", view.name or short_id(view.session), addresses.get(view.session),
+                             view.agent)
             if titles.get(pane) != name:
                 try:
                     self.zellij.rename(pane, name)
                 except (RuntimeError, OSError):
                     return
+
+    def _adopt_codex_windows(self, panes: list, views: Sequence[SessionView],
+                             handles: dict[tuple[str, str], str]) -> None:
+        """Name a new Codex window after its thread once Codex lists that thread, so Enter finds the pane."""
+        open_panes = {f"terminal_{pane.get('id')}" for pane in panes if not pane.get("exited")}
+        waiting = [(pane, cwd, since) for pane, cwd, since in self._codex_new
+                   if pane in open_panes and self.now() - since < 3600]
+        taken = {handle for agent, handle in handles if agent == "codex"}
+        for pane, cwd, since in list(waiting):
+            found = sorted((view for view in views if view.agent == "codex" and view.state == sessions.RUNNING
+                            and view.cwd == cwd and (view.started_at or 0) >= since - 5
+                            and view.handle not in taken), key=lambda view: view.started_at or 0)
+            if found:
+                taken.add(found[0].handle or "")
+                handles[("codex", found[0].handle or "")] = pane
+                waiting.remove((pane, cwd, since))
+        self._codex_new = waiting
 
     def sessions(self) -> Sequence[SessionRow]:
         panes = self.zellij.panes() if self.zellij else []
@@ -425,7 +491,8 @@ class LiveBackend:
             if session and not layout.ack_path(self.root, path.stem).exists():
                 pending[session] = pending.get(session, 0) + 1
         goals = {row.session: row.task for row in self.goals() if not row.state.startswith(FINISHED_GOAL_PREFIXES)}
-        addresses = {str(record.get("session")): str(record["name"]) for record in link.sessions(self.root)
+        book = link.sessions(self.root)
+        addresses = {str(record.get("session")): str(record["name"]) for record in book
                      if isinstance(record.get("name"), str)}
         self._name_panes(panes, live_views, addresses)
         choices = self._choices()
@@ -435,12 +502,18 @@ class LiveBackend:
             if session:
                 latest[session] = max(latest.get(session, 0.0), _when(record.get("submitted_at")) or 0.0)
         # Closed sessions are listed when Reins has worked with them lately: that is how a user finds them again.
+        # DeepSeek Harness has no session list Reins can read, so its named sessions are listed too.
         for record in tasks:
             session = session_of(record)
-            if session and session not in views and record.get("agent") in (None, "claude"):
-                views[session] = SessionView(agent="claude", session=session, state=sessions.CLOSED,
-                                             cwd=record.get("cwd") if isinstance(record.get("cwd"), str) else None,
-                                             started_at=_when(record.get("submitted_at")))
+            agent = record.get("agent") if isinstance(record.get("agent"), str) else "claude"
+            if session and session not in views:
+                views[session] = self._closed_view(agent, session, record.get("cwd"), _when(record.get("submitted_at")))
+        for record in book:
+            session = record.get("session")
+            if record.get("harness") == "dsh" and isinstance(session, str) and session not in views:
+                views[session] = self._closed_view("dsh", session, record.get("cwd"), _when(record.get("registered_at")))
+        self._agents = {view.session: view.agent for view in views.values()}
+        self._remembered = {view.session: view for view in views.values() if view.agent == "dsh"}
         def archived(view: SessionView) -> bool:
             # Archived until it does something again: runs, gets a task, or has a result waiting.
             since = choices["archived"].get(view.session)
@@ -448,7 +521,7 @@ class LiveBackend:
                     and latest.get(view.session, 0.0) <= since)
 
         return [SessionRow(session=view.session, agent=view.agent, state=view.state,
-                           title=view.name or view.session[:8], cwd=view.cwd, activity=view.activity, host=view.host,
+                           title=view.name or short_id(view.session), cwd=view.cwd, activity=view.activity, host=view.host,
                            tasks_running=running.get(view.session, 0), callbacks_pending=pending.get(view.session, 0),
                            goal=goals.get(view.session), started_at=view.started_at,
                            address=addresses.get(view.session), pinned=view.session in choices["pinned"],
@@ -479,11 +552,45 @@ class LiveBackend:
         path.parent.mkdir(parents=True, exist_ok=True)
         records.write_private_text(path, json.dumps(choices, indent=2, sort_keys=True) + "\n")
 
+    @staticmethod
+    def _closed_view(agent: str, session: str, cwd: object, when: Optional[float]) -> SessionView:
+        handle = (codex_threads.handle(session) if agent == "codex" else pi_sessions.handle(session) if agent == "pi"
+                  else None)
+        return SessionView(agent=agent, session=session, state=sessions.CLOSED, handle=handle,
+                           cwd=cwd if isinstance(cwd, str) else None, started_at=when)
+
+    def _agent_of(self, session: str) -> Optional[str]:
+        """The harness as last listed; a path is a Pi session file; None when this panel has not seen it."""
+        return self._agents.get(session) or ("pi" if os.path.isabs(session) else None)
+
+    def _codex_view(self, session: str) -> Optional[SessionView]:
+        try:
+            return codex_threads.session_view(session, self.environment, connect=self._codex_connect,
+                                              others=self._codex_others())
+        except (codex_app_server.AppServerProtocolError, OSError, ValueError):
+            return None
+
     def _view(self, session: str) -> Optional[SessionView]:
-        view = next((view for view in self._views() if view.session == session), None)
+        """The session's state now, asked of its own harness. A session this panel has not listed yet (from
+        `reins tui <id>`) is looked up in Claude Code, then in Codex."""
+        agent = self._agent_of(session)
+        if agent == "dsh":
+            return self._remembered.get(session)
+        panes = self.zellij.panes() if self.zellij else []
+        handles = attached_handles(panes)
+        if agent == "codex":
+            view = self._codex_view(session) or self._closed_view("codex", session, None, None)
+            return mark_attached(view, handles)
+        if agent == "pi":
+            view = pi_sessions.session_view(session, self.environment)
+            return mark_attached(view, handles) if view is not None else None
+        views = claude_agents.session_views(self.environment, run=self.run)
+        view = next((view for view in views if view.session == session), None)
         if view is None:
             view = claude_agents.session_view(session, self.environment, views=(), run=self.run)
-        return view
+        if view is None and agent is None:
+            view = self._codex_view(session)
+        return mark_attached(view, handles) if view is not None else None
 
     def tasks(self) -> Sequence[TaskRow]:
         callbacks = self._callback_states()
@@ -538,28 +645,76 @@ class LiveBackend:
 
     def _attach(self, view_title: str, handle: str, direction: str = BELOW,
                 address: Optional[str] = None) -> ActionResult:
+        return self._open_pane("claude", handle, view_title,
+                               lambda: claude_background.attach_command(handle, self.environment), direction, address)
+
+    def _open_pane(self, agent: str, handle: str, title: str, argv: Callable[[], Sequence[str]],
+                   direction: str = BELOW, address: Optional[str] = None, cwd: Optional[str] = None) -> ActionResult:
+        """Move to the session's pane, or open one running ``argv()``."""
         if self.zellij is None:
             return ActionResult(False, "not inside the Reins Zellij session")
         handles = attached_handles(self.zellij.panes())
-        if handle in handles:
-            self.zellij.focus(handles[handle])
-            return ActionResult(True, f"{view_title} is already open; moved to its pane")
-        place(self.zellij, self._pane(claude_background.attach_command(handle, self.environment)),
-              name=pane_name(handle, view_title, address),
-              close_on_exit=True, direction=direction, keep_name=True)
-        return ActionResult(True, f"opened {view_title}")
+        if (agent, handle) in handles:
+            self.zellij.focus(handles[(agent, handle)])
+            return ActionResult(True, f"{title} is already open; moved to its pane")
+        place(self.zellij, self._pane(argv()), name=pane_name(handle, title, address, agent),
+              close_on_exit=True, direction=direction, cwd=cwd if cwd and os.path.isdir(cwd) else None,
+              keep_name=True)
+        return ActionResult(True, f"opened {title}")
 
-    def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
-        view = self._view(session)
-        if view is None:
-            return ActionResult(False, f"no Claude session {session[:8]} on this machine")
-        title = view.name or session[:8]
+    @staticmethod
+    def _elsewhere(view: SessionView, title: str) -> Optional[ActionResult]:
+        """Refuse a session whose one process is somewhere Reins does not host (invariant 1)."""
         if view.state == sessions.FOREIGN:
             where = {sessions.HOST_DESKTOP: "the Claude desktop app"}.get(view.host or "", "another terminal")
             return ActionResult(False, f"{title} is open in {where}" + (f" (pid {view.pid})" if view.pid else "")
                                 + "; close it there to open it here. Messages and logs still work.")
         if view.state == sessions.HEADLESS:
             return ActionResult(False, f"{title} is finishing a headless Reins turn; open it again when that ends")
+        return None
+
+    def _ensure_codex_daemon(self) -> Optional[ActionResult]:
+        """Codex windows opened here go through its shared daemon; start the daemon when it is not running."""
+        if codex_threads.executable(self.environment) is None:
+            return ActionResult(False, "Codex was not found on PATH (or set REINS_CODEX_BIN)")
+        if self._codex_connect is not None or codex_threads.available(self.environment):
+            return None
+        try:
+            result = self.run(codex_threads.start_daemon_command(self.environment), stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                              check=False, env=self.environment)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return ActionResult(False, f"could not start the Codex app-server daemon: {exc}")
+        if result.returncode != 0 or not codex_threads.available(self.environment):
+            detail = ((result.stderr or result.stdout or "").strip().splitlines() or ["no socket appeared"])[-1]
+            return ActionResult(False, f"could not start the Codex app-server daemon: {detail}")
+        return None
+
+    def open_session(self, session: str, direction: str = BELOW) -> ActionResult:
+        view = self._view(session)
+        if view is None:
+            return ActionResult(False, f"no session {short_id(session)} on this machine")
+        title = view.name or short_id(session)
+        if view.agent == "dsh":
+            return ActionResult(False, DSH_NO_WINDOW)
+        refused = self._elsewhere(view, title)
+        if refused is not None:
+            return refused
+        address = self._session_name(session)
+        if view.agent == "codex":
+            refused = self._ensure_codex_daemon()
+            if refused is not None:
+                return refused
+            return self._open_pane("codex", view.handle or codex_threads.handle(session), title,
+                                   lambda: codex_threads.resume_command(session, self.environment), direction,
+                                   address, view.cwd)
+        if view.agent == "pi":
+            if not view.cwd or not os.path.isdir(view.cwd):
+                return ActionResult(False, f"{title} belongs to {view.cwd or 'an unknown directory'}, which is not "
+                                           "here any more; Pi can only open it from there")
+            return self._open_pane("pi", view.handle or pi_sessions.handle(session), title,
+                                   lambda: pi_sessions.open_command(session, view.cwd or ""), direction, address,
+                                   view.cwd)
         try:
             if view.state == sessions.CLOSED:
                 if not view.cwd:
@@ -568,29 +723,65 @@ class LiveBackend:
                                                   settings=self._settings(), run=self.run)
             else:
                 handle = view.handle or session[:8]
-            return self._attach(title, handle, direction, address=self._session_name(session))
+            return self._attach(title, handle, direction, address=address)
         except claude_background.StartedCopy:
             return ActionResult(False, f"{title} was opened somewhere else just now; try again when it closes")
         except (claude_background.BackgroundError, RuntimeError, OSError) as exc:
             return ActionResult(False, str(exc))
 
+    def new_agents(self) -> Sequence[str]:
+        """The harnesses a new session can start in: the ones installed here."""
+        found = []
+        if claude_session.discover_executable(self.environment) is not None:
+            found.append("claude")
+        if codex_threads.executable(self.environment):
+            found.append("codex")
+        if self.environment.get("REINS_PI_BIN") or shutil.which("pi", path=self.environment.get("PATH")):
+            found.append("pi")
+        return found
+
     def new_session(self, agent: str, cwd: str) -> ActionResult:
-        if agent != "claude":
-            return ActionResult(False, f"{agent} sessions come in a later version")
-        directory = os.path.expanduser(cwd)
+        directory = os.path.abspath(os.path.expanduser(cwd))
         if not os.path.isdir(directory):
             return ActionResult(False, f"no directory {cwd}")
+        if agent not in NEW_AGENTS:
+            return ActionResult(False, DSH_NO_WINDOW if agent == "dsh" else f"Reins cannot start {agent} sessions")
         try:
+            if agent == "codex":
+                return self._new_codex(directory)
+            if agent == "pi":
+                session = pi_channel.create_session(directory)
+                handle = pi_sessions.handle(session)
+                return self._open_pane("pi", handle, f"new in {os.path.basename(directory) or directory}",
+                                       lambda: pi_sessions.open_command(session, directory), cwd=directory)
             handle = claude_background.start(directory, self.environment, settings=self._settings(), run=self.run)
             return self._attach(handle, handle)
-        except (claude_background.BackgroundError, RuntimeError, OSError) as exc:
+        except (claude_background.BackgroundError, RuntimeError, OSError, ValueError) as exc:
             return ActionResult(False, str(exc))
+
+    def _new_codex(self, directory: str) -> ActionResult:
+        refused = self._ensure_codex_daemon()
+        if refused is not None:
+            return refused
+        if self.zellij is None:
+            return ActionResult(False, "not inside the Reins Zellij session")
+        since = self.now()
+        pane = place(self.zellij, self._pane(codex_threads.new_command(directory, self.environment)),
+                     name=f"{CODEX_NEW_PREFIX}{os.path.basename(directory) or directory}", close_on_exit=True,
+                     cwd=directory, keep_name=True)
+        if pane.startswith("terminal_"):
+            self._codex_new.append((pane, directory, since))
+        return ActionResult(True, f"opened a new Codex session in {directory}; it is listed after its first message")
 
     def fork_session(self, session: str, direction: str = BELOW) -> ActionResult:
         view = self._view(session)
         if view is None:
-            return ActionResult(False, f"no Claude session {session[:8]} on this machine")
-        title = view.name or session[:8]
+            return ActionResult(False, f"no session {short_id(session)} on this machine")
+        title = view.name or short_id(session)
+        if view.agent == "codex":
+            return self._fork_codex(session, title, direction)
+        if view.agent != "claude":
+            return ActionResult(False, f"Reins cannot fork {view.agent} sessions")
         if not view.cwd:
             return ActionResult(False, f"cannot tell which directory {title} belongs to")
         name = f"{title} (fork)"
@@ -601,20 +792,34 @@ class LiveBackend:
         except (claude_background.BackgroundError, RuntimeError, OSError) as exc:
             return ActionResult(False, str(exc))
 
+    def _fork_codex(self, session: str, title: str, direction: str) -> ActionResult:
+        refused = self._ensure_codex_daemon()
+        if refused is not None:
+            return refused
+        try:
+            with codex_threads.Daemon(self.environment, connect=self._codex_connect) as daemon:
+                fork = daemon.fork(session)
+        except (codex_app_server.AppServerProtocolError, OSError, ValueError) as exc:
+            return ActionResult(False, f"Codex could not fork {title}: {exc}")
+        name = f"{title} (fork)"
+        return self._open_pane("codex", codex_threads.handle(fork), name,
+                               lambda: codex_threads.resume_command(fork, self.environment), direction)
+
     def pin_session(self, session: str, pinned: bool) -> ActionResult:
         try:
             self._choose("pinned", session, pinned)
         except OSError as exc:
             return ActionResult(False, f"cannot save the pin: {exc}")
-        return ActionResult(True, ("pinned " if pinned else "unpinned ") + session[:8])
+        return ActionResult(True, ("pinned " if pinned else "unpinned ") + short_id(session))
 
     def archive_session(self, session: str, archived: bool) -> ActionResult:
         view = self._view(session) if archived else None
-        title = (view.name if view else None) or session[:8]
+        title = (view.name if view else None) or short_id(session)
         if view is not None and view.state in (sessions.FOREIGN, sessions.HEADLESS):
             return ActionResult(False, f"{title} is open elsewhere; close it there first")
         stopped = ""
-        if view is not None and view.state in (sessions.ATTACHED, sessions.RUNNING) and view.handle:
+        if (view is not None and view.agent == "claude" and view.state in (sessions.ATTACHED, sessions.RUNNING)
+                and view.handle):
             try:
                 claude_background.stop(view.handle, self.environment, run=self.run)
             except claude_background.BackgroundError as exc:
@@ -629,14 +834,19 @@ class LiveBackend:
         return ActionResult(True, f"{stopped}archived {title}; it comes back when it gets work, or press a to see it")
 
     def stop_session(self, session: str) -> ActionResult:
-        view = next((view for view in self._views() if view.session == session), None)
+        agent = self._agent_of(session)
+        if agent == "codex":
+            return ActionResult(False, "Codex unloads an idle thread by itself; close its pane with Alt+x")
+        if agent == "pi":
+            return ActionResult(False, "a Pi session runs in its pane; close the pane (Alt+x) to stop it")
+        view = self._view(session)
         if view is None or view.state not in (sessions.ATTACHED, sessions.RUNNING) or not view.handle:
             return ActionResult(False, "only a background session that is running can be stopped here")
         try:
             claude_background.stop(view.handle, self.environment, run=self.run)
         except claude_background.BackgroundError as exc:
             return ActionResult(False, str(exc))
-        return ActionResult(True, f"stopped {view.name or session[:8]}; its conversation stays and opens again with Enter")
+        return ActionResult(True, f"stopped {view.name or short_id(session)}; its conversation stays and opens again with Enter")
 
     def show_log(self, task: str, direction: str = BELOW) -> ActionResult:
         if self.zellij is None:
@@ -679,7 +889,9 @@ class LiveBackend:
         return None
 
     def send_message(self, recipient: str, text: str) -> ActionResult:
-        name = self._session_name(recipient) if sessions.FULL_ID.fullmatch(recipient) else recipient
+        name = (self._session_name(recipient)
+                if sessions.FULL_ID.fullmatch(recipient) or recipient in self._agents or os.path.isabs(recipient)
+                else recipient)
         if name is None:
             return ActionResult(False, "this session has no Reins name yet: "
                                        "right-click it (or press o) and name it first")
@@ -691,7 +903,7 @@ class LiveBackend:
     def name_session(self, session: str, name: str, rename: bool = False) -> ActionResult:
         view = self._view(session)
         if view is None:
-            return ActionResult(False, f"no Claude session {session[:8]} on this machine")
+            return ActionResult(False, f"no session {short_id(session)} on this machine")
         arguments = ["session", "register", name, "--agent", view.agent, "--session", session]
         if view.cwd:
             arguments += ["--cwd", view.cwd]

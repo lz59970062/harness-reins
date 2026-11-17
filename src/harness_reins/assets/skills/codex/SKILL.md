@@ -8,8 +8,9 @@ description: Run long jobs (training, benchmarks, builds, test suites, deploymen
 Reins hands a long command to an independent OS task owner (systemd on Linux, launchd on macOS,
 Task Scheduler on Windows; `screen` as fallback) and queues a callback when it exits. When this
 thread is idle, Reins delivers the callback **as a new turn in this same thread**: `codex exec
-resume` for CLI sessions, the native `codex queue` command for normally started Codex Desktop. You do not wait for it; you end
-your turn and the result comes back to you.
+resume` for CLI sessions, the native `codex queue` command for normally started Codex Desktop and for
+a thread loaded on the Codex app-server daemon (opened in the Reins panel, or with `codex resume
+--remote`). You do not wait for it; you end your turn and the result comes back to you.
 
 The full reference (all flags, platforms, Desktop modes, recovery and goals) is in
 [REFERENCE.md](REFERENCE.md). Read it only when you need details beyond this page; where it
@@ -20,6 +21,13 @@ Reins resumes this thread with the permissions recorded when you submit (`worksp
 `--dangerously-bypass-approvals-and-sandbox` in a container), submit with
 `--sandbox-mode danger-full-access --approval-policy never` (or have `REINS_SANDBOX_MODE` and
 `REINS_APPROVAL_POLICY` set) so the resumed turn can still run commands and ACK.
+
+A callback that arrives through the `codex queue` runs with this thread's own permissions instead, and
+in `workspace-write` mode `~/.reins` is read-only to it. If `reins ack` (or `send`, `reply`) fails
+with `Read-only file system`, retry that exact command once with escalated permissions and a short
+justification ("acknowledge the Reins callback"); do not relaunch anything. The user can avoid the
+prompt by adding `~/.reins` to `writable_roots` under `[sandbox_workspace_write]` in
+`~/.codex/config.toml`.
 
 ## When to use it
 

@@ -10,6 +10,7 @@ import argparse
 import importlib.util
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -22,6 +23,9 @@ from typing import Mapping, Optional
 from ...core import sessions
 from ...harness import AGENTS
 from ...harness.claude import agents as claude_agents
+from ...harness.codex import app_server as codex_app_server
+from ...harness.codex import threads as codex_threads
+from ...harness.pi import sessions as pi_sessions
 from ...runtime import worker_command
 from ...store import layout
 from .live import (CACHE_ENV, HINT_TITLE, LAUNCH_ENV, ensure_zellij_cache_dir, read_record, session_of,
@@ -161,10 +165,12 @@ def inside_agent(environment: Mapping[str, str]) -> Optional[str]:
 
 
 def resolve(identifier: str, root: Path, environment: Mapping[str, str]) -> str:
-    """The Claude session an id names: a session id or its start, a task id, or a callback id."""
+    """The session an id names: a session id or its start, a Pi session file, a task id, or a callback id."""
     identifier = identifier.strip()
     if sessions.FULL_ID.fullmatch(identifier):
         return identifier
+    if identifier.endswith(".jsonl") and os.path.isabs(os.path.expanduser(identifier)):
+        return os.path.normcase(str(Path(identifier).expanduser().resolve()))
     try:
         found = session_of(read_record(layout.managed_task_path(root, identifier)))
     except ValueError:
@@ -178,8 +184,14 @@ def resolve(identifier: str, root: Path, environment: Mapping[str, str]) -> str:
     tasks_root = layout.managed_tasks_root(root)
     matches = {session for session in (session_of(read_record(path))
                                        for path in tasks_root.glob(f"{identifier}*/task.json")) if session}
-    matches |= {view.session for view in claude_agents.session_views(environment)
-                if view.session.startswith(identifier) or view.handle == identifier}
+    views = list(claude_agents.session_views(environment))
+    try:
+        views += codex_threads.session_views(environment, others={})
+    except (codex_app_server.AppServerProtocolError, OSError, ValueError):
+        pass
+    views += pi_sessions.session_views(environment)
+    matches |= {view.session for view in views
+                if (view.agent != "pi" and view.session.startswith(identifier)) or view.handle == identifier}
     if len(matches) == 1:
         return matches.pop()
     if matches:
@@ -208,7 +220,36 @@ def has_panel(panes: list) -> bool:
 
 
 # What runs in a pane Reins opened and can open again; anything else (a shell, a command) may hold work.
-_REOPENABLE = (" attach ", "_tui-hint", "_tui-panel", " log ")
+_REINS_VIEWS = ("_tui-hint", "_tui-panel", "log")
+
+
+def _program(command: str) -> list[str]:
+    """A pane's command without the `env ...` Reins puts before it (live.pane_command)."""
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return []
+    if words and Path(words[0]).name == "env":
+        words = words[1:]
+        while words and (words[0] == "-u" or words[0].startswith("-") or "=" in words[0]):
+            words = words[2:] if words[0] == "-u" else words[1:]
+    return words
+
+
+def reopenable(command: str) -> bool:
+    """A pane that shows something living elsewhere: a Claude background session, a Codex thread on its
+    daemon, a task log, or the panel and hint. A Pi session ends with its pane, and a shell is the user's."""
+    words = _program(command)
+    if not words:
+        return False
+    name = Path(words[0]).name
+    if name.startswith("claude"):
+        return words[1:2] == ["attach"]
+    if name == "codex":
+        return "--remote" in words
+    # `python .../_entry.py <command>`, or a frozen `reins <command>`.
+    rest = words[2:] if words[1:2] and words[1].endswith("_entry.py") else words[1:]
+    return bool(rest) and rest[0] in _REINS_VIEWS
 
 
 def holds_work(panes: list) -> bool:
@@ -216,8 +257,7 @@ def holds_work(panes: list) -> bool:
     for pane in panes:
         if pane.get("is_plugin") or pane.get("exited"):
             continue
-        command = f" {pane.get('terminal_command') or ''} "
-        if not any(word in command for word in _REOPENABLE):
+        if not reopenable(str(pane.get("terminal_command") or "")):
             return True
     return False
 
@@ -397,12 +437,13 @@ def main(args: argparse.Namespace) -> int:
             if inside:
                 print("reins tui: you are in the Reins screen already, and its panel was closed. End this screen "
                       "(Ctrl+Q in the panel, or Alt+q) and run `reins tui` again to get it back; your Claude "
-                      "sessions keep running.", file=sys.stderr)
+                      "and Codex sessions keep running.", file=sys.stderr)
                 return 1
             busy = holds_work(panes)
             if ask("reins tui: the Reins panel was closed in this screen. Start the screen again? Your Claude "
-                   "sessions keep running" + ("; the terminals open in it close, with anything running in them."
-                                              if busy else "."), default=not busy):
+                   "and Codex sessions keep running" + ("; the terminals and Pi sessions open in it close, with "
+                                                        "anything running in them." if busy else "."),
+                   default=not busy):
                 _zellij(zellij, directory, "kill-session", SESSION_NAME)
                 _zellij(zellij, directory, "delete-session", "--force", SESSION_NAME)
                 state = session_state(zellij, directory)
@@ -413,7 +454,7 @@ def main(args: argparse.Namespace) -> int:
     if state == "running" and changed:
         print("reins tui: the Reins Zellij session was started by another version of Reins and keeps its old "
               f"panel. To get the new one, leave it and run `{_by_hand(zellij)} delete-session --force {SESSION_NAME}`, "
-              "then `reins tui` again; your Claude sessions keep running.", file=sys.stderr)
+              "then `reins tui` again; your Claude and Codex sessions keep running.", file=sys.stderr)
     if state == "exited":
         deleted = _zellij(zellij, directory, "delete-session", SESSION_NAME)
         if deleted.returncode != 0:
@@ -443,7 +484,7 @@ def main(args: argparse.Namespace) -> int:
             else:
                 outcome = "so it was stopped again"
             print(f"reins tui: Zellij started the {SESSION_NAME} session but never answered within "
-                  f"{READY_SECONDS:g} s, {outcome}. Your Claude sessions are not affected. Please report this "
+                  f"{READY_SECONDS:g} s, {outcome}. Your sessions are not affected. Please report this "
                   f"with Zellij's log ({zellij_log()}) and the output of `{zellij} --version`.", file=sys.stderr)
             return 1
         if ready == NO_PANEL:
@@ -478,7 +519,8 @@ Alt+d       leave (run `reins tui` to come back)     Alt+q  end this screen
 Ctrl+Q in the panel also leaves or ends it.
 Mac: Alt is Option. macOS Terminal: Settings > Profiles > Keyboard > "Use Option as Meta key";
 iTerm2: Settings > Profiles > Keys > Left Option key: Esc+.
-Closing a pane or the screen never stops a Claude session; s in the panel does."""
+Closing a pane or the screen never stops a Claude or Codex session (s in the panel stops
+a Claude one). A Pi session runs in its pane and ends with it."""
 
 
 def hint_main(args: argparse.Namespace) -> int:

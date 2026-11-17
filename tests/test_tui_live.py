@@ -74,7 +74,7 @@ class LiveCase(unittest.TestCase):
         names.start()
         self.addCleanup(names.stop)
         self.backend = live.LiveBackend(queue_root=self.root, environment={"PATH": "/bin"}, zellij=self.zellij,
-                                        now=lambda: self.now)
+                                        now=lambda: self.now, codex_writers=dict)
 
     def task(self, task_id: str, session: str, state: str = "running", **fields) -> None:
         write(self.root.parent / "tasks" / task_id / "task.json",
@@ -191,7 +191,7 @@ class ActionTests(LiveCase):
                 mock.patch.object(claude_background, "resume", side_effect=claude_background.StartedCopy("x")):
             self.assertIn("opened somewhere else", self.backend.open_session(SESSION).message)
         with mock.patch.object(live.claude_agents, "session_view", return_value=None):
-            self.assertIn("no Claude session", self.backend.open_session(SESSION).message)
+            self.assertIn("no session 08e8651e", self.backend.open_session(SESSION).message)
 
     def test_new_session_starts_in_the_background_and_attaches(self) -> None:
         with mock.patch.object(claude_background, "start", return_value="abcdef12") as start:
@@ -419,7 +419,8 @@ class AttachedHandleTests(unittest.TestCase):
             # Zellij stops reporting the command; the name Reins gave the pane still says.
             {"id": 6, "is_plugin": False, "title": live.pane_name("abcdef12", "motion plots"), "terminal_command": None},
         ]
-        self.assertEqual(live.attached_handles(panes), {"08e8651e": "terminal_1", "abcdef12": "terminal_6"})
+        self.assertEqual(live.attached_handles(panes), {("claude", "08e8651e"): "terminal_1",
+                                                        ("claude", "abcdef12"): "terminal_6"})
 
 
 class CacheTests(unittest.TestCase):

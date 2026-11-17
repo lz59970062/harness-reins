@@ -1,6 +1,6 @@
 # 会话托管与 Reins TUI
 
-状态：草案，2026-11-16。使用流程已经和维护者对齐，第 13 节的三项决定已定；第 11 节的 9 项验证已全部完成。目标版本：Claude 部分进 0.14，Codex、Pi、DSH 和可接入的子 agent 进 0.15。
+状态：草案，2026-11-16。使用流程已经和维护者对齐，第 13 节的三项决定已定；第 11 节的 9 项验证已全部完成。目标版本：Claude、Codex、Pi 的会话管理和 DSH 的列表进 0.14（2026-11-17 维护者要求一起适配），可接入的子 agent 进 0.15。
 
 相关文档：会话之间发消息见 [link-protocol.md](link-protocol.md)，现有分层见 [architecture.md](architecture.md)。
 
@@ -18,7 +18,7 @@ Desktop 用户没有这个问题，因为 Desktop 本来就能看各个会话的
 
 - 基于 Zellij 的 TUI：左侧 Reins 面板，右侧按需分屏的会话窗格和日志窗格。用户管理会话只通过它，覆盖所有 Harness，操作一致
 - Claude 会话改由官方后台会话托管，Reins 的恢复不再起无头进程
-- Codex、Pi、DSH 由 Reins 自己的 Zellij 会话托管（0.15）
+- Codex 会话由它自己的 app-server 守护进程托管，Pi 会话在 Reins 的 Zellij 窗格里运行，DSH 只列出（0.14，见第 6 节）
 
 **不包含：**
 
@@ -148,9 +148,9 @@ Desktop 用户没有这个问题，因为 Desktop 本来就能看各个会话的
 | Harness | 托管者 | 回调投递 |
 |---|---|---|
 | Claude | 官方后台会话（`--bg`、`attach`、`stop`、`rm`） | 现有的 Stop / SessionStart hook（`asyncRewake`） |
-| Codex | Reins 的 Zellij 会话里运行 Codex 原生界面（0.15） | 待定，先沿用现有队列 |
-| Pi | 同上（0.15） | Pi extension 的信箱 |
-| DSH | 同上（0.15） | 现有的 live 通道 |
+| Codex | Codex 自己的 app-server 守护进程；Reins 窗格运行 `codex resume --remote`（V16） | 线程在守护进程上时走 `codex queue`（V21），否则沿用 `codex exec resume` |
+| Pi | Reins 的 Zellij 窗格运行 `reins pi`，Pi 随窗格结束 | Pi extension 的信箱 |
+| DSH | 不托管：没有终端界面，用它自己的网页版或桌面版 | 现有的 live 通道 |
 
 Claude 不放进 Zellij 托管：Desktop 和其他终端不知道 Zellij 里有这个会话，`claude --resume` 会另起进程，又回到分叉问题。官方后台会话自带防分叉保证，比统一实现更重要。
 
@@ -317,6 +317,12 @@ Zellij 默认就能用鼠标滚轮滚动，每个窗格有自己的回滚历史�
 | V12 | 对已停止的后台会话执行 `--bg --resume` | **不带别的参数才接原会话。** 带了 `--model` 等参数，会另起副本（“keeps its own saved options, so the flags you passed started a copy”）；不带参数时，以原 ID 和当初保存的参数（含 `--settings`）唤醒 |
 | V14 | Zellij 0.46.0 里的 `reins tui` | **通过。** 在伪终端里对真实队列和 Claude 实测：打开已关闭的会话（先转后台再 attach）、拒绝打开 Desktop 里开着的会话、停止后窗格自动关闭、对已停止的会话按 Enter 重新拉起、新建会话、开日志窗格。注意：自定义配置目录下 Zellij 仍会弹出首次运行的配置向导（`configuration` 插件），Reins 建好会话后关掉它；`list-panes` 过一会儿就不再报告 `claude attach` 窗格的命令，所以 Reins 按自己起的窗格名（`claude <短ID> <标题>`）认窗格 |
 | V15 | 分叉 | **通过（Claude 2.1.326）。** `claude --bg --resume <id> --fork-session --name N` 打印新的短 ID，新会话带着原来的对话，原会话不受影响；在 Desktop 里开着的会话也能这样分叉。面板菜单的 Fork 用的就是它 |
+| V16 | Codex 0.166 的共享守护进程 | **通过。** `codex resume --remote unix://<socket> <id>` 把线程加载到用户的 app-server 守护进程上（`thread/loaded/list` 可见）；客户端退出后线程仍留在守护进程上，空闲几分钟后由守护进程卸载。不带 `--remote` 的 `codex resume` 在自己进程里加载，守护进程看不到 |
+| V17 | Codex 会话列表 | **通过。** 守护进程的 `thread/list` 给出 id、name、preview、cwd、createdAt 和 status（notLoaded / idle / active + activeFlags / systemError），默认只含交互来源，不含 `exec` 和子 agent；带 `useStateDbOnly` 约 20 ms，扫描 rollout 要 1.5 到 2.7 s |
+| V18 | 不在守护进程上的 Codex 写入者 | **通过（Linux）。** 不带 `--remote` 的 `codex resume` 和 `codex exec resume` 一直开着线程的 rollout 文件；守护进程也开着它已加载线程的 rollout。所以面板按 `/proc/<pid>/fd` 找出守护进程以外开着 rollout 的 codex 进程，标为别处打开或无头，不再打开 |
+| V19 | 用协议新建 Codex 线程 | **不可用。** `thread/start` 建出的线程在第一轮之前 rollout 是空的，`codex resume` 报 “no rollout found”。所以新建会话由 `codex --remote` 自己的窗口创建，面板在线程出现在列表里后给窗格改名 |
+| V20 | 用协议分叉 Codex 线程 | **通过。** `thread/fork` 返回新线程，带着原来的对话，加载在守护进程上，可以直接 `codex resume --remote` 打开 |
+| V21 | 投递进守护进程上的线程 | **通过。** 线程已加载且空闲时，`codex queue --thread <id> --message …` 由守护进程自己开始新一轮；未加载时加 `--resume` 才会加载并运行。守护进程上线程的工具环境没有 Desktop 标记，所以这些线程派的任务原本会走 `codex exec resume`，等于第二个写入者；现在投递前查到线程在守护进程上，就改走 `codex queue`（端到端实测：没有起 `codex exec`，回调作为新一轮出现在 Reins 窗格里）。这一轮用线程自己的权限：`workspace-write` 下 `~/.reins` 只读，ACK 要提权，或者把 `~/.reins` 加进 Codex 配置的 `writable_roots`（`--remote` 客户端不接受这个覆盖） |
 | V13 | 其他 | `--bg` 拒绝没信任过的目录（“Workspace not trusted”）；`claude rm` 只删后台任务，有对话的 transcript 保留；会话记录文件只有 `status`，没有 `state`；刚起来还没收到提示的后台会话，`claude agents` 报 `state: blocked`、`status: idle`；从 Claude 会话里启动 `claude` 会继承 `CLAUDE_CODE_CHILD_SESSION` 等变量，不保存 transcript，所以 Reins 启动 Claude 时清掉这些变量 |
 
 **V4 的过程：**

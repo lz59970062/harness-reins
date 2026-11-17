@@ -1,6 +1,6 @@
 # 终端界面：reins tui
 
-一个终端、认证一次，就能看到这台机器上所有的 Claude Code 会话，以及它们派出的任务、Goal 和消息；会话就在旁边的窗格里打开，用的是 Claude Code 自己的界面。同一个会话永远只有一个进程，不会分叉。
+一个终端、认证一次，就能看到这台机器上所有的 Claude Code、Codex 和 Pi 会话，以及它们派出的任务、Goal 和消息；会话就在旁边的窗格里打开，用的是各自 Harness 的原生界面。同一个会话永远只有一个进程，不会分叉。
 
 ```bash
 reins tui
@@ -27,19 +27,19 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 - **Goals**：计划和进度。
 - **Messages**：会话之间的消息。
 
-右边的窗格由面板打开：会话窗格运行 `claude attach`，日志窗格运行 `reins log`。会话窗格的标题是 `claude <ID> @地址 会话标题`，和面板里的名字对得上；Claude Code 自己设置的终端标题不会盖掉它。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 `d` 切换），不会把面板越挤越窄。
+右边的窗格由面板打开：会话窗格运行 `claude attach`、`codex resume --remote` 或 `reins pi`（见[Codex、Pi 和 DeepSeek Harness](#codex-pi-和-deepseek-harness)），日志窗格运行 `reins log`。会话窗格的标题是 `<Harness> <ID> @地址 会话标题`，例如 `claude 08e8651e @lab 运动图`，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 `d` 切换），不会把面板越挤越窄。
 
 ## 按键
 
 | 键 | 作用 |
 | --- | --- |
 | `Enter` 或双击 | 打开选中的会话；它已经在某个窗格里，就跳过去。在 Tasks 页，打开派这个任务的会话。单击只是选中 |
-| `n` | 在指定目录新建 Claude Code 会话 |
+| `n` | 在指定目录新建 Claude Code、Codex 或 Pi 会话；装了不止一个时会先问用哪个 |
 | `l` | 跟踪任务输出 |
 | `t` | 在选中会话的目录里开一个终端 |
 | `d` | 切换新窗格开在下方还是右边；底栏显示当前选择 |
 | `m` | 给选中的会话发消息 |
-| `s` | 停止会话（会先确认）。对话保留，之后 `Enter` 还能打开 |
+| `s` | 停止 Claude Code 会话（会先确认）。对话保留，之后 `Enter` 还能打开 |
 | `c` | 取消任务的回调（会先确认） |
 | `o` 或右键 | 打开选中会话的菜单（见下） |
 | `a` | 显示 / 隐藏已归档的会话 |
@@ -59,11 +59,11 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 | Send a message... | 给它发消息，同 `m` |
 | Pin to the top / Unpin | 置顶。只影响 Reins 面板，不改 Claude 自己的列表 |
 | Copy address / Name it... / Rename address... | 复制、登记或修改它在 Reins 通讯录里的地址（见下） |
-| Copy Claude session id | 复制 Claude Code 的会话 ID，就是 `claude attach`、`claude --resume` 用的那个 |
+| Copy Claude session id / Codex thread id / Pi session file | 复制 Harness 自己认的 ID：`claude --resume`、`codex resume`、`pi --session` 用的那个 |
 | Stop... | 停止会话（会先确认），同 `s` |
 | Archive / Stop and archive... / Unarchive | 归档：从列表里收起；还在运行的会先停止（会先确认）。对话保留。它再运行、派出新任务或有回调待处理时，会自动回到列表；按 `a` 能看到已归档的会话 |
 
-置顶和归档只记在 Reins 自己的文件里（`~/.reins/tui/sessions.json`），不会删除任何对话。Claude Code 外部改不了会话标题，也没有删除单个对话的命令，所以菜单里没有这两项；标题可以在会话里用 `/rename` 改。
+置顶和归档只记在 Reins 自己的文件里（`~/.reins/tui/sessions.json`），不会删除任何对话。Claude Code 外部改不了会话标题，也没有删除单个对话的命令，所以菜单里没有这两项；标题可以在会话里用 `/rename` 改。菜单只列出会话所在 Harness 支持的操作：停止只对 Claude Code，分叉对 Claude Code 和 Codex，DeepSeek Harness 会话没有“打开”。
 
 ### 复制会话地址
 
@@ -86,11 +86,11 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 | 按键 | 作用 | 会话怎样 |
 | --- | --- | --- |
 | `Alt+←/→/↑/↓` | 在窗格之间移动 | |
-| `Alt+x` | 关掉当前窗格 | 照常在后台运行 |
+| `Alt+x` | 关掉当前窗格 | Claude Code 和 Codex 照常在后台运行；Pi 会话随之结束 |
 | `Alt+f` | 当前窗格全屏 / 还原 | |
 | `Alt+=` / `Alt+-` | 调大 / 调小当前窗格 | |
 | `Alt+d` | 暂时离开，以后运行 `reins tui` 回来 | 布局和窗格都保留 |
-| `Alt+q` | 结束整个界面 | Claude 会话照常在后台运行 |
+| `Alt+q` | 结束整个界面 | Claude Code 和 Codex 照常在后台运行；界面里的 Pi 会话随之结束 |
 
 在面板里按 `Ctrl+Q` 也能离开：可以选暂时离开（同 `Alt+d`），或结束整个界面（同 `Alt+q`）。
 
@@ -103,11 +103,27 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 
 要停止某个会话，在面板里选中它按 `s`：进程停止，对话保留。
 
-面板窗格被关掉了也没关系：再运行 `reins tui`，它会问你是否重开界面；Claude 会话照常在后台运行，重开后在面板里双击就能接回。在界面里面的终端里运行 `reins tui`，它会告诉你已经在界面里了。
+面板窗格被关掉了也没关系：再运行 `reins tui`，它会问你是否重开界面；Claude Code 和 Codex 会话照常在后台运行，重开后在面板里双击就能接回。在界面里面的终端里运行 `reins tui`，它会告诉你已经在界面里了。
+
+## Codex、Pi 和 DeepSeek Harness
+
+每个 Harness 都用自己的原生界面打开，Reins 对每个都守同一条承诺：一个会话只有一个进程。
+
+| Harness | 会话列表来自 | 会话窗格运行 | 关掉窗格后 | 打开期间的回调 |
+| --- | --- | --- | --- | --- |
+| Claude Code | `claude agents` | `claude attach`，后台会话 | 照常运行 | 会话里的 Reins hook |
+| Codex | Codex 的 app-server 守护进程 | `codex resume --remote`，守护进程上的线程 | 留在守护进程上，空闲后由它卸载 | `codex queue`，作为这个线程的新一轮 |
+| Pi | Pi 的会话文件 | `reins pi`，带 Reins 扩展和写入租约的 Pi | Pi 随窗格结束 | Reins 的 Pi 扩展 |
+| DeepSeek Harness | Reins 通讯录和任务记录 | 不打开：它没有终端界面 | | 它自己运行的 `reins wait` |
+
+- **Codex** 会话通过 Codex 共享的 app-server 守护进程（`codex app-server daemon`）打开，所以 Reins 窗格、通过 SSH 连接的 Codex Desktop 和 `codex resume --remote` 看到的是同一个线程。守护进程没在运行时，Reins 会先启动它。不带 `--remote` 打开的 Codex 窗口自己写线程：面板显示它开在别的终端里，不会再打开一份。新建的 Codex 会话发出第一条消息后才会出现在列表里。
+- Codex 收到回调时用的是线程自己的权限。在 Codex 默认的 `workspace-write` 沙箱里，`~/.reins` 是只读的，agent 会申请提权来运行 `reins ack`。不想每次确认，就在 `~/.codex/config.toml` 的 `[sandbox_workspace_write]` 里把 `~/.reins` 加进 `writable_roots`。
+- **Pi** 没有守护进程，会话就活在它的窗格里。在别处带着 Reins 扩展打开的 Pi 会话显示为开在别的终端；不带扩展打开的看不到。
+- **DeepSeek Harness**：有 Reins 名字或派过任务的会话会列出来，可以发消息、复制地址、看任务日志。打开请用 DeepSeek Harness 的网页版或桌面版。
 
 ## 打开会话时会发生什么
 
-你只需要按 `Enter` 或双击，Reins 按会话现在的状态选择做法：
+你只需要按 `Enter` 或双击，Reins 按会话现在的状态选择做法。以 Claude Code 会话为例：
 
 | 会话状态 | Reins 的做法 |
 | --- | --- |

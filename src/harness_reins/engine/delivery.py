@@ -599,7 +599,7 @@ def start_desktop_app_server_turn(payload: dict[str, object]) -> app_server.Desk
         if explicit_desktop:
             raise app_server.CallbackTransportBlocked("Desktop callbacks require a bound session, an App Server socket and workspace-write callback policy")
         return None
-    connection = app_server.AppServerConnection(socket_path, min(15.0, max(1.0, float(payload["timeout"]))))
+    connection = app_server.AppServerConnection(socket_path, min(15.0, max(1.0, float(payload.get("timeout") or 15.0))))
     delivery_context = app_server.desktop_delivery_context(payload)
     turn_start_submitted = False
     try:
@@ -813,6 +813,10 @@ def delivery_worker_main() -> int:
                 "error": "this agent receives callbacks only from a live `reins wait`; no resume was attempted",
             }
         elif payload.get("request", {}).get("callback_mode") == "codex-queue":
+            payload["prompt"] = prompt
+            result = native_queue.publish(payload)
+        elif (hosted := native_queue.hosted_request(payload)) is not None:
+            payload["request"] = hosted
             payload["prompt"] = prompt
             result = native_queue.publish(payload)
         elif (desktop_delivery := start_desktop_app_server_turn(payload)) is not None:
@@ -1269,7 +1273,9 @@ def process_selected(root: Path, args: argparse.Namespace, path: Path) -> bool:
             else:
                 return True
         elif result.returncode == 125 and not acked:
-            delivery_name = "Codex queue" if request.get("callback_mode") == "codex-queue" else "Pi" if dispatch.request_agent(request) == "pi" else "Desktop"
+            queued = (request.get("callback_mode") == "codex-queue"
+                      or (root / "native-queue" / f"{request_id}.json").exists())
+            delivery_name = "Codex queue" if queued else "Pi" if dispatch.request_agent(request) == "pi" else "Desktop"
             request["last_error"] = delivery_name + " callback outcome is unknown; automatic retry suppressed to prevent duplicate delivery"
             request["retain_target_lease"] = True
             destination_dir = root / "failed"

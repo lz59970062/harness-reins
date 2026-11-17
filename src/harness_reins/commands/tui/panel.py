@@ -258,6 +258,41 @@ class TextPromptScreen(ModalScreen[Optional[str]]):
         self.dismiss(None)
 
 
+COPY_HELP = """On the clipboard already? Press Enter. If not, copy the line above by hand:
+macOS Terminal: \u2318R, drag over it, \u2318C, \u2318R again
+iTerm2: hold \u2325 and drag, then \u2318C"""
+
+
+class CopiedScreen(ModalScreen[None]):
+    """What was just copied, on a line of its own, for terminals that ignore the copy (OSC 52)."""
+
+    BINDINGS = [Binding("escape", "close", show=False), Binding("enter", "close", show=False)]
+
+    def __init__(self, what: str, text: str) -> None:
+        super().__init__()
+        self._what = what
+        self._text = text
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label("Copied %s:" % self._what, id="dialog-title")
+            # A Text, not a string: an address or id must never be read as markup.
+            yield Static(Text(self._text, style="bold"), id="copied-text")
+            yield Static(Text(COPY_HELP), id="copied-help")
+            with Horizontal(id="dialog-buttons"):
+                yield Button("OK", id="ok", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#ok", Button).focus()
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#ok")
+    def _ok_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(None)
+
+
 class MenuScreen(ModalScreen[Optional[str]]):
     """A right-click menu: dismisses the chosen option's id, or None."""
 
@@ -381,8 +416,14 @@ class ReinsPanel(App[None]):
     #status.error {
         color: $text-error;
     }
-    ConfirmScreen, TextPromptScreen, MenuScreen {
+    ConfirmScreen, TextPromptScreen, MenuScreen, CopiedScreen {
         align: center middle;
+    }
+    #copied-text {
+        padding: 1 0;
+    }
+    #copied-help {
+        color: $text-muted;
     }
     #dialog {
         width: 64;
@@ -954,9 +995,11 @@ class ReinsPanel(App[None]):
             self.call_from_thread(self._show_status, result.message, False)
 
     def _copy(self, text: str, what: str) -> None:
-        # OSC 52: Zellij passes it to the terminal, which puts it on the clipboard if it allows that.
+        # OSC 52: Zellij passes it to the terminal, which puts it on the clipboard if it allows that. Nothing
+        # says whether it did, and macOS Terminal never does, so the text is also shown to copy by hand.
         self.copy_to_clipboard(text)
-        self._show_status("copied %s %s (if paste is empty, your terminal blocks clipboard access)" % (what, text))
+        self._show_status("copied %s %s" % (what, text))
+        self.push_screen(CopiedScreen(what, text))
 
     def _cancel_confirmed(self, row: TaskRow, yes: bool) -> None:
         if yes and row.callback:

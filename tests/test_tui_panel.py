@@ -397,6 +397,12 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await self.choose(app, pilot, "copy-address")
             self.assertEqual(copied, ["lab"])
             self.assertIn("copied address lab", status_text(app))
+            # Terminals that ignore the copy (macOS Terminal) get the text on a line of its own.
+            self.assertIsInstance(app.screen, panel.CopiedScreen)
+            self.assertEqual(str(app.screen.query_one("#copied-text", Static).content), "lab")
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertNotIsInstance(app.screen, panel.CopiedScreen)
 
     async def test_right_click_names_an_unnamed_session_then_copies(self):
         backend = make_backend()
@@ -536,6 +542,9 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await settle(app, pilot)
             self.assertIn(("rename", SESSION_D, "lab2"), backend.calls)
             self.assertEqual(copied, ["lab2"])
+            self.assertIsInstance(app.screen, panel.CopiedScreen)
+            await pilot.press("escape")
+            await settle(app, pilot)
             await pilot.press("o")
             await settle(app, pilot)
             await self.choose(app, pilot, "rename")
@@ -544,6 +553,28 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await settle(app, pilot)
             self.assertIn("already names another session", status_text(app))
             self.assertTrue(status_is_error(app))
+
+    async def test_copying_a_session_id_shows_it_and_never_reads_it_as_markup(self):
+        backend = make_backend()
+        app = make_app(backend)
+        copied = []
+        app.copy_to_clipboard = copied.append
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "copy-id")
+            self.assertEqual(copied, [SESSION_D])
+            self.assertEqual(str(app.screen.query_one("#copied-text", Static).content), SESSION_D)
+            self.assertIn("Claude session id", str(app.screen.query_one("#dialog-title").content))
+            await pilot.click("#ok")
+            await settle(app, pilot)
+            self.assertNotIsInstance(app.screen, panel.CopiedScreen)
+        screen = panel.CopiedScreen("address", "[bold]x[/]")
+        async with panel.ReinsPanel(FakeBackend(), refresh_seconds=3600.0).run_test() as pilot:
+            pilot.app.push_screen(screen)
+            await pilot.pause()
+            self.assertEqual(str(screen.query_one("#copied-text", Static).render()), "[bold]x[/]")
 
     def test_suggested_names_fit_the_address_book(self):
         row = make_backend().session_rows[0]

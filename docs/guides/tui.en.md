@@ -84,9 +84,16 @@ pinned one shows `★`.
 - Not named yet: choose "Name it and copy its address...", accept or change the suggested name, and the panel adds it
   to the address book and copies it.
 
-Copying uses the terminal's clipboard protocol (OSC 52). If a paste comes out empty, the terminal does not let
-programs write the clipboard (in iTerm2, enable "Applications in terminal may access clipboard"); the copied text is
-also shown at the bottom of the panel, where you can select it.
+A copy goes straight to your own computer's clipboard through the terminal's clipboard protocol (OSC 52), and a
+small window shows the copied text on a line of its own. If it pastes, press `Enter` to close it. If a paste comes out
+empty, your terminal does not let programs write the clipboard (macOS Terminal and the terminal in Claude Code
+Desktop do not); copy the line from the window by hand:
+
+- macOS Terminal: press ⌘R to stop mouse reporting, drag over the line, ⌘C, then ⌘R again.
+- iTerm2: hold ⌥ while you drag, then ⌘C.
+
+For copies that just work, use iTerm2 (Settings > General > Selection > "Applications in terminal may access
+clipboard") or Ghostty.
 
 ## Pane keys
 

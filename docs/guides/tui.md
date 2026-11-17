@@ -72,7 +72,12 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 - 有名字：选 “Copy address”；要换名字选 “Rename address...”，旧名字随之作废。别的会话已经在用的名字不会被抢走。
 - 还没有名字：选 “Name it and copy its address...”，面板会建议一个名字，确认后登记进通讯录并复制。
 
-复制走终端的剪贴板协议（OSC 52）。如果粘贴出来是空的，是终端没允许程序写剪贴板（比如 iTerm2 要在设置里打开 “Applications in terminal may access clipboard”）；复制的内容也会显示在面板底部，可以手动选中。
+复制会先通过终端的剪贴板协议（OSC 52）直接写进你本机的剪贴板，同时弹出一个小窗，把复制的内容单独放一行。能粘贴就按 `Enter` 关掉；粘贴出来是空的，说明终端不允许程序写剪贴板（macOS 自带的“终端”和 Claude Code Desktop 里的终端都是这样），就在小窗里手动复制：
+
+- macOS 自带的“终端”：按 ⌘R 关掉鼠标报告，拖选那一行，⌘C，再按 ⌘R 恢复。
+- iTerm2：按住 ⌥ 拖选，⌘C。
+
+想让复制直接生效，可以用 iTerm2（在 Settings → General → Selection 打开 “Applications in terminal may access clipboard”）或 Ghostty。
 
 ## 窗格操作
 

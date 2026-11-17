@@ -15,6 +15,8 @@
   A right click (or `o`) on a session opens its menu: open below or to the right, fork into a new
   session, terminal, message, pin to the top, copy, add or rename its address, copy its Claude
   session id, stop, and archive (`a` shows archived sessions; one comes back when it has work again).
+  A copy also shows the copied text in a small window, to copy by hand in terminals that ignore
+  clipboard writes from programs (macOS Terminal, the terminal in Claude Code Desktop).
   Its Zellij keeps its session index in a local temporary directory, so a `~/.cache` on a network
   filesystem (JuiceFS, NFS) cannot stall it; a Zellij that never answers is stopped with a message.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session

@@ -24,7 +24,8 @@ from ...harness import AGENTS
 from ...harness.claude import agents as claude_agents
 from ...runtime import worker_command
 from ...store import layout
-from .live import HINT_TITLE, read_record, session_of
+from .live import (CACHE_ENV, HINT_TITLE, LAUNCH_ENV, ensure_zellij_cache_dir, read_record, session_of,
+                   zellij_cache_dir, zellij_environment)
 
 # Another name keeps a second Reins TUI (a test, another queue) out of the user's own session.
 SESSION_NAME = os.environ.get("REINS_TUI_SESSION", "").strip() or "reins"
@@ -130,7 +131,8 @@ def _zellij(executable: str, directory: Path, *arguments: str, timeout: float = 
     argv = [executable, "--config-dir", str(directory), *arguments]
     try:
         return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=timeout, check=False, env=env)
+                              errors="replace", timeout=timeout, check=False,
+                              env=zellij_environment(os.environ if env is None else env))
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(argv, 124, "", f"Zellij did not answer within {timeout:g} s")
     except OSError as exc:
@@ -192,10 +194,6 @@ def _panes(executable: str, directory: Path) -> Optional[list]:
     except ValueError:
         return None
     return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else None
-
-
-# Set on the Zellij that starts the session; its server inherits it, which tells that server from any other.
-LAUNCH_ENV = "REINS_TUI_LAUNCH"
 
 
 def zellij_servers(marker: str, proc: Path = Path("/proc")) -> set[int]:
@@ -309,6 +307,11 @@ def _wait_ready(executable: str, directory: Path) -> str:
             _zellij(executable, directory, "--session", SESSION_NAME, "action", "toggle-fullscreen")
     return READY
 
+def _by_hand(zellij: str) -> str:
+    """How a person runs the Reins Zellij: with its own cache directory, or it cannot find the session."""
+    return f"{CACHE_ENV}={zellij_cache_dir()} {zellij}"
+
+
 def zellij_log() -> Path:
     return Path(tempfile.gettempdir()) / f"zellij-{os.getuid()}" / "zellij-log" / "zellij.log"
 
@@ -341,13 +344,18 @@ def main(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(f"reins tui: {exc}", file=sys.stderr)
             return 2
+    try:
+        ensure_zellij_cache_dir()
+    except RuntimeError as exc:
+        print(f"reins tui: {exc}", file=sys.stderr)
+        return 1
     directory = config_dir()
     panel = worker_command("_tui-panel", *(["--queue-dir", str(args.queue_dir)] if getattr(args, "queue_dir", None) else []))
     changed = write_config(directory, panel, worker_command("_tui-hint"))
     state = session_state(zellij, directory)
     if state == "running" and changed:
         print("reins tui: the Reins Zellij session was started by another version of Reins and keeps its old "
-              f"panel. To get the new one, leave it and run `{zellij} delete-session --force {SESSION_NAME}`, "
+              f"panel. To get the new one, leave it and run `{_by_hand(zellij)} delete-session --force {SESSION_NAME}`, "
               "then `reins tui` again; your Claude sessions keep running.", file=sys.stderr)
     if state == "exited":
         deleted = _zellij(zellij, directory, "delete-session", SESSION_NAME)
@@ -388,13 +396,14 @@ def main(args: argparse.Namespace) -> int:
         from .live import LiveBackend, Zellij
 
         backend = LiveBackend(queue_root=root, environment=environment,
-                              zellij=Zellij(zellij, session=SESSION_NAME, config_dir=str(directory)))
+                              zellij=Zellij(zellij, session=SESSION_NAME, config_dir=str(directory),
+                                            environment=environment))
         result = backend.open_session(target)
         if not result.ok:
             print(f"reins tui: {result.message}", file=sys.stderr)
     if os.environ.get("ZELLIJ_SESSION_NAME") == SESSION_NAME:
         return 0  # Already in it: the pane opened beside this one.
-    os.execv(zellij, [zellij, "--config-dir", str(directory), "attach", SESSION_NAME])
+    os.execve(zellij, [zellij, "--config-dir", str(directory), "attach", SESSION_NAME], zellij_environment(os.environ))
     return 0  # Not reached.
 
 

@@ -11,6 +11,8 @@
   (`d` switches), `t` opens a terminal in a session's directory, a right click copies a session's
   address-book name (naming it first if needed), and its top line shows what `reins doctor` finds.
   Zellij's modal Ctrl keys are replaced by a few Alt keys, so Ctrl keys reach Claude Code.
+  Its Zellij keeps its session index in a local temporary directory, so a `~/.cache` on a network
+  filesystem (JuiceFS, NFS) cannot stall it; a Zellij that never answers is stopped with a message.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session
   (`claude --bg --resume`) under the same id, and the Reins hook delivers into it. You can look in
   with `claude attach` at any time without forking the conversation. On Linux, Claude Code's

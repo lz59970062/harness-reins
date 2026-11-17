@@ -97,4 +97,4 @@ Claude Code Desktop 打不开正在后台运行的会话，会提示 “That ses
 - **pip 安装**：`pip install 'harness-reins[tui]'`，再从系统的包管理器安装 [Zellij](https://zellij.dev)，或者用 `REINS_ZELLIJ` 指定它的路径。
 - **Windows**：Zellij 不支持 Windows，请用 `reins status` 和 `reins log`。
 
-Reins 用自己的 Zellij 配置（`~/.reins/zellij`），不影响你本机的 Zellij。`reins tui` 只给人用；在 agent 会话里运行会直接报错。
+Reins 用自己的 Zellij 配置（`~/.reins/zellij`），不影响你本机的 Zellij。它的会话索引放在本机临时目录（`/tmp/reins-zellij-<uid>`），所以 `~/.cache` 挂在 JuiceFS、NFS 这类网络盘上时也不会卡住；窗格里的程序仍用你自己的 `XDG_CACHE_HOME`。`reins tui` 只给人用；在 agent 会话里运行会直接报错。

@@ -21,6 +21,12 @@ OTHER = "4b585398-c6bf-4d5c-8b80-addaeb80e7f3"
 CLAUDE = "/opt/claude/bin/claude"
 
 
+def bare(argv):
+    """A pane's command without the `env ...` that gives it the user's environment back."""
+    assert argv[:5] == ["env", "-u", live.USER_CACHE_ENV, "-u", live.LAUNCH_ENV], argv
+    return argv[7:] if argv[5] == "-u" else argv[6:]
+
+
 class FakeZellij:
     def __init__(self, panes=()) -> None:
         self.pane_list = list(panes)
@@ -132,7 +138,7 @@ class ActionTests(LiveCase):
             self.views = [SessionView(agent="claude", session=SESSION, state=state, handle=SESSION[:8], name="plots")]
             self.assertTrue(self.backend.open_session(SESSION).ok)
             [(argv, name, direction, close)] = self.zellij.opened
-            self.assertEqual((argv, name, close), ([CLAUDE, "attach", SESSION[:8]], f"claude {SESSION[:8]} plots", True))
+            self.assertEqual((bare(argv), name, close), ([CLAUDE, "attach", SESSION[:8]], f"claude {SESSION[:8]} plots", True))
 
     def test_open_resumes_a_closed_session_first(self) -> None:
         closed = SessionView(agent="claude", session=SESSION, state=sessions.CLOSED, cwd="/w")
@@ -142,7 +148,7 @@ class ActionTests(LiveCase):
         self.assertEqual(resume.call_args.args[:2], (SESSION, "/w"))
         self.assertFalse(resume.call_args.kwargs["stopped"])
         self.assertIn("reins ack", resume.call_args.kwargs["settings"])
-        self.assertEqual(self.zellij.opened[0][0], [CLAUDE, "attach", SESSION[:8]])
+        self.assertEqual(bare(self.zellij.opened[0][0]), [CLAUDE, "attach", SESSION[:8]])
 
     def test_open_refuses_a_window_or_headless_turn(self) -> None:
         self.views = [SessionView(agent="claude", session=SESSION, state=sessions.FOREIGN, host=sessions.HOST_DESKTOP, pid=7),
@@ -165,7 +171,7 @@ class ActionTests(LiveCase):
         with mock.patch.object(claude_background, "start", return_value="abcdef12") as start:
             self.assertTrue(self.backend.new_session("claude", str(self.home)).ok)
         self.assertEqual(start.call_args.args[0], str(self.home))
-        self.assertEqual(self.zellij.opened[0][0], [CLAUDE, "attach", "abcdef12"])
+        self.assertEqual(bare(self.zellij.opened[0][0]), [CLAUDE, "attach", "abcdef12"])
         self.assertFalse(self.backend.new_session("claude", str(self.home / "missing")).ok)
         self.assertFalse(self.backend.new_session("codex", str(self.home)).ok)
 
@@ -182,7 +188,7 @@ class ActionTests(LiveCase):
         self.backend.environment["SHELL"] = "/bin/zsh"
         self.assertTrue(self.backend.open_terminal(str(self.home), "right").ok)
         argv, name, direction, close = self.zellij.opened[-1]
-        self.assertEqual((argv, name, direction, close), (["/bin/zsh"], f"shell {self.home.name}", "right", True))
+        self.assertEqual((bare(argv), name, direction, close), (["/bin/zsh"], f"shell {self.home.name}", "right", True))
         self.assertTrue(self.backend.open_terminal("/no/such/dir").ok)  # Falls back to the home directory.
 
     def test_naming_registers_the_session_and_its_address_shows(self) -> None:
@@ -293,6 +299,49 @@ class AttachedHandleTests(unittest.TestCase):
             {"id": 6, "is_plugin": False, "title": live.pane_name("abcdef12", "motion plots"), "terminal_command": None},
         ]
         self.assertEqual(live.attached_handles(panes), {"08e8651e": "terminal_1", "abcdef12": "terminal_6"})
+
+
+class CacheTests(unittest.TestCase):
+    """The Reins Zellij keeps its session index in a local directory; panes and Claude get the user's back."""
+
+    def test_zellij_gets_the_private_cache_and_remembers_the_users(self) -> None:
+        local = str(live.zellij_cache_dir())
+        env = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache", "A": "1"})
+        self.assertEqual((env["XDG_CACHE_HOME"], env[live.USER_CACHE_ENV], env["A"]), (local, "/nas/cache", "1"))
+        self.assertEqual(live.zellij_environment(env), env)  # Inside the session: unchanged.
+        self.assertEqual(live.zellij_environment({})[live.USER_CACHE_ENV], "")
+
+    def test_the_users_environment_comes_back(self) -> None:
+        inside = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache", live.LAUNCH_ENV: "1-2", "A": "1"})
+        self.assertEqual(live.user_environment(inside), {"XDG_CACHE_HOME": "/nas/cache", "A": "1"})
+        self.assertEqual(live.user_environment(live.zellij_environment({"A": "1"})), {"A": "1"})
+        self.assertEqual(live.user_environment({"XDG_CACHE_HOME": "/x"}), {"XDG_CACHE_HOME": "/x"})
+
+    def test_panes_restore_the_users_cache(self) -> None:
+        inside = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache"})
+        self.assertEqual(live.pane_command(["sh"], inside)[5:], ["XDG_CACHE_HOME=/nas/cache", "sh"])
+        self.assertEqual(live.pane_command(["sh"], live.zellij_environment({}))[5:], ["-u", "XDG_CACHE_HOME", "sh"])
+        self.assertEqual(live.pane_command(["sh"], {"XDG_CACHE_HOME": "/c"})[5:], ["XDG_CACHE_HOME=/c", "sh"])
+
+    def test_backend_runs_claude_with_the_users_environment(self) -> None:
+        inside = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache", live.LAUNCH_ENV: "1-2"})
+        backend = live.LiveBackend(queue_root=Path(tempfile.gettempdir()) / "unused", environment=inside)
+        self.assertEqual(backend.environment, {"XDG_CACHE_HOME": "/nas/cache"})
+
+    def test_zellij_actions_run_with_the_private_cache(self) -> None:
+        run = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "[]", ""))
+        live.Zellij("zellij", run=run, environment={"XDG_CACHE_HOME": "/nas/cache"}).panes()
+        self.assertEqual(run.call_args.kwargs["env"]["XDG_CACHE_HOME"], str(live.zellij_cache_dir()))
+
+    @unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
+    def test_cache_directory_is_private(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(live.tempfile, "gettempdir", return_value=tmp):
+            directory = live.ensure_zellij_cache_dir()
+            self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+            directory.rmdir()
+            directory.symlink_to(tmp)
+            with self.assertRaisesRegex(RuntimeError, "not a directory owned by you"):
+                live.ensure_zellij_cache_dir()
 
 
 class LaunchTests(unittest.TestCase):

@@ -9,7 +9,9 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
+import tempfile
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
@@ -38,15 +40,74 @@ CALLBACK_STATES = ("pending", "running", "failed", "canceled", "done")
 ZELLIJ_TIMEOUT_SECONDS = 10.0
 
 
+# Zellij 0.46 keeps a SQLite index of its sessions under $XDG_CACHE_HOME. On a network filesystem (a container
+# whose ~/.cache is JuiceFS or NFS) its locks can wedge, and then every `zellij action` waits forever. So the
+# Reins Zellij keeps its cache in a local directory of its own, and what runs inside its panes gets the user's
+# own XDG_CACHE_HOME back.
+CACHE_ENV = "XDG_CACHE_HOME"
+USER_CACHE_ENV = "REINS_USER_XDG_CACHE_HOME"  # The user's value; empty when it was not set.
+# Set on the Zellij that starts the session; its server inherits it, which tells that server from any other.
+LAUNCH_ENV = "REINS_TUI_LAUNCH"
+
+
+def zellij_cache_dir() -> Path:
+    owner = os.getuid() if hasattr(os, "getuid") else os.environ.get("USERNAME", "user")
+    return Path(tempfile.gettempdir()) / f"reins-zellij-{owner}"
+
+
+def ensure_zellij_cache_dir() -> Path:
+    """Create the private cache directory; refuse one that is not this user's own real directory."""
+    directory = zellij_cache_dir()
+    try:
+        directory.mkdir(mode=0o700, exist_ok=True)
+        status = directory.lstat()
+    except OSError as exc:
+        raise RuntimeError(f"cannot create {directory}: {exc}") from None
+    if not stat.S_ISDIR(status.st_mode) or status.st_uid != os.getuid():
+        raise RuntimeError(f"{directory} is not a directory owned by you; remove it and try again")
+    if status.st_mode & 0o077:
+        directory.chmod(0o700)
+    return directory
+
+
+def zellij_environment(environment: Mapping[str, str]) -> dict[str, str]:
+    """``environment`` for running Zellij: the Reins cache directory, remembering the user's own."""
+    result = dict(environment)
+    result.setdefault(USER_CACHE_ENV, environment.get(CACHE_ENV, ""))
+    result[CACHE_ENV] = str(zellij_cache_dir())
+    return result
+
+
+def user_environment(environment: Mapping[str, str]) -> dict[str, str]:
+    """``environment`` as the user had it, for Claude and anything else started from the panel."""
+    result = dict(environment)
+    result.pop(LAUNCH_ENV, None)
+    if USER_CACHE_ENV in result:
+        original = result.pop(USER_CACHE_ENV)
+        if original:
+            result[CACHE_ENV] = original
+        else:
+            result.pop(CACHE_ENV, None)
+    return result
+
+
+def pane_command(argv: Sequence[str], environment: Mapping[str, str]) -> list[str]:
+    """``argv`` for a pane: panes start with the Zellij server's environment, so restore the user's."""
+    original = environment.get(USER_CACHE_ENV, environment.get(CACHE_ENV, ""))
+    restore = [f"{CACHE_ENV}={original}"] if original else ["-u", CACHE_ENV]
+    return ["env", "-u", USER_CACHE_ENV, "-u", LAUNCH_ENV, *restore, *argv]
+
+
 class Zellij:
     """`zellij action` on the session the panel runs in (or on ``session`` from outside it)."""
 
     def __init__(self, executable: str, *, session: Optional[str] = None, config_dir: Optional[str] = None,
-                 run: Run = subprocess.run) -> None:
+                 run: Run = subprocess.run, environment: Optional[Mapping[str, str]] = None) -> None:
         self.executable = executable
         self.session = session
         self.config_dir = config_dir
         self.run = run
+        self.environment = zellij_environment(os.environ if environment is None else environment)
 
     def _action(self, *arguments: str) -> str:
         argv = [self.executable]
@@ -57,7 +118,7 @@ class Zellij:
         argv += ["action", *arguments]
         try:
             result = self.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=ZELLIJ_TIMEOUT_SECONDS, check=False)
+                              errors="replace", timeout=ZELLIJ_TIMEOUT_SECONDS, check=False, env=self.environment)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"zellij {arguments[0]} did not answer within {ZELLIJ_TIMEOUT_SECONDS:g} s; "
                                "try again in a moment") from None
@@ -155,7 +216,7 @@ def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[str, str]:
                 words = shlex.split(command)
             except ValueError:
                 words = []
-            if len(words) >= 3 and words[-2] == "attach" and Path(words[0]).name.startswith("claude"):
+            if len(words) >= 3 and words[-2] == "attach" and Path(words[-3]).name.startswith("claude"):
                 handle = words[-1]
         if handle:
             found[handle] = f"terminal_{pane.get('id')}"
@@ -234,7 +295,9 @@ class LiveBackend:
                  zellij: Optional[Zellij] = None, run: Run = subprocess.run,
                  now: Callable[[], float] = time.time) -> None:
         self.root = (queue_root or layout.queue_dir(None)).expanduser().absolute()
-        self.environment = dict(os.environ if environment is None else environment)
+        given = dict(os.environ if environment is None else environment)
+        self.environment = user_environment(given)
+        self._pane_environment = given
         self.zellij = zellij
         self.run = run
         self.now = now
@@ -342,6 +405,9 @@ class LiveBackend:
 
     # Actions.
 
+    def _pane(self, argv: Sequence[str]) -> list[str]:
+        return pane_command(argv, self._pane_environment)
+
     def _settings(self) -> str:
         return claude_background.settings_argument(skill_install.agent_command_names())
 
@@ -352,7 +418,8 @@ class LiveBackend:
         if handle in handles:
             self.zellij.focus(handles[handle])
             return ActionResult(True, f"{view_title} is already open; moved to its pane")
-        place(self.zellij, claude_background.attach_command(handle, self.environment), name=pane_name(handle, view_title),
+        place(self.zellij, self._pane(claude_background.attach_command(handle, self.environment)),
+              name=pane_name(handle, view_title),
               close_on_exit=True, direction=direction)
         return ActionResult(True, f"opened {view_title}")
 
@@ -409,7 +476,7 @@ class LiveBackend:
         if self.zellij is None:
             return ActionResult(False, "not inside the Reins Zellij session")
         try:
-            place(self.zellij, worker_command("log", task), name=f"{LOG_PREFIX}{task[:8]}", close_on_exit=False,
+            place(self.zellij, self._pane(worker_command("log", task)), name=f"{LOG_PREFIX}{task[:8]}", close_on_exit=False,
                   direction=direction)
         except (RuntimeError, OSError) as exc:
             return ActionResult(False, str(exc))
@@ -421,7 +488,7 @@ class LiveBackend:
         directory = os.path.expanduser(cwd) if cwd and os.path.isdir(os.path.expanduser(cwd)) else os.path.expanduser("~")
         shell = self.environment.get("SHELL") or "/bin/sh"
         try:
-            place(self.zellij, [shell], name=f"{SHELL_PREFIX}{os.path.basename(directory.rstrip(os.sep)) or directory}",
+            place(self.zellij, self._pane([shell]), name=f"{SHELL_PREFIX}{os.path.basename(directory.rstrip(os.sep)) or directory}",
                   close_on_exit=True, direction=direction, cwd=directory)
         except (RuntimeError, OSError) as exc:
             return ActionResult(False, str(exc))

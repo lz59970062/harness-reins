@@ -110,5 +110,5 @@ background"). Select it in the panel and press `s`, or run `claude stop <id>`, a
   point `REINS_ZELLIJ` at it.
 - **Windows**: Zellij does not run on Windows; use `reins status` and `reins log`.
 
-Reins runs Zellij with its own configuration in `~/.reins/zellij` and leaves yours alone. `reins tui` is for people:
+Reins runs Zellij with its own configuration in `~/.reins/zellij` and leaves yours alone. Its session index lives in a local temporary directory (`/tmp/reins-zellij-<uid>`), so a `~/.cache` on a network filesystem such as JuiceFS or NFS cannot stall it; programs in its panes keep your own `XDG_CACHE_HOME`. `reins tui` is for people:
 inside an agent session it refuses to start.

@@ -506,7 +506,8 @@ class LiveBackend:
             arguments = (*arguments, "--queue-dir", str(self.root))
         try:
             result = self.run(worker_command(*arguments), stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=60, check=False)
+                              encoding="utf-8", errors="replace", timeout=60, check=False,
+                              env=self.environment)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return ActionResult(False, f"reins {arguments[0]} failed: {exc}")
         output = ((result.stdout or "") + (result.stderr or "")).strip().splitlines()

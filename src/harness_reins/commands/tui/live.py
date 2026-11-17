@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -75,7 +76,13 @@ def zellij_environment(environment: Mapping[str, str]) -> dict[str, str]:
     result = dict(environment)
     result.setdefault(USER_CACHE_ENV, environment.get(CACHE_ENV, ""))
     result[CACHE_ENV] = str(zellij_cache_dir())
+    if not result.get("SHELL"):  # Zellij would fall back to /bin/sh, which shows a bash prompt as raw escapes.
+        result["SHELL"] = default_shell(result)
     return result
+
+
+def default_shell(environment: Mapping[str, str]) -> str:
+    return environment.get("SHELL") or shutil.which("bash", path=environment.get("PATH")) or "/bin/sh"
 
 
 def user_environment(environment: Mapping[str, str]) -> dict[str, str]:
@@ -486,7 +493,7 @@ class LiveBackend:
         if self.zellij is None:
             return ActionResult(False, "not inside the Reins Zellij session")
         directory = os.path.expanduser(cwd) if cwd and os.path.isdir(os.path.expanduser(cwd)) else os.path.expanduser("~")
-        shell = self.environment.get("SHELL") or "/bin/sh"
+        shell = default_shell(self.environment)
         try:
             place(self.zellij, self._pane([shell]), name=f"{SHELL_PREFIX}{os.path.basename(directory.rstrip(os.sep)) or directory}",
                   close_on_exit=True, direction=direction, cwd=directory)

@@ -311,10 +311,19 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(live.zellij_environment(env), env)  # Inside the session: unchanged.
         self.assertEqual(live.zellij_environment({})[live.USER_CACHE_ENV], "")
 
+    def test_a_missing_shell_becomes_bash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            bash = Path(tmp) / "bash"
+            bash.write_text("#!/bin/sh\n")
+            bash.chmod(0o755)
+            self.assertEqual(live.zellij_environment({"PATH": tmp})["SHELL"], str(bash))
+            self.assertEqual(live.zellij_environment({"PATH": tmp, "SHELL": "/bin/zsh"})["SHELL"], "/bin/zsh")
+            self.assertEqual(live.default_shell({"PATH": str(Path(tmp) / "none")}), "/bin/sh")
+
     def test_the_users_environment_comes_back(self) -> None:
-        inside = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache", live.LAUNCH_ENV: "1-2", "A": "1"})
-        self.assertEqual(live.user_environment(inside), {"XDG_CACHE_HOME": "/nas/cache", "A": "1"})
-        self.assertEqual(live.user_environment(live.zellij_environment({"A": "1"})), {"A": "1"})
+        inside = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache", live.LAUNCH_ENV: "1-2", "SHELL": "/bin/sh"})
+        self.assertEqual(live.user_environment(inside), {"XDG_CACHE_HOME": "/nas/cache", "SHELL": "/bin/sh"})
+        self.assertEqual(live.user_environment(live.zellij_environment({"SHELL": "/bin/sh"})), {"SHELL": "/bin/sh"})
         self.assertEqual(live.user_environment({"XDG_CACHE_HOME": "/x"}), {"XDG_CACHE_HOME": "/x"})
 
     def test_panes_restore_the_users_cache(self) -> None:
@@ -324,9 +333,9 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(live.pane_command(["sh"], {"XDG_CACHE_HOME": "/c"})[5:], ["XDG_CACHE_HOME=/c", "sh"])
 
     def test_backend_runs_claude_with_the_users_environment(self) -> None:
-        inside = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache", live.LAUNCH_ENV: "1-2"})
+        inside = live.zellij_environment({"XDG_CACHE_HOME": "/nas/cache", live.LAUNCH_ENV: "1-2", "SHELL": "/bin/sh"})
         backend = live.LiveBackend(queue_root=Path(tempfile.gettempdir()) / "unused", environment=inside)
-        self.assertEqual(backend.environment, {"XDG_CACHE_HOME": "/nas/cache"})
+        self.assertEqual(backend.environment, {"XDG_CACHE_HOME": "/nas/cache", "SHELL": "/bin/sh"})
 
     def test_zellij_actions_run_with_the_private_cache(self) -> None:
         run = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "[]", ""))

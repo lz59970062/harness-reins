@@ -109,6 +109,20 @@ the terminal. Clicking a pane and scrolling with the wheel work too.
 | `Alt+d` | Leave for now; run `reins tui` to come back | Layout and panes stay |
 | `Alt+q` | End the whole screen | Claude sessions keep running in the background |
 
+`Ctrl+Q` in the panel also leaves: choose to leave for now (as `Alt+d`) or end the whole screen (as `Alt+q`).
+
+**On a Mac, Alt is the Option key**, but terminals do not send it as Alt until you say so, and until then no `Alt`
+key works:
+
+- macOS Terminal: Settings > Profiles > Keyboard > "Use Option as Meta key".
+- iTerm2: Settings > Profiles > Keys > Left Option key: `Esc+`.
+
+Until then, use `Ctrl+Q` in the panel to leave or end the screen.
+
+If the panel's pane gets closed, run `reins tui` again: it offers to start the screen again. Claude sessions keep
+running, and a double click in the new panel opens them again. Run inside the screen, `reins tui` says that you are
+already there.
+
 To stop a session, select it in the panel and press `s`: its process stops and the conversation stays.
 
 ## What opening a session does

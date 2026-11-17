@@ -17,6 +17,9 @@
   session id, stop, and archive (`a` shows archived sessions; one comes back when it has work again).
   A copy also shows the copied text in a small window, to copy by hand in terminals that ignore
   clipboard writes from programs (macOS Terminal, the terminal in Claude Code Desktop).
+  `Ctrl+Q` in the panel leaves or ends the screen (for Mac terminals that do not send Option as Alt),
+  `reins tui` offers to start the screen again when its panel was closed and says so when run inside
+  it, and Zellij's own right-click menu is off.
   Its Zellij keeps its session index in a local temporary directory, so a `~/.cache` on a network
   filesystem (JuiceFS, NFS) cannot stall it; a Zellij that never answers is stopped with a message.
 - A callback for a closed Claude Code session brings it up as a Claude Code background session

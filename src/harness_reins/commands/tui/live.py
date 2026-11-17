@@ -159,6 +159,23 @@ class Zellij:
     def focus(self, pane: str) -> None:
         self._action("focus-pane-id", pane)
 
+    def detach(self) -> None:
+        self._action("detach")
+
+    def end(self) -> None:
+        """End the whole session, as Alt+q does; from inside it, this process ends with it."""
+        name = self.session or os.environ.get("ZELLIJ_SESSION_NAME")
+        if not name:
+            raise RuntimeError("cannot tell which Zellij session to end")
+        argv = [self.executable, *(["--config-dir", self.config_dir] if self.config_dir else []), "kill-session", name]
+        try:
+            result = self.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=ZELLIJ_TIMEOUT_SECONDS, check=False, env=self.environment)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"zellij kill-session did not answer within {ZELLIJ_TIMEOUT_SECONDS:g} s") from None
+        if result.returncode != 0:
+            raise RuntimeError(f"zellij kill-session failed: {(result.stderr or result.stdout or '').strip()}")
+
 
 _PANE_NAME = re.compile(r"claude ([0-9a-f]{8})\b")
 
@@ -641,6 +658,15 @@ class LiveBackend:
                 return ActionResult(False, f"{name} already names another session; choose another name")
             arguments.append("--replace")
         return self._reins(*arguments)
+
+    def leave(self, end: bool) -> ActionResult:
+        if self.zellij is None:
+            return ActionResult(False, "not inside the Reins Zellij session")
+        try:
+            self.zellij.end() if end else self.zellij.detach()
+        except (RuntimeError, OSError) as exc:
+            return ActionResult(False, str(exc))
+        return ActionResult(True, "ended the Reins screen" if end else "left the Reins screen")
 
     def health(self) -> Sequence[str]:
         """`reins doctor` for this queue, read in process, plus what the TUI itself needs."""

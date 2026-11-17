@@ -115,6 +115,9 @@ class Backend(Protocol):
     def fork_session(self, session: str, direction: str = BELOW) -> ActionResult:
         """Start a new session from a copy of this one's conversation, and open it in a pane."""
 
+    def leave(self, end: bool) -> ActionResult:
+        """Detach from the Reins screen (Alt+d), or end it (Alt+q); Claude sessions keep running either way."""
+
     def pin_session(self, session: str, pinned: bool) -> ActionResult:
         """Keep the session at the top of the list, or stop doing so."""
 
@@ -200,6 +203,10 @@ class FakeBackend:
             return ActionResult(False, f"{name} already names another session")
         self.session_rows = [replace(r, address=name) if r is row else r for r in self.session_rows]
         return ActionResult(True, f"named {row.title} {name}")
+
+    def leave(self, end: bool) -> ActionResult:
+        self.calls.append(("end",) if end else ("detach",))
+        return ActionResult(True, "ended" if end else "left")
 
     def fork_session(self, session: str, direction: str = BELOW) -> ActionResult:
         self.calls.append(("fork", session, direction))

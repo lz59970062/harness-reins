@@ -500,6 +500,79 @@ class LaunchTests(unittest.TestCase):
         with mock.patch.object(launch.claude_agents, "session_views", return_value=[view]):
             self.assertEqual(launch.resolve(OTHER[:8], self.root, {}), OTHER)
 
+    def run_main(self, *, panes, inside=False, answer=True, state="running"):
+        """launch.main against a running session with ``panes``; returns (exit code, zellij calls, stderr)."""
+        calls = []
+
+        def fake_zellij(executable, directory, *arguments, **kwargs):
+            calls.append(arguments)
+            return subprocess.CompletedProcess(arguments, 0, stdout="", stderr="")
+
+        states = iter([state, None])
+        environment = {"PATH": "/bin", **({"ZELLIJ_SESSION_NAME": launch.SESSION_NAME} if inside else {})}
+        with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(launch, "inside_agent", return_value=None), \
+                mock.patch.object(launch, "zellij_executable", return_value="zellij"), \
+                mock.patch.object(launch, "ensure_zellij_cache_dir"), \
+                mock.patch.object(launch, "config_dir", return_value=self.root / "zellij"), \
+                mock.patch.object(launch, "session_state", side_effect=lambda *a: next(states)), \
+                mock.patch.object(launch, "_panes", return_value=panes), \
+                mock.patch.object(launch, "_zellij", side_effect=fake_zellij), \
+                mock.patch.object(launch, "_wait_ready", return_value=launch.READY), \
+                mock.patch.object(launch, "ask", return_value=answer) as asked, \
+                mock.patch.object(launch.os, "execve") as execve, \
+                mock.patch("sys.stderr", io.StringIO()) as err:
+            code = launch.main(mock.Mock(id=None, queue_dir=None))
+        return code, calls, err.getvalue(), asked, execve
+
+    def test_a_closed_panel_offers_to_start_the_screen_again(self) -> None:
+        claude_only = [{"id": 4, "title": "Claude Code", "is_plugin": False}]
+        code, calls, _, asked, execve = self.run_main(panes=claude_only)
+        asked.assert_called_once()
+        self.assertIn(("kill-session", launch.SESSION_NAME), calls)
+        self.assertIn(("attach", "--create-background", launch.SESSION_NAME), calls)
+        execve.assert_called_once()
+        # Saying no attaches to the screen as it is.
+        code, calls, _, _, execve = self.run_main(panes=claude_only, answer=False)
+        self.assertNotIn(("kill-session", launch.SESSION_NAME), calls)
+        execve.assert_called_once()
+        # A panel that exited counts as gone too.
+        exited = [{"id": 0, "title": "Reins", "is_plugin": False, "exited": True}]
+        self.assertTrue(self.run_main(panes=exited)[3].called)
+
+    def test_inside_the_screen_it_says_so_instead_of_doing_nothing(self) -> None:
+        panel = [{"id": 0, "title": "Reins", "is_plugin": False}]
+        code, calls, err, asked, execve = self.run_main(panes=panel, inside=True)
+        self.assertEqual(code, 0)
+        self.assertIn("in the Reins screen already", err)
+        execve.assert_not_called()
+        code, calls, err, asked, execve = self.run_main(panes=[], inside=True)
+        self.assertEqual(code, 1)
+        self.assertIn("its panel was closed", err)
+        asked.assert_not_called()
+        self.assertNotIn(("kill-session", launch.SESSION_NAME), calls)
+
+    def test_a_screen_with_its_panel_is_attached_without_a_question(self) -> None:
+        panel = [{"id": 0, "title": "Reins", "is_plugin": False}]
+        code, calls, err, asked, execve = self.run_main(panes=panel)
+        asked.assert_not_called()
+        execve.assert_called_once()
+
+    def test_zellij_menu_is_off_and_mac_option_is_explained(self) -> None:
+        launch.write_config(self.root / "z", ["reins", "_tui-panel"])
+        self.assertIn("context_menu_enabled false", (self.root / "z" / "config.kdl").read_text())
+        self.assertIn("Use Option as Meta key", launch.HINT_TEXT)
+
+    def test_leaving_detaches_or_ends_the_session(self) -> None:
+        ran = []
+        zellij = live.Zellij("zellij", session="reins", config_dir="/c",
+                             run=lambda argv, **k: ran.append(argv) or subprocess.CompletedProcess(argv, 0, "", ""))
+        backend = live.LiveBackend(queue_root=self.root, environment={"PATH": "/bin"}, zellij=zellij)
+        self.assertTrue(backend.leave(False).ok)
+        self.assertEqual(ran[-1][-2:], ["action", "detach"])
+        self.assertTrue(backend.leave(True).ok)
+        self.assertEqual(ran[-1], ["zellij", "--config-dir", "/c", "kill-session", "reins"])
+
     def test_zellij_that_does_not_answer_is_a_failure_not_a_crash(self) -> None:
         late = subprocess.TimeoutExpired(["zellij"], 10.0)
         with mock.patch.object(launch.subprocess, "run", side_effect=late):

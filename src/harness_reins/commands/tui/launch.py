@@ -83,6 +83,9 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
         # Reins rebuilds the panes from its own state; a resurrected session would rerun stale commands.
         "session_serialization false",
         'on_force_close "detach"',
+        # Zellij's own right-click menu (Paste, New pane, Close, ...) opened on every pane that does not
+        # take the mouse itself, such as a Claude pane, and looked like Reins' session menu.
+        "context_menu_enabled false",
         # Zellij's own keys are modes (Ctrl+p, Ctrl+o, ...) that swallow what is typed next, which reads
         # as a hang, and Claude Code uses some of the same keys. A few Alt keys replace them all.
         "keybinds clear-defaults=true {",
@@ -194,6 +197,23 @@ def _panes(executable: str, directory: Path) -> Optional[list]:
     except ValueError:
         return None
     return [pane for pane in panes if isinstance(pane, dict)] if isinstance(panes, list) else None
+
+
+def has_panel(panes: list) -> bool:
+    """Whether the Reins panel still runs in the session: a person can close its pane like any other."""
+    return any(pane.get("title") == "Reins" and not pane.get("exited") and not pane.get("is_plugin")
+               for pane in panes)
+
+
+def ask(question: str) -> bool:
+    """Yes unless the person says no; no when nobody can answer (stdin is not a terminal)."""
+    if not sys.stdin.isatty():
+        return False
+    try:
+        answer = input(question + " [Y/n] ").strip().lower()
+    except EOFError:
+        return False
+    return answer in ("", "y", "yes")
 
 
 def zellij_servers(marker: str, proc: Path = Path("/proc")) -> set[int]:
@@ -353,6 +373,24 @@ def main(args: argparse.Namespace) -> int:
     panel = worker_command("_tui-panel", *(["--queue-dir", str(args.queue_dir)] if getattr(args, "queue_dir", None) else []))
     changed = write_config(directory, panel, worker_command("_tui-hint"))
     state = session_state(zellij, directory)
+    inside = os.environ.get("ZELLIJ_SESSION_NAME") == SESSION_NAME
+    if state == "running" and target is None:
+        panes = _panes(zellij, directory)
+        if panes is not None and not has_panel(panes):
+            if inside:
+                print("reins tui: you are in the Reins screen already, and its panel was closed. End this screen "
+                      "(Ctrl+Q in the panel, or Alt+q) and run `reins tui` again to get it back; your Claude "
+                      "sessions keep running.", file=sys.stderr)
+                return 1
+            if ask("reins tui: the Reins panel was closed in this screen. Start the screen again? Your Claude "
+                   "sessions keep running; terminals open in it close."):
+                _zellij(zellij, directory, "kill-session", SESSION_NAME)
+                _zellij(zellij, directory, "delete-session", "--force", SESSION_NAME)
+                state = session_state(zellij, directory)
+        elif inside:
+            print("reins tui: you are in the Reins screen already; the panel is on the left. Ctrl+Q in the panel "
+                  "leaves it.", file=sys.stderr)
+            return 0
     if state == "running" and changed:
         print("reins tui: the Reins Zellij session was started by another version of Reins and keeps its old "
               f"panel. To get the new one, leave it and run `{_by_hand(zellij)} delete-session --force {SESSION_NAME}`, "
@@ -418,6 +456,9 @@ HINT_TEXT = """Select a session on the left and press Enter (or double-click it)
 
 Alt+arrows  move between panes      Alt+x  close a pane      Alt+f  fullscreen
 Alt+d       leave (run `reins tui` to come back)     Alt+q  end this screen
+Ctrl+Q in the panel also leaves or ends it.
+Mac: Alt is Option. macOS Terminal: Settings > Profiles > Keyboard > "Use Option as Meta key";
+iTerm2: Settings > Profiles > Keys > Left Option key: Esc+.
 Closing a pane or the screen never stops a Claude session; s in the panel does."""
 
 

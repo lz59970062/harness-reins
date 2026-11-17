@@ -463,6 +463,8 @@ class ReinsPanel(App[None]):
         Binding("t", "open_terminal", "Shell"),
         Binding("m", "send_message", "Msg"),
         Binding("c", "cancel_callback", "Cancel"),
+        # Textual's own Ctrl+Q would quit the panel alone and leave the screen without it.
+        Binding("ctrl+q", "leave", "Leave", show=False, priority=True),
         Binding("o", "session_menu", "Menu", show=False),
         Binding("a", "toggle_archived", "Archived", show=False),
         # One key for where Enter, l and t put their pane; the footer shows the current choice.
@@ -919,6 +921,18 @@ class ReinsPanel(App[None]):
             self._show_status("no session selected", ok=False)
             return
         self.open_session_menu(row)
+
+    def action_leave(self) -> None:
+        """Ctrl+Q: leave or end the whole screen, for keyboards where Alt+d / Alt+q do not arrive."""
+        if self._modal_open():
+            return
+        self.push_screen(
+            MenuScreen("Leave Reins", [
+                ("detach", "Leave; it keeps running, reins tui comes back"),
+                ("end", "End the screen; Claude sessions keep running"),
+            ]),
+            lambda choice: choice and self._run_action("leave", self._backend.leave, choice == "end"),
+        )
 
     def action_toggle_archived(self) -> None:
         if self._modal_open():

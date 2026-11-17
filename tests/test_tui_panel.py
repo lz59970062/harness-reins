@@ -684,6 +684,23 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(status_is_error(app))
             self.assertTrue(app.is_running)
 
+    async def test_ctrl_q_offers_to_leave_instead_of_closing_the_panel(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("ctrl+q")
+            await settle(app, pilot)
+            self.assertTrue(app.is_running)
+            await self.choose(app, pilot, "end")
+            self.assertIn(("end",), backend.calls)
+            await pilot.press("ctrl+q")
+            await settle(app, pilot)
+            await pilot.press("escape")
+            await settle(app, pilot)
+            self.assertTrue(app.is_running)
+            self.assertNotIn(("detach",), backend.calls)
+
     async def test_q_does_not_quit(self):
         backend = make_backend()
         app = make_app(backend)

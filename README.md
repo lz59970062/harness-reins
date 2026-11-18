@@ -132,6 +132,7 @@ Long Task Callback became Agent Traffic Control and then **Harness Reins**.
 | **DeepSeek Harness native** | A background `reins wait` runs as a DSH job; its completion notification wakes the same conversation. DSH has no headless fallback, so delivery is always the original live session. → [DSH guide](docs/dsh.md) |
 | **Any agent, any harness** | `reins agent codex\|claude\|pi\|dsh` starts a fresh agent as a durable job from any of the four. It writes a structured report, shown to you as a claim, never as proof. |
 | **Sessions talk to each other** | Name a Codex, Claude Code, Pi or DSH session, then `reins send` to it from any other. Messages survive a busy or closed session, never start a process unless you ask, and agents that talk in circles get stopped. → [Guide](docs/guides/messages.en.md) |
+| **Every session in one terminal** | `reins tui` lists the Claude Code, Codex and Pi sessions on the machine with the tasks, goals and messages they started, and opens any of them in a pane in its own interface, without a second copy of the conversation. → [Guide](docs/guides/tui.en.md) |
 | **One installation** | `reins setup` installs one canonical `~/.reins/bin/reins`; copies of `reins` in other environments forward to it, so versions never mix. |
 | **Multi-stage goals** | Track an objective across many callbacks with a YAML plan that the agent must verify before declaring victory. |
 | **Never reruns blindly** | Ambiguous launches, reboots and failures are reported to the agent for inspection — Reins never silently replays work. |
@@ -350,6 +351,18 @@ reins inbox                              # what is waiting for this session
 Works across Codex, Claude Code, Pi and DeepSeek Harness on one machine. Messages between machines are planned.
 → [Messages between sessions](docs/guides/messages.en.md)
 
+### `tui` — every session in one terminal
+
+```bash
+reins tui                # the panel, with each session's tasks and messages
+reins tui <id>           # open one session, by its id or a task it started
+```
+
+Double-click a session to open it beside the panel; `n` starts a new one, a right click opens its
+menu. Claude Code and Codex sessions keep running when you close the pane or the screen. Not on
+Windows. The Linux npm package includes Zellij; with pip, install `harness-reins[tui]` and Zellij.
+→ [Terminal UI guide](docs/guides/tui.en.md)
+
 ### Session binding
 
 Inside an agent conversation, Reins binds automatically via `CODEX_THREAD_ID` (Codex) or
@@ -412,6 +425,7 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 | Claude Code: live callbacks, binary discovery, session directories | [docs/claude-code.md](docs/claude-code.md) |
 | Pi: steered live callbacks, managed sessions, Pi child agents | [docs/pi.md](docs/pi.md) |
 | DeepSeek Harness: live jobs, no headless resume, DSH child agents | [docs/dsh.md](docs/dsh.md) |
+| Terminal UI: sessions, tasks and messages in one place | [docs/guides/tui.en.md](docs/guides/tui.en.md) |
 | Agent mode, templates, Claude Code config | [docs/agent-mode.md](docs/agent-mode.md) |
 | Registering templates as discoverable skills | [docs/template-registration.md](docs/template-registration.md) |
 | Goals and acknowledgement layers | [docs/goals.md](docs/goals.md) |
@@ -433,7 +447,8 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 - [x] Protocol v1: root-plus-suffix IDs, record schemas, delivery capabilities, results that keep child reports apart from observed facts (0.8)
 - [x] One canonical installation and npm distribution for Linux x64 (0.8)
 - [ ] Prebuilt npm packages for macOS and Windows
-- [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11); DeepSeek Harness joins in the next release
+- [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11), and DeepSeek Harness (0.12)
+- [x] A terminal UI for every Claude Code, Codex and Pi session on the machine (0.14)
 - [ ] Messages between machines, over SSH and an authenticated port ([design](docs/design/link-protocol.md))
 - [ ] Expert agents, and forking an expert's context from a checkpoint
 - [ ] Fan-in: one callback when a group of tasks finishes

@@ -1,10 +1,10 @@
 # 接入 Pi
 
-Pi 接入使用 `0.7.1` 预览版。Pi 既可以接收自己提交的任务结果，也可以作为子 Agent 执行独立工作。
+Pi 既可以接收自己提交的任务结果，也可以作为子 Agent 执行独立工作。
 
 ## 安装扩展
 
-按[预览版安装步骤](../installation.md#安装预览版)安装 Reins，然后执行：
+按[安装指南](../installation.md)安装 Reins，然后执行：
 
 ```bash
 reins setup --with-pi-extension --enable --now

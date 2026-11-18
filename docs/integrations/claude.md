@@ -1,6 +1,6 @@
 # 接入 Claude Code
 
-实时接收回调使用 `0.7.1` 预览版。按[安装指南](../installation.md#安装预览版)安装后，运行 `reins setup`，让 Claude Code 加载 Reins 技能。
+按[安装指南](../installation.md)安装后，运行 `reins setup`，让 Claude Code 加载 Reins 技能。
 
 ## 提交任务并接收结果
 

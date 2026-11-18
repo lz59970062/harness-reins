@@ -1,6 +1,6 @@
 # Claude Code
 
-Live callback delivery uses the `0.7.1` preview. Follow [preview installation](../installation.md#install-the-preview), then run `reins setup` to install the Reins skill for Claude Code.
+Follow the [installation guide](../installation.md), then run `reins setup` to install the Reins skill for Claude Code.
 
 ## Submit a task and receive the result
 

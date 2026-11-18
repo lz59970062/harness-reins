@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 — 2026-11-18
 
 - `reins tui`: one terminal for every Claude Code session on the machine, with the tasks, goals
   and messages they started. Sessions open in Zellij panes beside the panel in Claude Code's own

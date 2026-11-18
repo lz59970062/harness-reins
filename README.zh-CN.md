@@ -137,6 +137,7 @@ ATC 的 systemd drop-in 和 `experts.yaml` 会带到 Reins。
 | `reins session register <名字>` | 给当前会话起名，让其他会话能找到它 |
 | `reins send <名字> -m <正文>` | 给另一个 Codex、Claude Code、Pi 或 DeepSeek Harness 会话发消息，详见[指南](docs/guides/messages.md) |
 | `reins inbox` | 查看这个会话的未读消息 |
+| `reins tui` | 在一个终端里看本机所有 Claude Code、Codex、Pi 会话和它们的任务、消息，双击就在旁边窗格打开，详见[指南](docs/guides/tui.md) |
 | `reins ack <回调ID>` | 确认已经收到并看过结果（不等于任务完成） |
 | `reins status` | 查看还需要处理的回调 |
 | `reins doctor` | 检查环境，给出可以交给 Agent 执行的修复计划 |
@@ -147,7 +148,7 @@ ATC 的 systemd drop-in 和 `experts.yaml` 会带到 Reins。
 | 主题 | 链接 |
 | --- | --- |
 | 概览与安装 | [概览](docs/overview.md) · [安装](docs/installation.md) · [快速开始](docs/quickstart.md) |
-| 用法指南 | [运行任务](docs/guides/run.md) · [子代理](docs/guides/agents.md) · [回调](docs/guides/callbacks.md) · [目标](docs/guides/goals.md) · [外部任务](docs/guides/external-jobs.md) |
+| 用法指南 | [运行任务](docs/guides/run.md) · [子代理](docs/guides/agents.md) · [回调](docs/guides/callbacks.md) · [目标](docs/guides/goals.md) · [外部任务](docs/guides/external-jobs.md) · [会话间消息](docs/guides/messages.md) · [终端界面](docs/guides/tui.md) |
 | Harness | [Claude Code](docs/claude-code.md) · [Pi](docs/pi.md) |
 | 平台 | [macOS](docs/macos.md) · [Windows](docs/windows.md) · [容器](docs/containers.md) |
 | 恢复与排错 | [恢复](docs/recovery.md) · [排错](docs/troubleshooting.md) |

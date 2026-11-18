@@ -27,7 +27,7 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 - **Goals**：计划和进度。
 - **Messages**：会话之间的消息。
 
-右边的窗格由面板打开：会话窗格运行 `claude attach`、`codex resume --remote` 或 `reins pi`（见[Codex、Pi 和 DeepSeek Harness](#codex-pi-和-deepseek-harness)），日志窗格运行 `reins log`。会话窗格的标题是 `<Harness> <ID> @地址 会话标题`，例如 `claude 08e8651e @lab 运动图`，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 `d` 切换），不会把面板越挤越窄。
+右边的窗格由面板打开：会话窗格运行 `claude attach`、`codex resume --remote` 或 `reins pi`（见[Codex、Pi 和 DeepSeek Harness](#codexpi-和-deepseek-harness)），日志窗格运行 `reins log`。会话窗格的标题是 `<Harness> <ID> @地址 会话标题`，例如 `claude 08e8651e @lab 运动图`，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 `d` 切换），不会把面板越挤越窄。
 
 ## 按键
 

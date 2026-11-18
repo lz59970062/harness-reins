@@ -112,7 +112,7 @@ the terminal. Clicking a pane and scrolling with the wheel work too.
 | `Alt+f` | Fullscreen the focused pane, or back | |
 | `Alt+=` / `Alt+-` | Grow / shrink the focused pane | |
 | `Alt+d` | Leave for now; run `reins tui` to come back | Layout and panes stay |
-| `Alt+q` | End the whole screen | Claude Code and Codex keep running in the background; Pi sessions in it end |
+| `Alt+q` | Asks first, with Detach preselected; choose Quit to end the whole screen | When ended, Claude Code and Codex keep running in the background; Pi sessions and your own shells in it end |
 
 `Ctrl+Q` in the panel also leaves: choose to leave for now (as `Alt+d`) or end the whole screen (as `Alt+q`).
 

@@ -588,6 +588,7 @@ class LaunchTests(unittest.TestCase):
     def test_zellij_menu_is_off_and_mac_option_is_explained(self) -> None:
         launch.write_config(self.root / "z", ["reins", "_tui-panel"])
         self.assertIn("context_menu_enabled false", (self.root / "z" / "config.kdl").read_text())
+        self.assertIn('on_quit "ask_detach"', (self.root / "z" / "config.kdl").read_text())
         self.assertIn("Use Option as Meta key", launch.HINT_TEXT)
 
     def test_a_screen_with_a_shell_asks_with_no_as_the_default(self) -> None:

@@ -87,6 +87,9 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
         # Reins rebuilds the panes from its own state; a resurrected session would rerun stale commands.
         "session_serialization false",
         'on_force_close "detach"',
+        # Alt+q asks before ending the screen, with Detach preselected: ending it stops the Pi sessions and
+        # shells in its panes, and Enter alone should not do that.
+        'on_quit "ask_detach"',
         # Zellij's own right-click menu (Paste, New pane, Close, ...) opened on every pane that does not
         # take the mouse itself, such as a Claude pane, and looked like Reins' session menu.
         "context_menu_enabled false",
@@ -515,7 +518,7 @@ HINT_TEXT = """Select a session on the left and press Enter (or double-click it)
   1-4     Sessions, Tasks, Goals, Messages
 
 Alt+arrows  move between panes      Alt+x  close a pane      Alt+f  fullscreen
-Alt+d       leave (run `reins tui` to come back)     Alt+q  end this screen
+Alt+d       leave (run `reins tui` to come back)     Alt+q  leave or end (asks)
 Ctrl+Q in the panel also leaves or ends it.
 Mac: Alt is Option. macOS Terminal: Settings > Profiles > Keyboard > "Use Option as Meta key";
 iTerm2: Settings > Profiles > Keys > Left Option key: Esc+.

@@ -19,7 +19,8 @@
   clipboard writes from programs (macOS Terminal, the terminal in Claude Code Desktop).
   `Ctrl+Q` in the panel leaves or ends the screen (for Mac terminals that do not send Option as Alt),
   `reins tui` offers to start the screen again when its panel was closed and says so when run inside
-  it, and Zellij's own right-click menu is off.
+  it, and Zellij's own right-click menu is off. `Alt+q` asks before ending the screen with Detach
+  preselected, so Enter alone leaves it running.
   Session panes keep a title with the session's address and name instead of Claude Code's own.
   Codex and Pi sessions are listed and open too, each in its own interface: a Codex thread through
   Codex's shared app-server daemon (`codex resume --remote`), so the pane, Codex Desktop over SSH

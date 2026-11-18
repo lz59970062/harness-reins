@@ -175,7 +175,7 @@ class Zellij:
         self._action("detach")
 
     def end(self) -> None:
-        """End the whole session, as Alt+q does; from inside it, this process ends with it."""
+        """End the whole session, as Quit in Alt+q's dialog does; from inside it, this process ends with it."""
         name = self.session or os.environ.get("ZELLIJ_SESSION_NAME")
         if not name:
             raise RuntimeError("cannot tell which Zellij session to end")

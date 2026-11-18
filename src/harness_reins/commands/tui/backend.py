@@ -133,7 +133,7 @@ class Backend(Protocol):
         """Start a new session from a copy of this one's conversation, and open it in a pane."""
 
     def leave(self, end: bool) -> ActionResult:
-        """Detach from the Reins screen (Alt+d), or end it (Alt+q); Claude sessions keep running either way."""
+        """Detach from the Reins screen (Alt+d), or end it (Quit in Alt+q's dialog); Claude sessions keep running either way."""
 
     def pin_session(self, session: str, pinned: bool) -> ActionResult:
         """Keep the session at the top of the list, or stop doing so."""

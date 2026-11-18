@@ -439,7 +439,7 @@ def main(args: argparse.Namespace) -> int:
         if panes is not None and not has_panel(panes):
             if inside:
                 print("reins tui: you are in the Reins screen already, and its panel was closed. End this screen "
-                      "(Ctrl+Q in the panel, or Alt+q) and run `reins tui` again to get it back; your Claude "
+                      "(Alt+q, then choose Quit) and run `reins tui` again to get it back; your Claude "
                       "and Codex sessions keep running.", file=sys.stderr)
                 return 1
             busy = holds_work(panes)

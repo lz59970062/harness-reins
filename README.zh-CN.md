@@ -9,7 +9,7 @@
 
 **给 harness 配的 harness：把工作派给任何一个 Agent，结果回到发起它的那个会话。**
 
-[English](README.md) · [文档站](https://lz59970062.github.io/harness-reins/) · [快速开始](https://lz59970062.github.io/harness-reins/quickstart/) · [基准测试](https://lz59970062.github.io/harness-reins/benchmark/) · [更新记录](CHANGELOG.md)
+[English](README.md) · [0.14 新功能：`reins tui`](#014-新功能所有会话一个终端) · [文档站](https://lz59970062.github.io/harness-reins/) · [快速开始](https://lz59970062.github.io/harness-reins/quickstart/) · [基准测试](https://lz59970062.github.io/harness-reins/benchmark/) · [更新记录](CHANGELOG.md)
 
 ## 要解决的问题
 
@@ -38,6 +38,30 @@ ACK after inspection: reins ack <task-id>-c1
 ```
 
 等待期间不消耗任何模型调用。
+
+## 0.14 新功能：所有会话，一个终端
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lz59970062/harness-reins/main/assets/readme/tui-zh-dark.svg">
+  <img src="https://raw.githubusercontent.com/lz59970062/harness-reins/main/assets/readme/tui-zh-light.svg" width="100%" alt="reins tui：左侧面板列出 Claude Code、Codex、Pi 和 DeepSeek Harness 会话、各自在哪里运行和正在跑的任务；右侧在会话自己的界面里打开其中一个，长任务提交后数小时，结果回到同一个对话">
+</picture>
+</p>
+
+三个 Harness 里开着十个 Agent，就是十个窗口，也看不出哪个在等任务、哪个在等回复、哪个在等你。`reins tui` 把它们放到一个屏幕上：本机所有 Claude Code、Codex、Pi 会话，不管在终端、桌面应用还是后台运行，连同它们发起的任务、目标和消息。按 Enter，会话就在面板旁边的窗格里用它自己的界面打开。
+
+- **始终是同一个对话，不会分叉。** 已关闭的 Claude Code 会话先在后台恢复，窗格再接上去；Codex 线程通过 Codex 共享的 app-server 打开，窗格、通过 SSH 连接的 Codex Desktop 和每一次回调写的都是同一个线程。已经在别的窗口打开的会话，不会再打开第二份。
+- **结果送到你正在看的地方。** 发给已关闭 Claude Code 会话的回调会用同一个 ID 把它拉起来；发给已打开 Codex 线程的回调作为新的一轮进入这个线程，不会在旁边再起一个无界面的副本。
+- **一个菜单全搞定。** 右键会话（或按 `o`）：在下方或右侧打开、分叉、在它的目录开终端、发消息、置顶、复制 ID、停止、归档。
+- **放心离开。** `Alt+d`、直接关掉终端或 SSH 断线，所有会话照常运行；`Alt+q` 会先询问，默认选中 Detach；再运行 `reins tui` 回到同一个屏幕。
+- **装好就能用。** Linux 的 npm 包自带 Zellij 和面板，Ctrl 快捷键原样交给 Claude Code。
+
+```bash
+reins tui            # 打开面板
+reins tui <id>       # 直接打开一个会话：会话 ID，或它发起的任务 ID
+```
+
+→ [终端界面指南](docs/guides/tui.md) · 支持 Linux 和 macOS
 
 ## 实测：等待要花多少
 

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="604" viewBox="0 0 1200 604" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">reins tui：Reins 面板和旁边打开的会话</title>
+<desc id="d">左侧面板列出 Claude Code、Codex、Pi 和 DeepSeek Harness 会话、各自在哪里运行和正在跑的任务；右侧在会话自己的界面里打开其中一个，长任务提交后数小时，结果回到同一个对话。</desc>
+<rect x="0.5" y="0.5" width="1199" height="603" rx="14" fill="#0d1117" stroke="#30363d"/>
+<text x="40" y="56" font-size="13" font-weight="600" letter-spacing="1.6" fill="#3987e5">0.14 新功能 · REINS TUI</text>
+<text x="40" y="78" font-size="14" fill="#8b949e">本机所有 Claude Code、Codex、Pi 会话和它们发起的工作，集中在一个终端里</text>
+<rect x="40" y="100" width="1120" height="484" rx="10" fill="#151b23" stroke="#30363d"/>
+<line x1="580" x2="580" y1="101" y2="548" stroke="#30363d"/>
+<line x1="41" x2="1159" y1="548" y2="548" stroke="#30363d"/>
+<text x="600" y="571" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e" text-anchor="middle">Alt+方向键 切换窗格 · Alt+x 关闭窗格 · Alt+d 离开（会话照常运行）· Alt+q 先询问</text>
+<text x="62" y="138" font-size="16" font-weight="700" fill="#f0f6fc">Reins</text>
+<circle cx="446" cy="133.5" r="4" fill="#3fb950"/>
+<text x="562" y="138" font-size="12.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#3fb950" text-anchor="end">Reins is ready</text>
+<text x="62" y="174" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc" font-weight="600">Sessions</text>
+<rect x="62" y="182" width="62" height="2.5" rx="1" fill="#3987e5"/>
+<text x="146.4" y="174" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">Tasks</text>
+<text x="207.4" y="174" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">Goals</text>
+<text x="268.4" y="174" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">Messages</text>
+<line x1="41" x2="579" y1="190" y2="190" stroke="#30363d"/>
+<text x="84" y="216" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">Session</text>
+<text x="340" y="216" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">Where</text>
+<text x="438" y="216" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">Agent</text>
+<text x="524" y="216" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">Tasks</text>
+<rect x="50" y="228" width="520" height="30" rx="6" fill="#0c2d4f"/>
+<rect x="50" y="228" width="3" height="30" rx="1.5" fill="#3987e5"/>
+<text x="62" y="248" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#3987e5">●</text>
+<text x="84" y="248" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">★ @trainer ViT 学习率扫描</text>
+<text x="340" y="248" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">here</text>
+<text x="438" y="248" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">claude</text>
+<text x="536" y="248" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc" text-anchor="middle">1</text>
+<text x="62" y="282" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#3987e5">●</text>
+<text x="84" y="282" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">@reviewer API 重构审查</text>
+<text x="340" y="282" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">background</text>
+<text x="438" y="282" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">codex</text>
+<text x="536" y="282" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc" text-anchor="middle"></text>
+<text x="62" y="316" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#3987e5">●</text>
+<text x="84" y="316" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">清洗调研数据</text>
+<text x="340" y="316" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">here</text>
+<text x="438" y="316" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">pi</text>
+<text x="536" y="316" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc" text-anchor="middle">2</text>
+<text x="62" y="350" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">○</text>
+<text x="84" y="350" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">论文插图</text>
+<text x="340" y="350" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">Desktop</text>
+<text x="438" y="350" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">claude</text>
+<text x="536" y="350" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc" text-anchor="middle"></text>
+<text x="62" y="384" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">○</text>
+<text x="84" y="384" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">Kimi 基准第 5 轮</text>
+<text x="340" y="384" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">terminal</text>
+<text x="438" y="384" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">codex</text>
+<text x="536" y="384" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc" text-anchor="middle">1</text>
+<text x="62" y="418" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">◌</text>
+<text x="84" y="418" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">发版说明草稿</text>
+<text x="340" y="418" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">closed</text>
+<text x="438" y="418" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">claude</text>
+<text x="536" y="418" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e" text-anchor="middle"></text>
+<text x="62" y="452" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">◌</text>
+<text x="84" y="452" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">文献调研</text>
+<text x="340" y="452" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">DSH app</text>
+<text x="438" y="452" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">dsh</text>
+<text x="536" y="452" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e" text-anchor="middle">1</text>
+<text x="62" y="486" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">◌</text>
+<text x="84" y="486" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">修数据加载器</text>
+<text x="340" y="486" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">closed</text>
+<text x="438" y="486" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">codex</text>
+<text x="536" y="486" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e" text-anchor="middle"></text>
+<text x="62" y="528" font-size="12.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan fill="#3987e5" font-weight="600">Enter</tspan><tspan fill="#c3cbd4"> Open</tspan></text>
+<text x="153.2" y="528" font-size="12.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan fill="#3987e5" font-weight="600">n</tspan><tspan fill="#c3cbd4"> New</tspan></text>
+<text x="206.39999999999998" y="528" font-size="12.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan fill="#3987e5" font-weight="600">t</tspan><tspan fill="#c3cbd4"> Shell</tspan></text>
+<text x="274.79999999999995" y="528" font-size="12.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan fill="#3987e5" font-weight="600">m</tspan><tspan fill="#c3cbd4"> Msg</tspan></text>
+<text x="327.99999999999994" y="528" font-size="12.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan fill="#3987e5" font-weight="600">o</tspan><tspan fill="#c3cbd4"> Menu</tspan></text>
+<text x="604" y="138" font-size="14.5" font-weight="650" fill="#f0f6fc">@trainer · ViT 学习率扫描</text>
+<text x="1138" y="138" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e" text-anchor="end">claude attach · one conversation</text>
+<line x1="581" x2="1159" y1="152" y2="152" stroke="#30363d"/>
+<text x="604" y="186" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"><tspan fill="#8b949e">&gt; </tspan><tspan fill="#f0f6fc">跑一下学习率扫描，告诉我哪个最好</tspan></text>
+<text x="604" y="214" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">● reins run --task "lr sweep" -- python sweep.py</text>
+<text x="604" y="242" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">  reins: submitted managed task 7f3a91c2</text>
+<text x="604" y="270" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#c3cbd4">  任务独立运行，结束后我再接着看。</text>
+<text x="604" y="308" font-size="13" font-style="italic" fill="#8b949e">… 回合结束，3 小时 41 分钟里没有任何轮询 …</text>
+<rect x="596" y="329" width="3" height="22" rx="1.5" fill="#3987e5"/>
+<text x="608" y="346" font-size="13.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">[reins] 7f3a91c2-c1</text>
+<text x="604" y="374" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">Result: exited 0 · 3h 41m 12s</text>
+<text x="604" y="412" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#f0f6fc">● 3e-4 最好：top-1 82.4%，比 1e-3 高 1.9 点。</text>
+<text x="604" y="440" font-size="13.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#8b949e">  reins ack 7f3a91c2-c1</text>
+</svg>

@@ -153,6 +153,148 @@ def workflow(t: dict, lang: str = "en") -> str:
                  head + "\n" + "\n".join(out))
 
 
+TUI = {
+    "en": {
+        "eyebrow": "NEW IN 0.14 · REINS TUI",
+        "sub": "Every Claude Code, Codex and Pi session on the machine, with the work it started, in one terminal",
+        "rows": [
+            ("●", "★ @trainer Sweep ViT lr", "here", "claude", "1"),
+            ("●", "@reviewer API refactor", "background", "codex", ""),
+            ("●", "Clean the survey data", "here", "pi", "2"),
+            ("○", "Paper figures", "Desktop", "claude", ""),
+            ("○", "Kimi benchmark round 5", "terminal", "codex", "1"),
+            ("◌", "Release notes draft", "closed", "claude", ""),
+            ("◌", "Literature survey", "DSH app", "dsh", "1"),
+            ("◌", "Fix the data loader", "closed", "codex", ""),
+        ],
+        "pane": "@trainer · Sweep ViT lr",
+        "chat": [
+            ("prompt", "run the lr sweep and tell me which one wins"),
+            ("ink", "● reins run --task \"lr sweep\" -- python sweep.py"),
+            ("muted", "  reins: submitted managed task 7f3a91c2"),
+            ("ink2", "  It runs on its own; I'll pick it up when it ends."),
+            ("gap", ""),
+            ("note", "… the turn ends; nothing polls for 3h 41m …"),
+            ("gap", ""),
+            ("callback", "[reins] 7f3a91c2-c1"),
+            ("ink", "Result: exited 0 · 3h 41m 12s"),
+            ("gap", ""),
+            ("ink", "● lr 3e-4 wins: 82.4% top-1, +1.9 over 1e-3."),
+            ("muted", "  reins ack 7f3a91c2-c1"),
+        ],
+        "bar": "Alt+arrows move · Alt+x close a pane · Alt+d leave, it keeps running · Alt+q asks first",
+        "title": "reins tui: the Reins panel beside an open session",
+        "desc": "A panel lists Claude Code, Codex, Pi and DeepSeek Harness sessions with where each runs and its running tasks; "
+                "beside it one session is open in its own interface, where a long task was submitted and its "
+                "result arrived in the same conversation hours later.",
+    },
+    "zh": {
+        "eyebrow": "0.14 新功能 · REINS TUI",
+        "sub": "本机所有 Claude Code、Codex、Pi 会话和它们发起的工作，集中在一个终端里",
+        "rows": [
+            ("●", "★ @trainer ViT 学习率扫描", "here", "claude", "1"),
+            ("●", "@reviewer API 重构审查", "background", "codex", ""),
+            ("●", "清洗调研数据", "here", "pi", "2"),
+            ("○", "论文插图", "Desktop", "claude", ""),
+            ("○", "Kimi 基准第 5 轮", "terminal", "codex", "1"),
+            ("◌", "发版说明草稿", "closed", "claude", ""),
+            ("◌", "文献调研", "DSH app", "dsh", "1"),
+            ("◌", "修数据加载器", "closed", "codex", ""),
+        ],
+        "pane": "@trainer · ViT 学习率扫描",
+        "chat": [
+            ("prompt", "跑一下学习率扫描，告诉我哪个最好"),
+            ("ink", "● reins run --task \"lr sweep\" -- python sweep.py"),
+            ("muted", "  reins: submitted managed task 7f3a91c2"),
+            ("ink2", "  任务独立运行，结束后我再接着看。"),
+            ("gap", ""),
+            ("note", "… 回合结束，3 小时 41 分钟里没有任何轮询 …"),
+            ("gap", ""),
+            ("callback", "[reins] 7f3a91c2-c1"),
+            ("ink", "Result: exited 0 · 3h 41m 12s"),
+            ("gap", ""),
+            ("ink", "● 3e-4 最好：top-1 82.4%，比 1e-3 高 1.9 点。"),
+            ("muted", "  reins ack 7f3a91c2-c1"),
+        ],
+        "bar": "Alt+方向键 切换窗格 · Alt+x 关闭窗格 · Alt+d 离开（会话照常运行）· Alt+q 先询问",
+        "title": "reins tui：Reins 面板和旁边打开的会话",
+        "desc": "左侧面板列出 Claude Code、Codex、Pi 和 DeepSeek Harness 会话、各自在哪里运行和正在跑的任务；右侧在会话自己的界面里打开其中一个，"
+                "长任务提交后数小时，结果回到同一个对话。",
+    },
+}
+
+
+def tui(t: dict, lang: str = "en") -> str:
+    words = TUI[lang]
+    mono = f'font-family="{MONO}"'
+    out = [
+        f'<text x="40" y="56" font-size="13" font-weight="600" letter-spacing="1.6" fill="{t["accent"]}">{esc(words["eyebrow"])}</text>',
+        f'<text x="40" y="78" font-size="14" fill="{t["muted"]}">{esc(words["sub"])}</text>',
+        # The terminal window, with the panel on the left and one session pane on the right.
+        f'<rect x="40" y="100" width="1120" height="484" rx="10" fill="{t["card"]}" stroke="{t["border"]}"/>',
+        f'<line x1="580" x2="580" y1="101" y2="548" stroke="{t["border"]}"/>',
+        f'<line x1="41" x2="1159" y1="548" y2="548" stroke="{t["border"]}"/>',
+        f'<text x="600" y="571" font-size="12" {mono} fill="{t["muted"]}" text-anchor="middle">{esc(words["bar"])}</text>',
+        # Panel.
+        f'<text x="62" y="138" font-size="16" font-weight="700" fill="{t["ink"]}">Reins</text>',
+        f'<circle cx="446" cy="133.5" r="4" fill="{t["ok"]}"/>',
+        f'<text x="562" y="138" font-size="12.5" {mono} fill="{t["ok"]}" text-anchor="end">Reins is ready</text>',
+    ]
+    x = 62
+    for index, tab in enumerate(("Sessions", "Tasks", "Goals", "Messages")):
+        width = len(tab) * 7.8
+        weight = ' font-weight="600"' if index == 0 else ""
+        out.append(f'<text x="{x}" y="174" font-size="13" {mono} fill="{t["ink" if index == 0 else "muted"]}"{weight}>{tab}</text>')
+        if index == 0:
+            out.append(f'<rect x="{x}" y="182" width="{width:.0f}" height="2.5" rx="1" fill="{t["accent"]}"/>')
+        x += width + 22
+    out.append(f'<line x1="41" x2="579" y1="190" y2="190" stroke="{t["border"]}"/>')
+    cols = (62, 84, 340, 438, 524)
+    for col, head in zip(cols[1:], ("Session", "Where", "Agent", "Tasks")):
+        out.append(f'<text x="{col}" y="216" font-size="12" {mono} fill="{t["muted"]}">{head}</text>')
+    y = 248
+    for index, (mark, title, where, agent, tasks) in enumerate(words["rows"]):
+        dim = where in ("closed", "DSH app")
+        if index == 0:
+            out.append(f'<rect x="50" y="{y - 20}" width="520" height="30" rx="6" fill="{t["accent_wash"]}"/>')
+            out.append(f'<rect x="50" y="{y - 20}" width="3" height="30" rx="1.5" fill="{t["accent"]}"/>')
+        ink = t["muted"] if dim else t["ink"]
+        mark_fill = t["accent"] if mark == "●" else t["muted"]
+        out.append(f'<text x="{cols[0]}" y="{y}" font-size="13" {mono} fill="{mark_fill}">{mark}</text>')
+        out.append(f'<text x="{cols[1]}" y="{y}" font-size="13.5" {mono} fill="{ink}">{esc(title)}</text>')
+        out.append(f'<text x="{cols[2]}" y="{y}" font-size="13" {mono} fill="{t["muted"] if dim else t["ink2"]}">{where}</text>')
+        out.append(f'<text x="{cols[3]}" y="{y}" font-size="13" {mono} fill="{t["muted"] if dim else t["ink2"]}">{agent}</text>')
+        out.append(f'<text x="{cols[4] + 12}" y="{y}" font-size="13" {mono} fill="{ink}" text-anchor="middle">{tasks}</text>')
+        y += 34
+    keys = [("Enter", "Open"), ("n", "New"), ("t", "Shell"), ("m", "Msg"), ("o", "Menu")]
+    x = 62
+    for key, label in keys:
+        out.append(f'<text x="{x}" y="528" font-size="12.5" {mono}><tspan fill="{t["accent"]}" font-weight="600">{key}</tspan>'
+                   f'<tspan fill="{t["ink2"]}"> {label}</tspan></text>')
+        x += (len(key) + len(label) + 3) * 7.6
+    # Session pane: its own interface, titled with the session's address and name.
+    out.append(f'<text x="604" y="138" font-size="14.5" font-weight="650" fill="{t["ink"]}">{esc(words["pane"])}</text>')
+    out.append(f'<text x="1138" y="138" font-size="12" {mono} fill="{t["muted"]}" text-anchor="end">claude attach · one conversation</text>')
+    out.append(f'<line x1="581" x2="1159" y1="152" y2="152" stroke="{t["border"]}"/>')
+    y = 186
+    for role, text in words["chat"]:
+        if role == "gap":
+            y += 10
+            continue
+        if role == "prompt":
+            out.append(f'<text x="604" y="{y}" font-size="13.5" {mono}><tspan fill="{t["muted"]}">&gt; </tspan>'
+                       f'<tspan fill="{t["ink"]}">{esc(text)}</tspan></text>')
+        elif role == "callback":
+            out.append(f'<rect x="596" y="{y - 17}" width="3" height="22" rx="1.5" fill="{t["accent"]}"/>')
+            out.append(f'<text x="608" y="{y}" font-size="13.5" font-weight="600" {mono} fill="{t["ink"]}">{esc(text)}</text>')
+        elif role == "note":
+            out.append(f'<text x="604" y="{y}" font-size="13" font-style="italic" fill="{t["muted"]}">{esc(text)}</text>')
+        else:
+            out.append(f'<text x="604" y="{y}" font-size="13.5" {mono} fill="{t[role]}">{esc(text)}</text>')
+        y += 28
+    return frame(t, 1200, 604, words["title"], words["desc"], "\n".join(out))
+
+
 def main() -> None:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "assets" / "readme")
     out.mkdir(parents=True, exist_ok=True)
@@ -160,7 +302,9 @@ def main() -> None:
         (out / f"hero-{mode}.svg").write_text(hero(t))
         (out / f"workflow-{mode}.svg").write_text(workflow(t))
         (out / f"workflow-zh-{mode}.svg").write_text(workflow(t, "zh"))
-    print(f"wrote hero and workflow (light, dark) to {out}")
+        (out / f"tui-{mode}.svg").write_text(tui(t))
+        (out / f"tui-zh-{mode}.svg").write_text(tui(t, "zh"))
+    print(f"wrote hero, workflow and tui (light, dark) to {out}")
 
 
 if __name__ == "__main__":

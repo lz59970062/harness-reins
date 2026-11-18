@@ -8,7 +8,7 @@
 <h3 align="center">Dispatch work to any agent and route the result back to the session that asked.</h3>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.9.0-2a78d6" alt="Release 0.9.0"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.0-2a78d6" alt="Release 0.14.0"></a>
   <a href="https://www.npmjs.com/package/harness-reins"><img src="https://img.shields.io/badge/npm-harness--reins-2a78d6" alt="npm harness-reins"></a>
   <img src="https://img.shields.io/badge/python-%E2%89%A53.9-2a78d6" alt="Python ≥ 3.9">
   <img src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-2a78d6" alt="Linux, macOS, Windows">
@@ -18,6 +18,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
+  <a href="#new-in-014-every-session-in-one-terminal">New: <code>reins tui</code></a> ·
   <a href="#measured-what-waiting-costs">Benchmark</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#usage">Usage</a> ·
@@ -62,6 +63,42 @@ Details: .../details/<task-id>-c1.md (as needed)
 Session: <session-id> (only)
 ACK after inspection: reins ack <task-id>-c1
 ```
+
+## New in 0.14: every session in one terminal
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lz59970062/harness-reins/main/assets/readme/tui-dark.svg">
+  <img src="https://raw.githubusercontent.com/lz59970062/harness-reins/main/assets/readme/tui-light.svg" width="100%" alt="reins tui: a panel lists Claude Code, Codex, Pi and DeepSeek Harness sessions with where each runs and its running tasks; beside it one session is open in its own interface, where a long task was submitted and its result arrived in the same conversation hours later">
+</picture>
+</p>
+
+Ten agents in three harnesses means ten windows, and no way to see which of them is waiting on a
+task, a reply or you. `reins tui` puts them on one screen: every Claude Code, Codex and Pi session on
+the machine, whether it runs in a terminal, the desktop app or the background, with the tasks, goals
+and messages it started. Press Enter and the session opens in a pane beside the panel, in its own
+interface.
+
+- **One conversation, never a copy.** A closed Claude Code session resumes in the background and
+  the pane attaches to it; a Codex thread opens through Codex's shared app-server, so the pane,
+  Codex Desktop over SSH and every callback write the same thread. A session already open in
+  another window is never opened a second time.
+- **Results land where you are looking.** A callback for a closed Claude Code session brings it up
+  under the same id, and one for an open Codex thread arrives as a new turn in it, not as a second
+  headless run beside it.
+- **Everything from one menu.** Right-click a session (or press `o`) to open it below or to the
+  right, fork it, open a shell in its directory, message it, pin it, copy its id, stop or archive it.
+- **Safe to leave.** `Alt+d`, closing the terminal or a dropped SSH connection leaves every session
+  running, `Alt+q` asks first with Detach preselected, and `reins tui` brings the same screen back.
+- **Ready on install.** The Linux npm package includes Zellij and the panel. Ctrl keys go straight
+  to Claude Code.
+
+```bash
+reins tui            # the panel
+reins tui <id>       # open one session, by its id or a task it started
+```
+
+→ [Terminal UI guide](docs/guides/tui.en.md) · Linux and macOS
 
 ## Measured: what waiting costs
 

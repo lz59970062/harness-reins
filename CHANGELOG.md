@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `reins tui`: `Alt+r` goes back to the panel, and opens it again on the left when its pane was closed. Panes
+  already open keep running and move to its right; before, getting the panel back meant ending the screen.
+
 ## 0.14.0 — 2026-11-18
 
 - `reins tui`: one terminal for every Claude Code session on the machine, with the tasks, goals

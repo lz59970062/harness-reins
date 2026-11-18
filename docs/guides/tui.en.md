@@ -111,6 +111,7 @@ the terminal. Clicking a pane and scrolling with the wheel work too.
 | `Alt+x` | Close the focused pane | Claude Code and Codex keep running in the background; a Pi session ends |
 | `Alt+f` | Fullscreen the focused pane, or back | |
 | `Alt+=` / `Alt+-` | Grow / shrink the focused pane | |
+| `Alt+r` | Back to the panel; if it was closed, open it again on the left | Open panes keep running and move to its right |
 | `Alt+d` | Leave for now; run `reins tui` to come back | Layout and panes stay |
 | `Alt+q` | Asks first, with Detach preselected; choose Quit to end the whole screen | When ended, Claude Code and Codex keep running in the background; Pi sessions and your own shells in it end |
 
@@ -124,9 +125,9 @@ key works:
 
 Until then, use `Ctrl+Q` in the panel to leave or end the screen.
 
-If the panel's pane gets closed, run `reins tui` again: it offers to start the screen again. Claude sessions keep
-running (and Codex threads stay on their daemon), and a double click in the new panel opens them again. Run inside the screen, `reins tui` says that you are
-already there.
+If the panel's pane gets closed, press `Alt+r`: the panel opens again on the left, and the sessions, shells and Pi
+sessions already open keep running and are rearranged to its right. Run inside the screen, `reins tui` says that you
+are already there.
 
 To stop a session, select it in the panel and press `s`: its process stops and the conversation stays.
 

@@ -589,6 +589,132 @@ class LaunchTests(unittest.TestCase):
         launch.write_config(self.root / "z", ["reins", "_tui-panel"])
         self.assertIn("context_menu_enabled false", (self.root / "z" / "config.kdl").read_text())
         self.assertIn('on_quit "ask_detach"', (self.root / "z" / "config.kdl").read_text())
+
+    def test_alt_r_runs_the_reopen_helper_with_the_panels_arguments(self) -> None:
+        launch.write_config(self.root / "z", ["/py", "/e.py", "_tui-panel", "--queue-dir", "/q"])
+        config = (self.root / "z" / "config.kdl").read_text()
+        self.assertIn('bind "Alt r" { Run "/py" "/e.py" "_tui-panel-reopen" "--queue-dir" "/q" { floating true; '
+                      'close_on_exit true;', config)
+        layout_text = (self.root / "z" / "layouts" / "reins.kdl").read_text()
+        self.assertIn(f'swap_tiled_layout name="{launch.SWAP_LAYOUT}"', layout_text)
+        self.assertIn("Alt+r", launch.HINT_TEXT)
+
+    def test_the_reopen_helper_is_not_the_panel(self) -> None:
+        helper = {"id": 7, "title": "Reins: opening the panel", "is_plugin": False,
+                  "terminal_command": "/py /e.py _tui-panel-reopen --queue-dir /q"}
+        self.assertFalse(launch.has_panel([helper]))
+        self.assertTrue(launch.has_panel([{"id": 0, "title": "x", "is_plugin": False,
+                                           "terminal_command": "/py /e.py _tui-panel --queue-dir /q"}]))
+
+    def run_reopen(self, panes, *, swap_fails=False):
+        zellij = mock.Mock()
+        zellij.panes.return_value = panes
+        zellij.new_pane.return_value = "terminal_9"
+        if swap_fails:
+            zellij.apply_swap_layout.side_effect = RuntimeError("no swap layout fits")
+        with mock.patch.dict(os.environ, {"ZELLIJ_PANE_ID": "7"}, clear=False), \
+                mock.patch.object(launch, "zellij_executable", return_value="zellij"), \
+                mock.patch("harness_reins.commands.tui.live.Zellij", return_value=zellij):
+            code = launch.reopen_panel_main(mock.Mock(queue_dir="/q"))
+        return code, zellij
+
+    def test_alt_r_focuses_an_open_panel(self) -> None:
+        code, zellij = self.run_reopen([{"id": 7, "title": "Reins: opening the panel", "is_plugin": False,
+                                         "is_floating": True},
+                                        {"id": 0, "title": "Reins", "is_plugin": False}])
+        self.assertEqual(code, 0)
+        zellij.focus.assert_called_once_with("terminal_0")
+        zellij.new_pane.assert_not_called()
+
+    def test_alt_r_opens_a_closed_panel_on_the_left(self) -> None:
+        panes = [{"id": 7, "title": "Reins: opening the panel", "is_plugin": False, "is_floating": True},
+                 {"id": 3, "title": "shell", "is_plugin": False}, {"id": 2, "title": "claude", "is_plugin": False}]
+        code, zellij = self.run_reopen(panes)
+        self.assertEqual(code, 0)
+        zellij.hide_floating.assert_called_once()
+        argv = zellij.new_pane.call_args.args[0]
+        self.assertEqual(argv[-3:], ["_tui-panel", "--queue-dir", "/q"])
+        self.assertEqual(zellij.new_pane.call_args.kwargs["name"], "Reins")
+        self.assertEqual(zellij.new_pane.call_args.kwargs["direction"], None)
+        # From the oldest tiled pane, so the panel does not open floating; then swap and move it left.
+        self.assertEqual(zellij.focus.call_args_list[0], mock.call("terminal_2"))
+        zellij.apply_swap_layout.assert_called_once_with(launch.SWAP_LAYOUT)
+        self.assertEqual(zellij.focus.call_args_list[-1], mock.call("terminal_9"))
+        zellij.move_pane.assert_called_once_with("left")
+
+    def test_alt_r_keeps_other_floating_panes_in_view_by_tiling_them(self) -> None:
+        panes = [{"id": 7, "title": "Reins: opening the panel", "is_plugin": False, "is_floating": True},
+                 {"id": 4, "title": "shell", "is_plugin": False, "is_floating": True},
+                 {"id": 5, "title": "claude", "is_plugin": False}]
+        code, zellij = self.run_reopen(panes)
+        self.assertEqual(code, 0)
+        # Only the other floating pane is embedded, before the floating layer is hidden.
+        zellij.embed.assert_called_once_with("terminal_4")
+        names = [name for name, _, _ in zellij.method_calls]
+        self.assertLess(names.index("embed"), names.index("hide_floating"))
+        self.assertEqual(zellij.focus.call_args_list[0], mock.call("terminal_4"))
+        zellij.apply_swap_layout.assert_called_once_with(launch.SWAP_LAYOUT)
+        zellij.move_pane.assert_called_once_with("left")
+
+    def test_alt_r_with_only_floating_panes_tiles_them_and_moves_the_panel_left(self) -> None:
+        panes = [{"id": 7, "title": "Reins: opening the panel", "is_plugin": False, "is_floating": True},
+                 {"id": 4, "title": "shell", "is_plugin": False, "is_floating": True}]
+        code, zellij = self.run_reopen(panes)
+        self.assertEqual(code, 0)
+        zellij.embed.assert_called_once_with("terminal_4")
+        zellij.move_pane.assert_called_once_with("left")
+
+    def test_embedding_a_floating_pane_focuses_it_then_toggles_it(self) -> None:
+        calls = []
+
+        def run(argv, **kwargs):
+            calls.append(argv[-2:] if argv[-2] == "focus-pane-id" else argv[-1:])
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+        live.Zellij("zellij", run=run, environment={}).embed("terminal_4")
+        self.assertEqual(calls, [["focus-pane-id", "terminal_4"], ["toggle-pane-embed-or-floating"]])
+
+    def test_hiding_floating_panes_that_are_already_hidden_is_not_an_error(self) -> None:
+        calls = []
+
+        def run(argv, visible):
+            calls.append(argv[-1])
+            if argv[-1] == "are-floating-panes-visible":
+                return subprocess.CompletedProcess(argv, 0 if visible else 2, stdout=f"{str(visible).lower()}\n",
+                                                   stderr="")
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+        live.Zellij("zellij", run=lambda argv, **kw: run(argv, False), environment={}).hide_floating()
+        self.assertEqual(calls, ["are-floating-panes-visible"])
+        calls.clear()
+        live.Zellij("zellij", run=lambda argv, **kw: run(argv, True), environment={}).hide_floating()
+        self.assertEqual(calls, ["are-floating-panes-visible", "hide-floating-panes"])
+
+    def test_a_zellij_without_the_visibility_query_still_hides_floating_panes(self) -> None:
+        calls = []
+
+        def run(argv, **kwargs):
+            calls.append(argv[-1])
+            if argv[-1] == "are-floating-panes-visible":
+                return subprocess.CompletedProcess(argv, 2, stdout="",
+                                                   stderr="error: unrecognized subcommand 'are-floating-panes-visible'")
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+        live.Zellij("zellij", run=run, environment={}).hide_floating()
+        self.assertEqual(calls, ["are-floating-panes-visible", "hide-floating-panes"])
+
+    def test_alt_r_in_a_screen_without_the_swap_layout_leaves_the_panel_where_it_opened(self) -> None:
+        code, zellij = self.run_reopen([{"id": 2, "title": "claude", "is_plugin": False}], swap_fails=True)
+        self.assertEqual(code, 0)
+        zellij.new_pane.assert_called_once()
+        zellij.move_pane.assert_not_called()
+
+    def test_focusing_the_focused_pane_is_not_an_error(self) -> None:
+        def run(argv, **kwargs):
+            if argv[-2] == "focus-pane-id":
+                return subprocess.CompletedProcess(argv, 1, stdout="", stderr="Pane Terminal(5) is already focused")
+            return subprocess.CompletedProcess(argv, 1, stdout="", stderr="boom")
+        zellij = live.Zellij("zellij", run=run, environment={})
+        zellij.focus("terminal_5")
+        with self.assertRaises(RuntimeError):
+            zellij.move_pane("left")
         self.assertIn("Use Option as Meta key", launch.HINT_TEXT)
 
     def test_a_screen_with_a_shell_asks_with_no_as_the_default(self) -> None:

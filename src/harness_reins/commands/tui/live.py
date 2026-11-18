@@ -164,7 +164,41 @@ class Zellij:
         return self._action(*arguments, "--", *argv).strip()
 
     def focus(self, pane: str) -> None:
-        self._action("focus-pane-id", pane)
+        try:
+            self._action("focus-pane-id", pane)
+        except RuntimeError as exc:
+            # Zellij 0.46 fails focus-pane-id on the pane that already has the focus, which is what was asked.
+            if "already focused" not in str(exc):
+                raise
+
+    def hide_floating(self) -> None:
+        # Zellij 0.46 fails hide-floating-panes, with no message, when they are already hidden, and fails
+        # are-floating-panes-visible when its answer is "false". A Zellij older than 0.44.1 has no such query: then
+        # hide them anyway, and an error from that is not proof they are showing.
+        try:
+            answer = self._action("are-floating-panes-visible").strip()
+        except RuntimeError as exc:
+            answer = "false" if str(exc).endswith(": false") else "unknown"
+        if answer == "false":
+            return
+        try:
+            self._action("hide-floating-panes")
+        except RuntimeError:
+            if answer == "true":
+                raise
+
+    def embed(self, pane: str) -> None:
+        """Turn a floating pane into a tiled one; it keeps running."""
+        self.focus(pane)
+        self._action("toggle-pane-embed-or-floating")
+
+    def apply_swap_layout(self, name: str) -> None:
+        """Rearrange the tab's tiled panes by a swap layout of its layout file; no pane starts or stops."""
+        self._action("apply-tiled-swap-layout", name)
+
+    def move_pane(self, direction: str) -> None:
+        """Swap the focused pane with its neighbour in ``direction``."""
+        self._action("move-pane", direction)
 
     def rename(self, pane: str, name: str) -> None:
         """A name the pane keeps: unlike `new-pane --name`, a program setting its terminal title does not replace it
@@ -219,8 +253,11 @@ SHELL_PREFIX = "shell "
 PANEL_TITLE = "Reins"
 
 
+_PANEL_COMMAND = re.compile(r"(^|\s)_tui-panel(\s|$)")  # not `_tui-panel-reopen`, which Alt+r runs
+
+
 def _is_panel(pane: Mapping[str, object]) -> bool:
-    return pane.get("title") == PANEL_TITLE or "_tui-panel" in str(pane.get("terminal_command") or "")
+    return pane.get("title") == PANEL_TITLE or bool(_PANEL_COMMAND.search(str(pane.get("terminal_command") or "")))
 
 
 def place(zellij: "Zellij", argv: Sequence[str], *, name: str, close_on_exit: bool, direction: str = BELOW,

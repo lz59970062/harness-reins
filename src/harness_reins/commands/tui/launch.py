@@ -28,7 +28,7 @@ from ...harness.codex import threads as codex_threads
 from ...harness.pi import sessions as pi_sessions
 from ...runtime import worker_command
 from ...store import layout
-from .live import (CACHE_ENV, HINT_TITLE, LAUNCH_ENV, ensure_zellij_cache_dir, read_record, session_of,
+from .live import (CACHE_ENV, HINT_TITLE, LAUNCH_ENV, _is_panel, ensure_zellij_cache_dir, read_record, session_of,
                    zellij_cache_dir, zellij_environment)
 
 # Another name keeps a second Reins TUI (a test, another queue) out of the user's own session.
@@ -63,6 +63,10 @@ def _kdl(text: str) -> str:
 # A share, not a column count: Zellij creates the session before any terminal attaches, at a small
 # default size, and a fixed width that does not fit then stops the session from starting.
 PANEL_WIDTH = "38%"
+# A swap layout that only rearranges panes, never starts or stops one: the oldest pane on the left at the
+# panel's width, the rest beside it. Alt+r applies it after opening a new panel, then moves the panel there.
+SWAP_LAYOUT = "reins-panel"
+REOPEN_KEY = "Alt r"
 
 
 def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = None) -> bool:
@@ -77,6 +81,8 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
     except OSError:
         before = None
     (directory / "layouts").mkdir(parents=True, exist_ok=True)
+    # Alt+r runs the panel's own command with `_tui-panel-reopen` in its place, so --queue-dir carries over.
+    reopen = ["_tui-panel-reopen" if word == "_tui-panel" else word for word in panel]
     (directory / "config.kdl").write_text("\n".join([
         "// Written by `reins tui`; changes here are overwritten.",
         "show_startup_tips false",
@@ -107,6 +113,8 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
         '        bind "Alt -" { Resize "Decrease"; }',
         '        bind "Alt d" { Detach; }',
         '        bind "Alt q" { Quit; }',
+        f'        bind {_kdl(REOPEN_KEY)} {{ Run {" ".join(_kdl(word) for word in reopen)} '
+        '{ floating true; close_on_exit true; name "Reins: opening the panel"; }; }',
         "    }",
         "}",
         "",
@@ -128,6 +136,17 @@ def write_config(directory: Path, panel: list[str], hint: Optional[list[str]] = 
         "    }",
         "    pane size=1 borderless=true {",
         '        plugin location="compact-bar"',
+        "    }",
+        f"    swap_tiled_layout name={_kdl(SWAP_LAYOUT)} {{",
+        "        tab {",
+        '            pane split_direction="vertical" {',
+        f"                pane size={_kdl(PANEL_WIDTH)}",
+        "                pane { children; }",
+        "            }",
+        "            pane size=1 borderless=true {",
+        '                plugin location="compact-bar"',
+        "            }",
+        "        }",
         "    }",
         "}",
         "",
@@ -217,9 +236,7 @@ def _panes(executable: str, directory: Path) -> Optional[list]:
 
 def has_panel(panes: list) -> bool:
     """Whether the Reins panel still runs in the session: a person can close its pane like any other."""
-    return any(not pane.get("exited") and not pane.get("is_plugin")
-               and (pane.get("title") == "Reins" or "_tui-panel" in str(pane.get("terminal_command") or ""))
-               for pane in panes)
+    return any(not pane.get("exited") and not pane.get("is_plugin") and _is_panel(pane) for pane in panes)
 
 
 # What runs in a pane Reins opened and can open again; anything else (a shell, a command) may hold work.
@@ -438,14 +455,14 @@ def main(args: argparse.Namespace) -> int:
         panes = _panes(zellij, directory)
         if panes is not None and not has_panel(panes):
             if inside:
-                print("reins tui: you are in the Reins screen already, and its panel was closed. End this screen "
-                      "(Alt+q, then choose Quit) and run `reins tui` again to get it back; your Claude "
-                      "and Codex sessions keep running.", file=sys.stderr)
+                print("reins tui: you are in the Reins screen already, and its panel was closed. Press Alt+r to "
+                      "bring it back.", file=sys.stderr)
                 return 1
             busy = holds_work(panes)
-            if ask("reins tui: the Reins panel was closed in this screen. Start the screen again? Your Claude "
-                   "and Codex sessions keep running" + ("; the terminals and Pi sessions open in it close, with "
-                                                        "anything running in them." if busy else "."),
+            if ask("reins tui: the Reins panel was closed in this screen; Alt+r in it brings the panel back. "
+                   "Start the screen again instead? Your Claude and Codex sessions keep running"
+                   + ("; the terminals and Pi sessions open in it close, with anything running in them."
+                      if busy else "."),
                    default=not busy):
                 _zellij(zellij, directory, "kill-session", SESSION_NAME)
                 _zellij(zellij, directory, "delete-session", "--force", SESSION_NAME)
@@ -519,6 +536,7 @@ HINT_TEXT = """Select a session on the left and press Enter (or double-click it)
 
 Alt+arrows  move between panes      Alt+x  close a pane      Alt+f  fullscreen
 Alt+d       leave (run `reins tui` to come back)     Alt+q  leave or end (asks)
+Alt+r       back to the panel (opens it again if it was closed)
 Ctrl+Q in the panel also leaves or ends it.
 Mac: Alt is Option. macOS Terminal: Settings > Profiles > Keyboard > "Use Option as Meta key";
 iTerm2: Settings > Profiles > Keys > Left Option key: Esc+.
@@ -534,6 +552,60 @@ def hint_main(args: argparse.Namespace) -> int:
             time.sleep(3600)
     except KeyboardInterrupt:
         return 0
+
+
+def reopen_panel_main(args: argparse.Namespace) -> int:
+    """Hidden `reins _tui-panel-reopen`, which Alt+r runs in a small floating pane: focus the panel, or open it
+    again on the left when it was closed. Panes already open keep running; the others only move to its right."""
+    from .live import PANEL_TITLE, Zellij
+
+    zellij = Zellij(zellij_executable() or "zellij", own_session=SESSION_NAME)
+    me = os.environ.get("ZELLIJ_PANE_ID")
+    try:
+        panes = [pane for pane in zellij.panes() if not pane.get("is_plugin") and not pane.get("exited")
+                 and str(pane.get("id")) != me]
+        panel = next((pane for pane in panes if _is_panel(pane)), None)
+        if panel is not None:
+            zellij.focus(f"terminal_{panel.get('id')}")
+            return 0
+        ids = [pane for pane in panes if isinstance(pane.get("id"), int)]
+        # Other floating panes join the tiled ones, so hiding the floating layer below hides nothing but this
+        # pane, and they move to the panel's right with the rest.
+        for pane in ids:
+            if pane.get("is_floating"):
+                zellij.embed(f"terminal_{pane['id']}")
+        tiled = [int(pane["id"]) for pane in ids]
+        # This pane floats, and a pane opened from the floating layer would float too.
+        zellij.hide_floating()
+        if tiled:
+            zellij.focus(f"terminal_{min(tiled)}")
+        queue = ["--queue-dir", args.queue_dir] if getattr(args, "queue_dir", None) else []
+        new = zellij.new_pane(worker_command("_tui-panel", *queue), name=PANEL_TITLE, close_on_exit=False,
+                              direction=None)
+        if tiled:
+            # The swap layout puts the oldest pane on the left at the panel's width; the new panel then trades
+            # places with it. A screen started by an older Reins has no swap layout: the panel stays where it
+            # opened.
+            try:
+                zellij.apply_swap_layout(SWAP_LAYOUT)
+            except RuntimeError:
+                zellij.focus(new)
+                return 0
+            zellij.focus(new)
+            zellij.move_pane("left")
+        return 0
+    except (RuntimeError, OSError) as exc:
+        print(f"reins: could not open the panel again: {exc}", flush=True)
+        _wait_for_enter()
+        return 1
+
+
+def _wait_for_enter() -> None:
+    """Keep a message on screen in a pane that closes when its command ends."""
+    try:
+        input("Press Enter to close this message.")
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 def panel_main(args: argparse.Namespace) -> int:

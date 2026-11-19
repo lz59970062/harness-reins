@@ -35,7 +35,8 @@ from ...harness.pi import sessions as pi_sessions
 from ...install import skills as skill_install
 from ...runtime import worker_command
 from ...store import layout, link, records
-from .backend import BELOW, ActionResult, GoalRow, MessageRow, SessionRow, TaskRow, short_id
+from .backend import (BELOW, ActionResult, GoalRow, MessageRow, SessionRow, TaskRow, collaborator_notice,
+                      collaborator_prompt, free_name, short_id, suggested_name)
 
 Run = Callable[..., "subprocess.CompletedProcess[str]"]
 
@@ -229,6 +230,7 @@ class Zellij:
 # Harnesses whose sessions open in a Reins pane. DeepSeek Harness has no terminal interface.
 PANE_AGENTS = ("claude", "codex", "pi")
 NEW_AGENTS = PANE_AGENTS
+CODEX_LIST_SECONDS = 30.0  # How long a collaborator waits for Codex to list its new thread.
 _PANE_NAME = re.compile(r"(claude|codex|pi) ([0-9a-f]{8})\b")
 CODEX_NEW_PREFIX = "codex new "
 DSH_NO_WINDOW = ("DeepSeek Harness has no terminal window; open this session in its web or desktop app. "
@@ -414,7 +416,9 @@ class LiveBackend:
                  zellij: Optional[Zellij] = None, run: Run = subprocess.run,
                  now: Callable[[], float] = time.time,
                  codex_connect: Optional[codex_threads.Connect] = None,
-                 codex_writers: Optional[Callable[[], Mapping[str, tuple[int, bool]]]] = None) -> None:
+                 codex_writers: Optional[Callable[[], Mapping[str, tuple[int, bool]]]] = None,
+                 sleep: Callable[[float], None] = time.sleep) -> None:
+        self.sleep = sleep
         self.root = (queue_root or layout.queue_dir(None)).expanduser().absolute()
         given = dict(os.environ if environment is None else environment)
         self.environment = user_environment(given)
@@ -841,6 +845,117 @@ class LiveBackend:
         name = f"{title} (fork)"
         return self._open_pane("codex", codex_threads.handle(fork), name,
                                lambda: codex_threads.resume_command(fork, self.environment), direction)
+
+    def start_collaborator(self, session: str, agent: str, cwd: str, task: str = "",
+                           direction: str = BELOW) -> ActionResult:
+        directory = os.path.abspath(os.path.expanduser(cwd))
+        if not os.path.isdir(directory):
+            return ActionResult(False, f"no directory {cwd}")
+        if agent not in NEW_AGENTS:
+            return ActionResult(False, DSH_NO_WINDOW if agent == "dsh" else f"Reins cannot start {agent} sessions")
+        view = self._view(session)
+        if view is None:
+            return ActionResult(False, f"no session {short_id(session)} on this machine")
+        title = view.name or short_id(session)
+        taken = {str(record.get("name")) for record in link.sessions(self.root)}
+        partner = self._session_name(session)
+        if partner is None:
+            partner = free_name(suggested_name(title, session), taken)
+            named = self.name_session(session, partner)
+            if not named.ok:
+                return ActionResult(False, f"could not name {title}: {named.message}")
+            taken.add(partner)
+        mate = free_name(partner, taken, keep=f"-{agent}")
+        # The agents run `reins send` with their own environment: name the queue unless it is the default one.
+        queue = None if self.root == (Path.home() / ".reins" / "queue").absolute() else str(self.root)
+        prompt = collaborator_prompt(mate, partner, view.agent, view.cwd, task, queue)
+        try:
+            started = self._start_mate(agent, directory, mate, f"with @{partner}", prompt, direction)
+        except (claude_background.BackgroundError, RuntimeError, OSError, ValueError) as exc:
+            return ActionResult(False, str(exc))
+        if not started.ok:
+            return started
+        told = self._reins("send", partner, "--message", collaborator_notice(mate, agent, directory, task, queue),
+                           "--wake", "never")
+        if not told.ok:
+            return ActionResult(False, f"started @{mate}, but could not tell @{partner}: {told.message}")
+        if view.agent == "dsh":
+            # Nothing here can wake a DeepSeek Harness session: it reads messages while its `reins wait` runs.
+            return ActionResult(True, f"started @{mate}; @{partner} reads how to reach it while its `reins wait` runs")
+        return ActionResult(True, f"started @{mate} to work with @{partner}, and told @{partner} how to reach it")
+
+    def _register(self, name: str, agent: str, session: str, cwd: str) -> ActionResult:
+        return self._reins("session", "register", name, "--agent", agent, "--session", session, "--cwd", cwd)
+
+    def _start_mate(self, agent: str, directory: str, mate: str, title: str, prompt: str,
+                    direction: str) -> ActionResult:
+        """Start the collaborator on ``prompt``, name it ``mate`` and open its pane, titled ``title``."""
+        if self.zellij is None:
+            return ActionResult(False, "not inside the Reins Zellij session")
+        if agent == "pi":
+            session = pi_channel.create_session(directory)
+            named = self._register(mate, "pi", session, directory)
+            if not named.ok:
+                return ActionResult(False, f"could not name the new Pi session {mate}: {named.message}")
+            return self._open_pane("pi", pi_sessions.handle(session), title,
+                                   lambda: [*pi_sessions.open_command(session, directory), "--", prompt], direction,
+                                   mate, directory)
+        if agent == "codex":
+            return self._start_codex_mate(directory, mate, prompt, direction)
+        handle = claude_background.start(directory, self.environment, settings=self._settings(), prompt=prompt,
+                                         run=self.run)
+        full = self._wait_for(lambda: next((view.session for view in claude_agents.session_views(
+            self.environment, run=self.run) if view.session.startswith(handle)), None))
+        if full is None:
+            return ActionResult(False, f"Claude started {handle}, but `claude agents` does not list it; "
+                                       f"name it @{mate} from its menu so its partner can reach it")
+        named = self._register(mate, "claude", full, directory)
+        if not named.ok:
+            return ActionResult(False, f"could not name the new Claude session {mate}: {named.message}")
+        return self._attach(title, handle, direction, address=mate)
+
+    def _start_codex_mate(self, directory: str, mate: str, prompt: str, direction: str) -> ActionResult:
+        refused = self._ensure_codex_daemon()
+        if refused is not None:
+            return refused
+        assert self.zellij is not None
+        since = self.now()
+        # The threads there are now, so none of them is ever taken for the new one; without that list, no window.
+        try:
+            before = codex_threads.thread_ids(self.environment, connect=self._codex_connect)
+        except (codex_app_server.AppServerProtocolError, OSError, ValueError) as exc:
+            return ActionResult(False, f"could not list Codex threads, so the new one could not be told apart: {exc}")
+        pane = place(self.zellij, self._pane([*codex_threads.new_command(directory, self.environment), prompt]),
+                     name=f"{CODEX_NEW_PREFIX}{mate}", close_on_exit=True, direction=direction, cwd=directory,
+                     keep_name=True)
+        if pane.startswith("terminal_"):
+            self._codex_new.append((pane, directory, since))
+        # Its first message names it (`You are @mate,`, a name no other session holds), so the thread is found
+        # by that and never guessed from the directory and time alone.
+        opening = prompt.split(",", 1)[0] + ","
+
+        def listed() -> Optional[str]:
+            try:
+                return codex_threads.started_on(opening, directory, since - 5, before, self.environment,
+                                                connect=self._codex_connect)
+            except (codex_app_server.AppServerProtocolError, OSError, ValueError):
+                return None
+        thread = self._wait_for(listed, CODEX_LIST_SECONDS)
+        if thread is None:
+            return ActionResult(False, f"Codex has not listed the new thread yet; when it shows up, name it @{mate} "
+                                       "from its menu so its partner can reach it")
+        named = self._register(mate, "codex", thread, directory)
+        if not named.ok:
+            return ActionResult(False, f"could not name the new Codex thread {mate}: {named.message}")
+        return ActionResult(True, f"opened @{mate}")
+
+    def _wait_for(self, found: Callable[[], Optional[str]], seconds: float = 10.0) -> Optional[str]:
+        deadline = self.now() + seconds
+        while True:
+            value = found()
+            if value is not None or self.now() >= deadline:
+                return value
+            self.sleep(1.0)
 
     def pin_session(self, session: str, pinned: bool) -> ActionResult:
         try:

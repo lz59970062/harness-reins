@@ -349,6 +349,97 @@ class MenuActionTests(LiveCase):
         self.assertIn("not a usable session name", bad.message)
 
 
+class CollaboratorTests(LiveCase):
+    def reins_calls(self):
+        """The `reins` commands the backend ran, without the worker prefix or --queue-dir."""
+        calls = []
+        for argv in self.ran:
+            words = list(argv)
+            start = next(i for i, word in enumerate(words) if word in ("session", "send"))
+            words = words[start:]
+            if "--queue-dir" in words:
+                at = words.index("--queue-dir")
+                del words[at:at + 2]
+            calls.append(words)
+        return calls
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.ran = []
+
+        def run(argv, **kwargs):
+            self.ran.append(argv)
+            return subprocess.CompletedProcess(argv, 0, stdout="ok\n", stderr="")
+        self.backend.run = run
+        self.views = [SessionView(agent="claude", session=SESSION, state=sessions.RUNNING, handle=SESSION[:8],
+                                  name="Motion plots!", cwd="/w")]
+
+    def start(self, *args, **kwargs):
+        self.views.append(SessionView(agent="claude", session=OTHER, state=sessions.RUNNING, handle=OTHER[:8],
+                                      cwd=str(self.home)))
+        return OTHER[:8]
+
+    def test_a_claude_collaborator_starts_on_its_brief_and_both_sides_get_names(self) -> None:
+        with mock.patch.object(claude_background, "start", side_effect=self.start) as start:
+            result = self.backend.start_collaborator(SESSION, "claude", str(self.home), "check the plots", "right")
+        self.assertTrue(result.ok, result.message)
+        self.assertIn("@motion-plots-claude", result.message)
+        prompt = start.call_args.kwargs["prompt"]
+        self.assertIn("You are @motion-plots-claude", prompt)
+        self.assertIn("reins send motion-plots", prompt)
+        self.assertIn("Your first task: check the plots", prompt)
+        # Not the default queue: the agents are told which one, or their `reins send` would not find the names.
+        self.assertIn(f"reins send motion-plots --queue-dir {self.root} -m", prompt)
+        [partner, mate, notice] = self.reins_calls()
+        self.assertEqual(partner[:3], ["session", "register", "motion-plots"])
+        self.assertIn(SESSION, partner)
+        self.assertEqual(mate, ["session", "register", "motion-plots-claude", "--agent", "claude", "--session", OTHER,
+                                "--cwd", str(self.home)])
+        self.assertEqual((notice[:2], notice[-2:]), (["send", "motion-plots"], ["--wake", "never"]))
+        self.assertIn("reins send motion-plots-claude", notice[3])
+        argv, name, direction, _close = self.zellij.opened[-1]
+        self.assertEqual((bare(argv), direction), ([CLAUDE, "attach", OTHER[:8]], "right"))
+        self.assertIn("motion-plots-claude", name)
+
+    def test_names_already_held_are_kept_or_avoided(self) -> None:
+        sessions_dir = self.root.parent / "link" / "sessions"
+        write(sessions_dir / "lab.json", {"schema": "reins.session/v1", "name": "lab", "harness": "claude",
+                                          "session": SESSION, "cwd": "/w", "route": {}})
+        write(sessions_dir / "lab-claude.json", {"schema": "reins.session/v1", "name": "lab-claude",
+                                                 "harness": "claude", "session": "someone-else", "route": {}})
+        with mock.patch.object(claude_background, "start", side_effect=self.start):
+            result = self.backend.start_collaborator(SESSION, "claude", str(self.home))
+        self.assertTrue(result.ok, result.message)
+        [mate, notice] = self.reins_calls()
+        self.assertEqual(mate[:3], ["session", "register", "lab-claude-2"])
+        self.assertIn("It has no task yet", notice[3])
+
+    def test_names_keep_their_harness_and_stay_within_the_limit(self) -> None:
+        from harness_reins.commands.tui import backend
+        long = "a" * 32
+        self.assertEqual(backend.free_name(long, set(), keep="-claude"), "a" * 25 + "-claude")
+        self.assertEqual(backend.free_name(long, {"a" * 25 + "-claude"}, keep="-claude"), "a" * 23 + "-claude-2")
+        self.assertEqual(backend.free_name("lab", {"lab"}), "lab-2")
+        self.assertNotIn("--queue-dir", backend.collaborator_prompt("m", "p", "claude", "/w", ""))
+        self.assertIn("--queue-dir '/a b'", backend.collaborator_notice("m", "codex", "/w", "", "/a b"))
+
+    def test_a_refused_start_tells_nobody(self) -> None:
+        self.assertIn("no directory", self.backend.start_collaborator(SESSION, "claude", str(self.home / "x")).message)
+        self.assertFalse(self.backend.start_collaborator(SESSION, "dsh", str(self.home)).ok)
+        with mock.patch.object(claude_background, "start", side_effect=claude_background.BackgroundError("nope")):
+            result = self.backend.start_collaborator(SESSION, "claude", str(self.home))
+        self.assertEqual((result.ok, result.message), (False, "nope"))
+        self.assertFalse(any(call[0] == "send" for call in self.reins_calls()))
+
+    def test_a_claude_session_that_never_lists_is_reported_not_told(self) -> None:
+        self.backend.sleep = lambda seconds: setattr(self, "now", self.now + seconds)
+        with mock.patch.object(claude_background, "start", return_value="abcdef12"):
+            result = self.backend.start_collaborator(SESSION, "claude", str(self.home))
+        self.assertFalse(result.ok)
+        self.assertIn("does not list it", result.message)
+        self.assertFalse(any(call[0] == "send" for call in self.reins_calls()))
+
+
 class PlacementTests(unittest.TestCase):
     def test_the_first_pane_replaces_the_hint_and_later_ones_stack_below(self) -> None:
         zellij = FakeZellij([{"id": 0, "title": "Reins"}, {"id": 1, "title": live.HINT_TITLE}])

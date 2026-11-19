@@ -94,14 +94,18 @@ class Daemon:
     def __exit__(self, *_exc: object) -> None:
         self.connection.close()
 
-    def threads(self, limit: int = LIST_LIMIT) -> list[dict]:
-        """The newest interactive threads (Codex leaves out `exec` runs and sub-agents by default)."""
+    def threads(self, limit: int = LIST_LIMIT, *, strict: bool = False) -> list[dict]:
+        """The newest interactive threads (Codex leaves out `exec` runs and sub-agents by default). An answer
+        of another shape is no threads, or with ``strict`` a ValueError."""
         # The state database answers in milliseconds; a rollout scan takes seconds, too slow for a panel.
         result = self.connection.request("thread/list", {"limit": limit, "sortKey": "updated_at",
                                                          "useStateDbOnly": True})
         data = result.get("data") if isinstance(result, dict) else None
-        return [thread for thread in data if isinstance(thread, dict) and isinstance(thread.get("id"), str)] \
-            if isinstance(data, list) else []
+        if not isinstance(data, list):
+            if strict:
+                raise ValueError("Codex answered thread/list without a list of threads")
+            return []
+        return [thread for thread in data if isinstance(thread, dict) and isinstance(thread.get("id"), str)]
 
     def loaded(self) -> set[str]:
         found: set[str] = set()
@@ -222,6 +226,29 @@ def session_views(environment: Mapping[str, str], *, connect: Optional[Connect] 
         loaded = daemon.loaded()
     found = writers() if others is None else others
     return [_view(thread, loaded, found) for thread in threads]
+
+
+def thread_ids(environment: Mapping[str, str], *, connect: Optional[Connect] = None) -> set[str]:
+    """Every thread the daemon lists now. Errors are the daemon's."""
+    with Daemon(environment, connect=connect) as daemon:
+        return {str(thread["id"]) for thread in daemon.threads(strict=True)}
+
+
+def started_on(opening: str, cwd: str, since: float, before: set[str], environment: Mapping[str, str], *,
+               connect: Optional[Connect] = None) -> Optional[str]:
+    """The thread in ``cwd``, not among ``before`` and created at ``since`` or later, whose first message begins
+    with ``opening``: how a window started on a message of its own is told from every other thread. Errors are
+    the daemon's."""
+    wanted = " ".join(opening.split())
+    with Daemon(environment, connect=connect) as daemon:
+        threads = daemon.threads()
+    for thread in threads:
+        preview, created = thread.get("preview"), thread.get("createdAt")
+        if (str(thread["id"]) not in before and thread.get("cwd") == cwd and isinstance(preview, str)
+                and " ".join(preview.split()).startswith(wanted)
+                and isinstance(created, (int, float)) and created >= since):
+            return str(thread["id"])
+    return None
 
 
 def session_view(thread: str, environment: Mapping[str, str], *, connect: Optional[Connect] = None,

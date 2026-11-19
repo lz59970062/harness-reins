@@ -573,6 +573,37 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(("fork", SESSION_D, "right"), backend.calls)
             self.assertIn("forked attached one", status_text(app))
 
+    async def test_a_collaborator_takes_harness_directory_and_task_from_one_menu_item(self):
+        backend = make_backend()
+        backend.agents = ["claude", "codex"]
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "collaborate")
+            await self.choose(app, pilot, "codex")
+            self.assertIsInstance(app.screen, panel.TextPromptScreen)
+            self.assertEqual(app.screen.query_one(Input).value, os.path.join(os.path.expanduser("~"), "att"))
+            await pilot.press("enter")
+            await settle(app, pilot)
+            # Escape on the task asks nothing of the backend.
+            await pilot.press("escape")
+            await settle(app, pilot)
+            self.assertEqual([call for call in backend.calls if call[0] == "collaborate"], [])
+            await pilot.press("o")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "collaborate")
+            await self.choose(app, pilot, "codex")
+            await pilot.press("enter")
+            await settle(app, pilot)
+            app.screen.query_one(Input).value = "  check the plots  "
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertIn(("collaborate", SESSION_D, "codex", os.path.join(os.path.expanduser("~"), "att"),
+                           "check the plots", "down"), backend.calls)
+            self.assertIn("to work with attached one", status_text(app))
+
     async def test_rename_an_address_and_a_taken_name_is_refused(self):
         backend = make_backend()
         backend.session_rows = [replace(row, address="lab") if row.session == SESSION_D

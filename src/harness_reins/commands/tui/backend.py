@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from dataclasses import dataclass, field, replace
-from typing import Optional, Protocol, Sequence
+from typing import Container, Optional, Protocol, Sequence
 
 from ...core import sessions
 
@@ -45,6 +46,60 @@ def short_id(session: str) -> str:
         match = _FILE_ID.search(os.path.basename(session))
         return (match.group(1) if match else os.path.basename(session)).replace("-", "")[-8:]
     return session[:8]
+
+
+# A Reins address: lowercase letters, digits, '-' or '_', up to 32 characters (`reins session register`).
+NAME_LIMIT = 32
+AGENT_TITLES = {"claude": "Claude Code", "codex": "Codex", "pi": "Pi", "dsh": "DeepSeek Harness"}
+
+
+def suggested_name(title: str, session: str) -> str:
+    """An address-book name from a session's title: lowercase letters, digits and '-'."""
+    name = "".join(ch if ch.isascii() and ch.isalnum() else "-" for ch in title.lower())
+    name = "-".join(part for part in name.split("-") if part)[:NAME_LIMIT].strip("-")
+    return name if name else "s-" + short_id(session)
+
+
+def free_name(base: str, taken: Container[str], keep: str = "") -> str:
+    """``base`` + ``keep``, or with ``-2``, ``-3``... after it when another session holds that; ``base`` is cut
+    short to stay within the length limit, ``keep`` never is."""
+    number = 1
+    while True:
+        suffix = keep + (f"-{number}" if number > 1 else "")
+        name = (base[:NAME_LIMIT - len(suffix)].strip("-") or "s") + suffix
+        if name not in taken:
+            return name
+        number += 1
+
+
+def send_command(name: str, queue: Optional[str] = None) -> str:
+    """The `reins send` line an agent runs to reach ``name``; ``queue`` when it is not the default one."""
+    return f"reins send {name}" + (f" --queue-dir {shlex.quote(queue)}" if queue else "") + ' -m "..."'
+
+
+def collaborator_prompt(mate: str, partner: str, partner_agent: str, partner_cwd: Optional[str], task: str,
+                        queue: Optional[str] = None) -> str:
+    """The first prompt of a session started to work with ``partner``."""
+    where = f" in {partner_cwd}" if partner_cwd else ""
+    lines = [
+        f"You are @{mate}, a session started from the Reins screen to work together with @{partner}, a "
+        f"{AGENT_TITLES.get(partner_agent, partner_agent)} session{where}.",
+        f"Reach it with `{send_command(partner, queue)}` (the harness-reins skill has the details); "
+        "what it sends you arrives here.",
+        f"Your first task: {task}" if task else f"You have no task yet: wait for @{partner} or the user to give you one.",
+    ]
+    return "\n".join(lines)
+
+
+def collaborator_notice(mate: str, mate_agent: str, cwd: str, task: str, queue: Optional[str] = None) -> str:
+    """What the original session is told about the session started to work with it."""
+    lines = [
+        f"@{mate} is a new {AGENT_TITLES.get(mate_agent, mate_agent)} session in {cwd}, started from the Reins "
+        "screen to work with you.",
+        f"Reach it with `{send_command(mate, queue)}`; what it sends you arrives here.",
+        f"Its first task: {task}" if task else "It has no task yet: tell it what to do.",
+    ]
+    return "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -131,6 +186,12 @@ class Backend(Protocol):
 
     def fork_session(self, session: str, direction: str = BELOW) -> ActionResult:
         """Start a new session from a copy of this one's conversation, and open it in a pane."""
+
+    def start_collaborator(self, session: str, agent: str, cwd: str, task: str = "",
+                           direction: str = BELOW) -> ActionResult:
+        """Start a new ``agent`` session in ``cwd`` to work with ``session``: name both in the address book,
+        start the new one knowing its partner (and ``task``, if any), open it in a pane, and tell ``session``
+        how to reach it."""
 
     def leave(self, end: bool) -> ActionResult:
         """Detach from the Reins screen (Alt+d), or end it (Quit in Alt+q's dialog); Claude sessions keep running either way."""
@@ -237,6 +298,14 @@ class FakeBackend:
         if row is None:
             return ActionResult(False, f"no session {session[:8]}")
         return ActionResult(True, f"forked {row.title}")
+
+    def start_collaborator(self, session: str, agent: str, cwd: str, task: str = "",
+                           direction: str = BELOW) -> ActionResult:
+        self.calls.append(("collaborate", session, agent, cwd, task, direction))
+        row = self._find(session)
+        if row is None:
+            return ActionResult(False, f"no session {session[:8]}")
+        return ActionResult(True, f"started a {agent} session in {cwd} to work with {row.title}")
 
     def _change(self, session: str, **changes: object) -> Optional[SessionRow]:
         row = self._find(session)

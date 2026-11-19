@@ -36,7 +36,8 @@ from textual.widgets.option_list import Option
 from textual.worker import get_current_worker
 
 from ...core import sessions
-from .backend import BELOW, BESIDE, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow, short_id
+from .backend import (AGENT_TITLES, BELOW, BESIDE, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow,
+                      short_id, suggested_name)
 
 SESSIONS_TAB = "tab-sessions"
 TASKS_TAB = "tab-tasks"
@@ -64,7 +65,7 @@ _MARKS = {
 _PROCESS_STATES = (sessions.ATTACHED, sessions.RUNNING, sessions.FOREIGN, sessions.HEADLESS)
 
 
-AGENT_NAMES = {"claude": "Claude Code", "codex": "Codex", "pi": "Pi", "dsh": "DeepSeek Harness"}
+AGENT_NAMES = AGENT_TITLES
 COPY_ID_LABELS = {"claude": "Claude session id", "codex": "Codex thread id", "pi": "Pi session file",
                   "dsh": "DeepSeek Harness session id"}
 
@@ -159,6 +160,7 @@ def _session_menu(row: SessionRow) -> List[Tuple[str, str]]:
     if row.cwd:
         options.append(("shell", "Terminal in its directory"))
     options.append(("message", "Send a message..."))
+    options.append(("collaborate", "Start a collaborator..."))
     options.append(("unpin", "Unpin") if row.pinned else ("pin", "Pin to the top"))
     if row.address:
         options += [("copy-address", "Copy address  @%s" % row.address), ("rename", "Rename address...")]
@@ -397,10 +399,7 @@ class SessionTable(PanelTable):
 
 
 def _suggested_name(row: SessionRow) -> str:
-    """An address-book name from the session's title: lowercase letters, digits and '-'."""
-    name = "".join(ch if ch.isascii() and ch.isalnum() else "-" for ch in row.title.lower())
-    name = "-".join(part for part in name.split("-") if part)[:32].strip("-")
-    return name if name and not name.startswith("-") else "s-" + short_id(row.session)
+    return suggested_name(row.title, row.session)
 
 
 class ReinsPanel(App[None]):
@@ -795,37 +794,54 @@ class ReinsPanel(App[None]):
         self._new_session_worker(initial)
 
     @work(thread=True, group="actions")
-    def _new_session_worker(self, initial: str) -> None:
+    def _new_session_worker(self, initial: str, partner: Optional[SessionRow] = None) -> None:
         try:
             agents = list(self._backend.new_agents())
         except Exception as exc:
             self.call_from_thread(self._show_status, "new session: %s" % exc, False)
             return
-        self.call_from_thread(self._choose_new_agent, agents, initial)
+        self.call_from_thread(self._choose_new_agent, agents, initial, partner)
 
-    def _choose_new_agent(self, agents: List[str], initial: str) -> None:
+    def _choose_new_agent(self, agents: List[str], initial: str, partner: Optional[SessionRow] = None) -> None:
+        """Which harness the new session runs in; with ``partner``, the session is started to work with it."""
         if self._modal_open():
             return
         if not agents:
             self._show_status("no Claude Code, Codex or Pi found on PATH", ok=False)
         elif len(agents) == 1:
-            self._ask_new_directory(agents[0], initial)
+            self._ask_new_directory(agents[0], initial, partner)
         else:
-            self.push_screen(MenuScreen("New session in", [(agent, AGENT_NAMES.get(agent, agent)) for agent in agents]),
-                             lambda agent: agent and self._ask_new_directory(agent, initial))
+            title = "New session in" if partner is None else "Collaborator for %s in" % partner.title
+            self.push_screen(MenuScreen(title, [(agent, AGENT_NAMES.get(agent, agent)) for agent in agents]),
+                             lambda agent: agent and self._ask_new_directory(agent, initial, partner))
 
-    def _ask_new_directory(self, agent: str, initial: str) -> None:
-        self.push_screen(
-            TextPromptScreen("Directory for the new %s session" % AGENT_NAMES.get(agent, agent), initial=initial),
-            lambda directory: self._new_session_ready(agent, directory),
-        )
+    def _ask_new_directory(self, agent: str, initial: str, partner: Optional[SessionRow] = None) -> None:
+        name = AGENT_NAMES.get(agent, agent)
+        prompt = ("Directory for the new %s session" % name if partner is None
+                  else "Directory for %s's %s collaborator" % (partner.title, name))
+        self.push_screen(TextPromptScreen(prompt, initial=initial),
+                         lambda directory: self._new_session_ready(agent, directory, partner))
 
-    def _new_session_ready(self, agent: str, directory: Optional[str]) -> None:
+    def _new_session_ready(self, agent: str, directory: Optional[str], partner: Optional[SessionRow] = None) -> None:
         directory = (directory or "").strip()
         if not directory:
             return
+        if partner is not None:
+            self.push_screen(
+                TextPromptScreen("Its first task (optional; Enter alone leaves that to %s)" % partner.title),
+                lambda task: self._collaborator_ready(partner, agent, directory, task),
+            )
+            return
         self._run_action("new session", self._backend.new_session, agent, directory, once=("new", directory),
                          busy="starting a %s session in %s..." % (AGENT_NAMES.get(agent, agent), directory))
+
+    def _collaborator_ready(self, partner: SessionRow, agent: str, directory: str, task: Optional[str]) -> None:
+        if task is None:
+            return
+        self._run_action("collaborator", self._backend.start_collaborator, partner.session, agent, directory,
+                         task.strip(), self._direction, once=("collaborate", partner.session),
+                         busy="starting a %s session to work with %s..." % (AGENT_NAMES.get(agent, agent),
+                                                                              partner.title))
 
     def action_stop_session(self) -> None:
         if self._modal_open():
@@ -1004,6 +1020,8 @@ class ReinsPanel(App[None]):
             self._run_action("terminal", backend.open_terminal, row.cwd or os.getcwd(), self._direction)
         elif choice == "message":
             self._ask_message(row)
+        elif choice == "collaborate":
+            self._new_session_worker(row.cwd or os.getcwd(), row)
         elif choice in ("pin", "unpin"):
             self._run_action("pin", backend.pin_session, row.session, choice == "pin")
         elif choice == "copy-address" and row.address:

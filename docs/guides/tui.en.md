@@ -67,11 +67,21 @@ line per problem with what to do.
 | Fork into a new session | Start a new session (a new id) with a copy of this conversation; the original is untouched. Works on a session open in the desktop app too |
 | Terminal in its directory | Same as `t` |
 | Send a message... | Same as `m` |
+| Start a collaborator... | Start a new session to work with this one (below) |
 | Pin to the top / Unpin | Keep it at the top. Only the Reins panel changes, not Claude's own list |
 | Copy address / Name it... / Rename address... | Copy, add or change its address in the Reins address book (below) |
 | Copy Claude session id / Codex thread id / Pi session file | Copy the id the harness itself takes: `claude --resume`, `codex resume`, `pi --session` |
 | Stop... | Same as `s`, after a confirmation |
 | Archive / Stop and archive... / Unarchive | Fold it out of the list, stopping it first if it runs (after a confirmation). The conversation stays. It comes back by itself when it runs again, starts a task, or has a callback waiting; `a` shows archived sessions |
+
+**Start a collaborator...** asks three things: the harness (skipped when only one is installed), the directory
+(the session's own, so Enter is enough) and a first task (optional). Reins does the rest in one go: a session without
+a Reins address gets one (the original from its title, the new one `<address>-<harness>`, with `-2` added when the
+name is taken), the new session starts knowing its partner and how to reach it with `reins send`, the original gets a
+message with the new address and task, and the new session's pane opens beside the others. The message never wakes a
+closed session; it reads it when it next opens. A new Codex session is named once Codex lists its thread, which Reins
+waits up to 30 seconds for. A DeepSeek Harness session can be the original (it reads the message while its `reins wait` runs) but cannot be
+started as a collaborator.
 
 Pins and archives live only in a file of Reins' own (`~/.reins/tui/sessions.json`); nothing is deleted. Claude Code
 cannot rename a session or delete one conversation from outside it, so the menu has neither; rename a session with

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,7 @@ from unittest import mock
 
 from harness_reins.commands.tui import launch, live
 from harness_reins.core import capabilities, sessions
+from harness_reins.core.sessions import SessionView
 from harness_reins.engine import native_queue
 from harness_reins.harness.codex import app_server, threads
 from harness_reins.harness.pi import channel as pi_channel
@@ -18,6 +20,7 @@ from harness_reins.harness.pi import sessions as pi_sessions
 from test_tui_live import FakeZellij, LiveCase, bare, write
 
 THREAD = "01a1e91a-0a90-7eb1-97c5-ca946a877e7d"
+SESSION_ID = "08e8651e-ea49-48d0-b286-088a680b9c82"
 NEIGHBOUR = "01a1e91a-1111-7222-8333-944455556666"  # Same timestamp digits: started within the same minute.
 
 
@@ -251,6 +254,115 @@ class HarnessBackendTests(LiveCase):
                                      preview="hello")]
         self.assertEqual(self.rows()[THREAD].state, sessions.RUNNING)  # Seen; named on this same pass.
         self.assertIn(("terminal_9", "codex 6a877e7d hello"), self.zellij.renamed)
+
+    def collaborate_setup(self):
+        self.views = [SessionView(agent="claude", session=SESSION_ID, state=sessions.RUNNING, handle=SESSION_ID[:8],
+                                  name="plots", cwd="/w")]
+        self.ran = []
+
+        def run(argv, **kwargs):
+            self.ran.append(list(argv))
+            return subprocess.CompletedProcess(argv, 0, stdout="ok\n", stderr="")
+        self.backend.run = run
+        self.backend.sleep = lambda seconds: setattr(self, "now", self.now + seconds)
+        workdir = self.home / "w"
+        workdir.mkdir()
+        return workdir
+
+    def registered(self):
+        return [argv[argv.index("register") + 1:] for argv in self.ran if "register" in argv]
+
+    def test_a_codex_collaborator_opens_on_its_brief_and_is_named_once_listed(self) -> None:
+        workdir = self.collaborate_setup()
+        opened = self.zellij.new_pane
+
+        def new_pane(argv, **kwargs):  # Codex lists the thread once its window has started it on the prompt.
+            self.codex.threads = [thread(THREAD, "active", flags=[], cwd=str(workdir), createdAt=self.now + 3,
+                                         preview=argv[-1])]
+            return opened(argv, **kwargs)
+        self.zellij.new_pane = new_pane
+        result = self.backend.start_collaborator(SESSION_ID, "codex", str(workdir), "review it")
+        self.assertTrue(result.ok, result.message)
+        [(argv, name, _where, _close)] = self.zellij.opened
+        self.assertEqual(bare(argv)[-3:-1], ["-C", str(workdir)])
+        self.assertIn("Your first task: review it", bare(argv)[-1])
+        self.assertEqual(name, "codex new plots-codex")
+        self.assertEqual(self.registered()[-1][:6], ["plots-codex", "--agent", "codex", "--session", THREAD, "--cwd"])
+        self.assertTrue(any("send" in argv and "plots" in argv for argv in self.ran))
+
+    def test_only_the_thread_started_on_the_collaborators_own_brief_is_named(self) -> None:
+        workdir = self.collaborate_setup()
+        brief = "You are @plots-codex, a session started from the Reins screen"
+        # Same directory and just as recent, but another conversation; and an earlier thread on the same brief
+        # (its name freed and reused) from within the time tolerance.
+        self.codex.threads = [thread(THREAD, "idle", cwd=str(workdir), createdAt=self.now - 2, preview="other"),
+                              thread("0" * 8 + THREAD[8:], "idle", cwd=str(workdir), createdAt=self.now - 1,
+                                     preview=brief)]
+        opened = self.zellij.new_pane
+
+        def new_pane(argv, **kwargs):
+            self.codex.threads += [
+                thread("1" * 8 + THREAD[8:], "active", flags=[], cwd=str(workdir), createdAt=self.now, preview="hi"),
+                thread(NEIGHBOUR, "active", flags=[], cwd=str(workdir), createdAt=self.now + 1, preview=argv[-1])]
+            return opened(argv, **kwargs)
+        self.zellij.new_pane = new_pane
+        result = self.backend.start_collaborator(SESSION_ID, "codex", str(workdir))
+        self.assertTrue(result.ok, result.message)
+        self.assertEqual(self.registered()[-1][:5], ["plots-codex", "--agent", "codex", "--session", NEIGHBOUR])
+
+    def test_without_a_list_of_codex_threads_no_window_opens(self) -> None:
+        workdir = self.collaborate_setup()
+        with mock.patch.object(threads, "thread_ids", side_effect=OSError("socket gone")):
+            result = self.backend.start_collaborator(SESSION_ID, "codex", str(workdir))
+        self.assertFalse(result.ok)
+        self.assertIn("could not list Codex threads", result.message)
+        self.assertEqual(self.zellij.opened, [])
+        self.assertFalse(any("send" in argv for argv in self.ran))
+
+    def test_a_malformed_thread_list_is_no_list_and_no_window_opens(self) -> None:
+        workdir = self.collaborate_setup()
+        self.codex.threads = None  # thread/list answers {"data": null}
+        result = self.backend.start_collaborator(SESSION_ID, "codex", str(workdir))
+        self.assertFalse(result.ok)
+        self.assertIn("could not list Codex threads", result.message)
+        self.assertEqual(self.zellij.opened, [])
+        self.assertFalse(any("send" in argv for argv in self.ran))
+
+    def test_a_codex_daemon_that_cannot_list_never_gets_a_thread_guessed(self) -> None:
+        workdir = self.collaborate_setup()
+        opened = self.zellij.new_pane
+
+        def new_pane(argv, **kwargs):
+            self.codex.threads = [thread(THREAD, "active", flags=[], cwd=str(workdir), createdAt=self.now + 1,
+                                         preview=argv[-1])]
+            return opened(argv, **kwargs)
+        self.zellij.new_pane = new_pane
+        with mock.patch.object(threads, "started_on", side_effect=OSError("socket gone")):
+            result = self.backend.start_collaborator(SESSION_ID, "codex", str(workdir))
+        self.assertFalse(result.ok)
+        self.assertIn("has not listed the new thread", result.message)
+        self.assertEqual(self.registered(), [["plots", "--agent", "claude", "--session", SESSION_ID, "--cwd", "/w",
+                                              "--queue-dir", str(self.root)]])
+
+    def test_a_codex_thread_that_never_lists_is_reported(self) -> None:
+        workdir = self.collaborate_setup()
+        result = self.backend.start_collaborator(SESSION_ID, "codex", str(workdir))
+        self.assertFalse(result.ok)
+        self.assertIn("has not listed the new thread", result.message)
+        self.assertFalse(any("send" in argv for argv in self.ran))
+
+    def test_a_pi_collaborator_is_named_before_pi_starts_on_its_brief(self) -> None:
+        workdir = self.collaborate_setup()
+        with mock.patch.dict(os.environ, {pi_channel.PROFILE_ENV: str(self.pi_profile)}):
+            result = self.backend.start_collaborator(SESSION_ID, "pi", str(workdir), "")
+        self.assertTrue(result.ok, result.message)
+        argv = bare(self.zellij.opened[-1][0])
+        session = argv[argv.index("--session") + 1]
+        self.assertEqual(argv[-2], "--")
+        self.assertIn("You are @plots-pi", argv[-1])
+        self.assertEqual(self.registered()[-1], ["plots-pi", "--agent", "pi", "--session", session, "--cwd",
+                                                 str(workdir), "--queue-dir", str(self.root)])
+        self.assertIn("plots-pi", self.zellij.opened[-1][1])
 
     def test_stop_is_only_for_claude(self) -> None:
         self.codex.threads = [thread(THREAD, "idle")]

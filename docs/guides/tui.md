@@ -57,11 +57,14 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 | Fork into a new session | 带着这段对话另开一个新会话（新 ID），原会话不受影响。在 Desktop 里开着的会话也能分叉 |
 | Terminal in its directory | 在会话目录里开终端，同 `t` |
 | Send a message... | 给它发消息，同 `m` |
+| Start a collaborator... | 开一个新会话跟它一起干活（见下） |
 | Pin to the top / Unpin | 置顶。只影响 Reins 面板，不改 Claude 自己的列表 |
 | Copy address / Name it... / Rename address... | 复制、登记或修改它在 Reins 通讯录里的地址（见下） |
 | Copy Claude session id / Codex thread id / Pi session file | 复制 Harness 自己认的 ID：`claude --resume`、`codex resume`、`pi --session` 用的那个 |
 | Stop... | 停止会话（会先确认），同 `s` |
 | Archive / Stop and archive... / Unarchive | 归档：从列表里收起；还在运行的会先停止（会先确认）。对话保留。它再运行、派出新任务或有回调待处理时，会自动回到列表；按 `a` 能看到已归档的会话 |
+
+**开协作会话**：选 Start a collaborator...，依次选用哪个 Harness（只装了一个就不问）、目录（默认是原会话的目录，回车即可）和第一项任务（可以留空）。剩下的 Reins 一次做完：两边没有 Reins 地址的自动起一个（原会话按标题起名，新会话叫 `<原地址>-<harness>`，重名自动加 `-2`），新会话一开始就知道搭档是谁、怎么用 `reins send` 找它，原会话收到一条消息，告诉它新搭档的地址和任务，新会话的窗格开在旁边。通知原会话不会唤醒已关闭的会话，它下次打开时会读到。新的 Codex 会话要等 Codex 列出它的线程才能登记地址，最多等 30 秒。DeepSeek Harness 会话可以当原会话（它在 `reins wait` 运行时才会读到通知），但不能被开成协作者。
 
 置顶和归档只记在 Reins 自己的文件里（`~/.reins/tui/sessions.json`），不会删除任何对话。Claude Code 外部改不了会话标题，也没有删除单个对话的命令，所以菜单里没有这两项；标题可以在会话里用 `/rename` 改。菜单只列出会话所在 Harness 支持的操作：停止只对 Claude Code，分叉对 Claude Code 和 Codex，DeepSeek Harness 会话没有“打开”。
 

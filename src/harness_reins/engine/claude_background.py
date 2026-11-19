@@ -199,13 +199,15 @@ def _short_id(output: str) -> str:
 
 
 def start(cwd: str, environment: Mapping[str, str] = os.environ, *, settings: Optional[str] = None,
-          permission_mode: Optional[str] = None, run: Run = subprocess.run) -> str:
-    """Start a new background session in ``cwd``; returns its short id."""
+          permission_mode: Optional[str] = None, prompt: Optional[str] = None, run: Run = subprocess.run) -> str:
+    """Start a new background session in ``cwd``, working on ``prompt`` when one is given; returns its short id."""
     arguments = ["--bg"]
     if settings:
         arguments += ["--settings", settings]
     if permission_mode:
         arguments += ["--permission-mode", permission_mode]
+    if prompt:
+        arguments += ["--", prompt]
     return _short_id(_claude(arguments, environment, cwd=cwd, run=run, scope=True))
 
 

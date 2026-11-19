@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.1 — 2026-11-19
 
 - `reins tui`: Start a collaborator... in a session's menu starts a Claude Code, Codex or Pi session to work with
   it, in one step. Both get Reins addresses if they have none, the new one starts knowing its partner (and a first

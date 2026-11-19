@@ -8,7 +8,7 @@
 <h3 align="center">Dispatch work to any agent and route the result back to the session that asked.</h3>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.0-2a78d6" alt="Release 0.14.0"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.1-2a78d6" alt="Release 0.14.1"></a>
   <a href="https://www.npmjs.com/package/harness-reins"><img src="https://img.shields.io/badge/npm-harness--reins-2a78d6" alt="npm harness-reins"></a>
   <img src="https://img.shields.io/badge/python-%E2%89%A53.9-2a78d6" alt="Python ≥ 3.9">
   <img src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-2a78d6" alt="Linux, macOS, Windows">
@@ -88,6 +88,8 @@ interface.
   headless run beside it.
 - **Everything from one menu.** Right-click a session (or press `o`) to open it below or to the
   right, fork it, open a shell in its directory, message it, pin it, copy its id, stop or archive it.
+  Start a collaborator from the same menu: a new Claude Code, Codex or Pi session that already knows
+  its partner and how to reach it.
 - **Safe to leave.** `Alt+d`, closing the terminal or a dropped SSH connection leaves every session
   running, `Alt+q` asks first with Detach preselected, and `reins tui` brings the same screen back.
 - **Ready on install.** The Linux npm package includes Zellij and the panel. Ctrl keys go straight

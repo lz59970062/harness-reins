@@ -60,7 +60,8 @@ ls ~/.claude/skills/*/SKILL.md
 reins template list >/dev/null && echo "ok: templates readable"
 
 step "reins tui ships its Zellij and Textual"
-zellij=$(npm root -g)/@harness-reins/linux-x64/dist/reins/zellij
+# npm may nest the platform package under harness-reins/node_modules.
+zellij=$(find "$(npm root -g)" -path "*/@harness-reins/linux-x64/dist/reins/zellij" -print -quit)
 "$zellij" --version
 test -f "$(dirname "$zellij")/ZELLIJ-LICENSE.md"
 reins tui --help >/dev/null
@@ -74,7 +75,8 @@ mkdir -p /opt/fake
 cat >/opt/fake/claude <<'EOF'
 #!/bin/sh
 # Stands in for `claude -p --resume ... --input-format stream-json`: record what reins delivered.
-case "$1" in auth) echo '{"loggedIn": true}'; exit 0;; esac
+# `--help` without `--bg`: an older Claude, so Reins resumes with `claude -p` as recorded below.
+case "$1" in auth) echo '{"loggedIn": true}'; exit 0;; --help) echo "Usage: claude [options]"; exit 0;; esac
 IFS= read -r line
 prompt=$(printf '%s' "$line" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).message.content))')
 { echo "argv: $*"; echo "--- stdin ---"; echo "$prompt"; echo "--- end ---"; } >>/tmp/fake-claude.log

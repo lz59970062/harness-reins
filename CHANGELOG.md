@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.2 — 2026-11-20
 
 - `reins tui`: sessions are grouped by directory, each folder on its own row with its sessions indented under it.
   A session shows the Reins address you gave it beside the title its harness gave it, so two sessions with similar

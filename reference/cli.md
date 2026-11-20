@@ -17,6 +17,13 @@ reins agent --help
 | `reins setup --keep-skill --force --enable --now` | 更新协调器，保留技能内容 |
 | `reins doctor --agent codex --session <id>` | 检查指定会话的运行配置 |
 
+## 终端界面
+
+| 命令 | 用途 |
+| --- | --- |
+| `reins tui` | 打开终端界面：所有会话、任务、Goal 和消息，会话在旁边的窗格里打开。见[终端界面](../guides/tui.md) |
+| `reins tui <ID>` | 直接打开某个会话；会话 ID、任务 ID 或回调 ID 都可以 |
+
 ## 提交工作
 
 | 命令 | 用途 |
@@ -25,6 +32,9 @@ reins agent --help
 | `reins agent codex -- <任务>` | 启动 Codex 子 Agent |
 | `reins agent claude -- <任务>` | 启动 Claude 子 Agent |
 | `reins done --task <名称> --exit-code <退出码>` | 报告外部任务结果 |
+| `reins log <任务ID>` | 打印任务输出的最后 10 行；在终端里会持续跟踪到任务结束，相当于 `tail -f`。输出到管道或文件时只打印不跟踪。ID 写前几位即可 |
+| `reins log <任务ID> -n 100 --no-follow` | 只打印最后 100 行 |
+| `reins log <任务ID> --all` | 从第一行开始打印完整日志；在终端里再继续跟踪 |
 
 提交参数写在 `--` 前面：
 
@@ -43,7 +53,7 @@ reins agent --help
 
 | 命令 | 用途 |
 | --- | --- |
-| `reins status` | 查看待处理回调 |
+| `reins status` | 查看待处理、进行中和投递失败的回调 |
 | `reins status --state failed` | 查看投递失败的回调 |
 | `reins ack <回调ID>` | 确认已经读取结果 |
 | `reins cancel --id <回调ID>` | 撤销这条回调的投递 |

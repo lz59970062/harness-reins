@@ -12,6 +12,7 @@
 
 ## 使用指南
 
+- [终端界面](guides/tui.md)
 - [运行命令](guides/run.md)
 - [启动子 Agent](guides/agents.md)
 - [接入已有任务](guides/external-jobs.md)

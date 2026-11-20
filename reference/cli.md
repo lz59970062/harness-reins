@@ -17,6 +17,13 @@ reins agent --help
 | `reins setup --keep-skill --force --enable --now` | Update the coordinator and retain skill content |
 | `reins doctor --agent codex --session <id>` | Inspect a session's runtime configuration |
 
+## Terminal UI
+
+| Command | Purpose |
+| --- | --- |
+| `reins tui` | Open the terminal UI: every session, task, goal and message, with sessions opened in panes beside them. See [Terminal UI](../guides/tui.md) |
+| `reins tui <id>` | Open one session at once; a session, task or callback id works |
+
 ## Submit work
 
 | Command | Purpose |
@@ -25,6 +32,9 @@ reins agent --help
 | `reins agent codex -- <prompt>` | Start a Codex child Agent |
 | `reins agent claude -- <prompt>` | Start a Claude child Agent |
 | `reins done --task <name> --exit-code <code>` | Report an external task result |
+| `reins log <task-id>` | Print the last 10 lines of a task's output; on a terminal, follow it until the task ends, like `tail -f`. Piped or redirected output is printed without following. A unique prefix of the id is enough |
+| `reins log <task-id> -n 100 --no-follow` | Print the last 100 lines and exit |
+| `reins log <task-id> --all` | Print the whole log from its first line; on a terminal, then follow it |
 
 Put submission options before `--`:
 
@@ -43,7 +53,7 @@ Put submission options before `--`:
 
 | Command | Purpose |
 | --- | --- |
-| `reins status` | Inspect outstanding callbacks |
+| `reins status` | Inspect pending, running and failed callbacks |
 | `reins status --state failed` | Inspect failed deliveries |
 | `reins ack <callback-id>` | Confirm that you have read the result |
 | `reins cancel --id <callback-id>` | Cancel delivery of this callback |

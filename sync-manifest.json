@@ -1,5 +1,5 @@
 {
-  "source_commit": "bb91b1dff4ba72f9806a9850d77b54ecdc7801b1",
+  "source_commit": "b82a30833ac242f1f81ba9bfecfe2b47a48e54d3",
   "language": "en",
   "pages": [
     "index.md",
@@ -8,6 +8,7 @@
     "overview.md",
     "guides/use-cases.md",
     "benchmark.md",
+    "guides/tui.md",
     "guides/run.md",
     "guides/agents.md",
     "guides/external-jobs.md",

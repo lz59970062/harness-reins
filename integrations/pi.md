@@ -1,10 +1,10 @@
 # Pi
 
-Pi integration uses the `0.7.1` preview. Pi can receive results for its own tasks and work as a child Agent on independent assignments.
+Pi can receive results for its own tasks and work as a child Agent on independent assignments.
 
 ## Install the extension
 
-Follow [preview installation](../installation.md#install-the-preview), then run:
+Follow the [installation guide](../installation.md), then run:
 
 ```bash
 reins setup --with-pi-extension --enable --now

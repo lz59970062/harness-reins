@@ -12,6 +12,7 @@
 
 ## User guides
 
+- [Terminal UI](guides/tui.md)
 - [Running commands](guides/run.md)
 - [Running child agents](guides/agents.md)
 - [External jobs](guides/external-jobs.md)

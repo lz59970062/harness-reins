@@ -497,6 +497,8 @@
       
         
       
+        
+      
     
     
     
@@ -532,6 +534,29 @@
             User guides
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Terminal UI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -1303,7 +1328,8 @@
 <p>Attach the goal ID when submitting related tasks:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--goal-id<span class="w"> </span>baseline-report<span class="w"> </span>--cwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span><span class="w"> </span>--task<span class="w"> </span><span class="s2">"Train the baseline"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>train.py
 </code></pre></div>
-<p>When the task finishes, the Agent reads the result, acknowledges the callback, and updates the plan. By default, an active goal sends a progress check every three hours to help the original conversation continue the current step.</p>
+<p>When the task finishes, the Agent reads the result, acknowledges the callback, and updates the plan. By default, an active goal sends a progress check every three hours to help the original conversation continue the current step. The check reaches the conversation the same way its job results do, including Codex Desktop threads and Pi sessions.</p>
+<p>The Agent skills ask for a goal before multi-step work starts. If a session has already run another job and has no active goal, <code>reins run</code> also suggests one.</p>
 <h2 id="complete-the-goal">Complete the goal<a class="headerlink" href="#complete-the-goal" title="Permanent link">&para;</a></h2>
 <p>Once the artifacts have been checked, mark every plan step <code>completed</code> and run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>goal<span class="w"> </span>check<span class="w"> </span>--id<span class="w"> </span>baseline-report

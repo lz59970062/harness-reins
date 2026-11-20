@@ -1,0 +1,1816 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="长任务结束后，让 Agent 回到原会话继续工作。">
+      
+      
+      
+        <link rel="canonical" href="https://lz59970062.github.io/harness-reins/guides/tui/">
+      
+      
+        <link rel="prev" href="../../benchmark/">
+      
+      
+        <link rel="next" href="../run/">
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>终端界面 - Harness Reins</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#终端界面reins-tui" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../.." title="Harness Reins" class="md-header__button md-logo" aria-label="Harness Reins" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Harness Reins
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              终端界面
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="切换浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              简体中文
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../en/guides/tui/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/lz59970062/harness-reins" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    lz59970062/harness-reins
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Harness Reins" class="md-nav__button md-logo" aria-label="Harness Reins" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    Harness Reins
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/lz59970062/harness-reins" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    lz59970062/harness-reins
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    首页
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    入门
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            入门
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    安装
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第一个任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    架构概览
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    典型使用场景
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    基准测试
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    使用指南
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            使用指南
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    终端界面
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    终端界面
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#界面" class="md-nav__link">
+    <span class="md-ellipsis">
+      界面
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#按键" class="md-nav__link">
+    <span class="md-ellipsis">
+      按键
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#会话菜单" class="md-nav__link">
+    <span class="md-ellipsis">
+      会话菜单
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="会话菜单">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#复制会话地址" class="md-nav__link">
+    <span class="md-ellipsis">
+      复制会话地址
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#窗格操作" class="md-nav__link">
+    <span class="md-ellipsis">
+      窗格操作
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codexpi-和-deepseek-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      Codex、Pi 和 DeepSeek Harness
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#打开会话时会发生什么" class="md-nav__link">
+    <span class="md-ellipsis">
+      打开会话时会发生什么
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#和-desktop-一起用" class="md-nav__link">
+    <span class="md-ellipsis">
+      和 Desktop 一起用
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#安装" class="md-nav__link">
+    <span class="md-ellipsis">
+      安装
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    运行命令
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    启动子 Agent
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../external-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接入已有任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../callbacks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接收与确认回调
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    会话之间发消息
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    编写任务模板
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../goals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    跟踪多阶段目标
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Agent 接入
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Agent 接入
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Harness 支持情况
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/codex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Codex CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/claude/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Claude Code
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/pi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Pi
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/dsh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/desktop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Codex Desktop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    参考
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            参考
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    命令速查
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    配置与文件位置
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    常见问题
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    开发资料
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    参与文档维护
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    文档发布与同步
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/lz59970062/harness-reins/blob/main/CHANGELOG.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    版本记录
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#界面" class="md-nav__link">
+    <span class="md-ellipsis">
+      界面
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#按键" class="md-nav__link">
+    <span class="md-ellipsis">
+      按键
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#会话菜单" class="md-nav__link">
+    <span class="md-ellipsis">
+      会话菜单
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="会话菜单">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#复制会话地址" class="md-nav__link">
+    <span class="md-ellipsis">
+      复制会话地址
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#窗格操作" class="md-nav__link">
+    <span class="md-ellipsis">
+      窗格操作
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codexpi-和-deepseek-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      Codex、Pi 和 DeepSeek Harness
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#打开会话时会发生什么" class="md-nav__link">
+    <span class="md-ellipsis">
+      打开会话时会发生什么
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#和-desktop-一起用" class="md-nav__link">
+    <span class="md-ellipsis">
+      和 Desktop 一起用
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#安装" class="md-nav__link">
+    <span class="md-ellipsis">
+      安装
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/lz59970062/harness-reins/edit/main/docs/guides/tui.md" title="编辑此页" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="终端界面reins-tui">终端界面：reins tui<a class="headerlink" href="#终端界面reins-tui" title="Permanent link">&para;</a></h1>
+<p>一个终端、认证一次，就能看到这台机器上所有的 Claude Code、Codex 和 Pi 会话，以及它们派出的任务、Goal 和消息；会话就在旁边的窗格里打开，用的是各自 Harness 的原生界面。同一个会话永远只有一个进程，不会分叉。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>reins<span class="w"> </span>tui
+</code></pre></div>
+<p>SSH 断开后布局保留。重新连上，再运行一次 <code>reins tui</code>，所有窗格都还在。</p>
+<h2 id="界面">界面<a class="headerlink" href="#界面" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>┌─ Reins ──────────────────────────────┬─ claude 08e8651e 运动图 ───────────┐
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>│ Sessions  Tasks  Goals  Messages     │                                    │
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>│ ●  here        working  运动图       │  Claude Code 原生界面（attach）    │
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>│ ○  Desktop     idle     进展 PPT     │                                    │
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>│ ◌  closed               旧的回调     ├─ log cf408bf5 ─────────────────────┤
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>│ opened 运动图                        │  任务输出，持续跟踪                │
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>└──────────────────────────────────────┴────────────────────────────────────┘
+</code></pre></div>
+<p>左边是 Reins 面板，四个标签页：</p>
+<ul>
+<li><strong>Sessions</strong>：会话按目录分组，每个项目一行目录，它的会话缩进排在下面，一眼就能看出哪个文件夹下有哪些会话。每个会话先显示你给它起的 Reins 地址（<code>@名字</code>），旁边是 Harness 自己起的标题，再往后是在哪里运行、忙闲、名下正在跑的任务数和待处理的回调数。最近派过任务、现在已关闭的会话也列在这里，方便找回。</li>
+<li><strong>Tasks</strong>：每个任务都标出是哪个会话派的，以及回调有没有被确认。</li>
+<li><strong>Goals</strong>：计划和进度。</li>
+<li><strong>Messages</strong>：会话之间的消息。</li>
+</ul>
+<p>右边的窗格由面板打开：会话窗格运行 <code>claude attach</code>、<code>codex resume --remote</code> 或 <code>reins pi</code>（见<a href="#codexpi-和-deepseek-harness">Codex、Pi 和 DeepSeek Harness</a>），日志窗格运行 <code>reins log</code>。会话窗格的标题是 <code>&lt;Harness&gt; &lt;ID&gt; @地址 会话标题</code>，例如 <code>claude 08e8651e @lab 运动图</code>，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 <code>d</code> 切换），不会把面板越挤越窄。</p>
+<h2 id="按键">按键<a class="headerlink" href="#按键" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Enter</code> 或双击</td>
+<td>打开选中的会话；它已经在某个窗格里，就跳过去。在 Tasks 页，打开派这个任务的会话。单击只是选中</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>在指定目录新建 Claude Code、Codex 或 Pi 会话；装了不止一个时会先问用哪个。Claude Code 和 Pi 会话还会让你起个名字，默认是 <code>&lt;目录名&gt;-&lt;harness&gt;</code>（如 <code>api-claude</code>），回车就用，清空就不起名。Codex 线程要发出第一条消息后才存在，名字之后从菜单起</td>
+</tr>
+<tr>
+<td><code>l</code></td>
+<td>跟踪任务输出</td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td>在选中会话（或选中目录行）的目录里开一个终端</td>
+</tr>
+<tr>
+<td><code>d</code></td>
+<td>切换新窗格开在下方还是右边；底栏显示当前选择</td>
+</tr>
+<tr>
+<td><code>m</code></td>
+<td>给选中的会话发消息</td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td>停止 Claude Code 会话（会先确认）。对话保留，之后 <code>Enter</code> 还能打开</td>
+</tr>
+<tr>
+<td><code>c</code></td>
+<td>取消任务的回调（会先确认）</td>
+</tr>
+<tr>
+<td><code>o</code> 或右键</td>
+<td>打开选中会话的菜单（见下）；在目录行上是“在这里新建会话”和“在这里开终端”</td>
+</tr>
+<tr>
+<td><code>a</code></td>
+<td>显示 / 隐藏已归档的会话</td>
+</tr>
+<tr>
+<td><code>1</code>–<code>4</code></td>
+<td>切换标签页</td>
+</tr>
+</tbody>
+</table>
+<p>面板每 3 秒自动刷新。最上面一行是 <code>reins doctor</code> 的检查结果：没问题显示 “Reins is ready”，有问题会逐条列出该怎么处理。</p>
+<p>打不开的会话不会只在底栏留一行小字：比如一个 Claude Code 会话正开在别的终端里，双击后会弹出一个闪烁的红框窗口，写明为什么打不开、该怎么办，按 Enter 关掉。其他操作失败也一样。</p>
+<h2 id="会话菜单">会话菜单<a class="headerlink" href="#会话菜单" title="Permanent link">&para;</a></h2>
+<p>在会话上<strong>右键</strong>，或者选中后按 <code>o</code>，会弹出它的菜单：</p>
+<table>
+<thead>
+<tr>
+<th>菜单项</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open below / Open to the right</td>
+<td>在下方或右边打开，不用先按 <code>d</code> 切换</td>
+</tr>
+<tr>
+<td>Fork into a new session</td>
+<td>带着这段对话另开一个新会话（新 ID），原会话不受影响。在 Desktop 里开着的会话也能分叉</td>
+</tr>
+<tr>
+<td>Terminal in its directory</td>
+<td>在会话目录里开终端，同 <code>t</code></td>
+</tr>
+<tr>
+<td>Send a message...</td>
+<td>给它发消息，同 <code>m</code></td>
+</tr>
+<tr>
+<td>Start a collaborator...</td>
+<td>开一个新会话跟它一起干活（见下）</td>
+</tr>
+<tr>
+<td>Pin to the top / Unpin</td>
+<td>置顶。只影响 Reins 面板，不改 Claude 自己的列表</td>
+</tr>
+<tr>
+<td>Copy address / Name it... / Rename address...</td>
+<td>复制、登记或修改它在 Reins 通讯录里的地址（见下）</td>
+</tr>
+<tr>
+<td>Copy Claude session id / Codex thread id / Pi session file</td>
+<td>复制 Harness 自己认的 ID：<code>claude --resume</code>、<code>codex resume</code>、<code>pi --session</code> 用的那个</td>
+</tr>
+<tr>
+<td>Stop...</td>
+<td>停止会话（会先确认），同 <code>s</code></td>
+</tr>
+<tr>
+<td>Archive / Stop and archive... / Unarchive</td>
+<td>归档：从列表里收起；还在运行的会先停止（会先确认）。对话保留。它再运行、派出新任务或有回调待处理时，会自动回到列表；按 <code>a</code> 能看到已归档的会话</td>
+</tr>
+</tbody>
+</table>
+<p><strong>开协作会话</strong>：选 Start a collaborator...，依次选用哪个 Harness（只装了一个就不问）、目录（默认是原会话的目录，回车即可）和第一项任务（可以留空）。剩下的 Reins 一次做完：两边没有 Reins 地址的自动起一个（原会话按标题起名，新会话叫 <code>&lt;原地址&gt;-&lt;harness&gt;</code>，重名自动加 <code>-2</code>），新会话一开始就知道搭档是谁、怎么用 <code>reins send</code> 找它，原会话收到一条消息，告诉它新搭档的地址和任务，新会话的窗格开在旁边。通知原会话不会唤醒已关闭的会话，它下次打开时会读到。新的 Codex 会话要等 Codex 列出它的线程才能登记地址，最多等 30 秒。DeepSeek Harness 会话可以当原会话（它在 <code>reins wait</code> 运行时才会读到通知），但不能被开成协作者。</p>
+<p>置顶和归档只记在 Reins 自己的文件里（<code>~/.reins/tui/sessions.json</code>），不会删除任何对话。Claude Code 外部改不了会话标题，也没有删除单个对话的命令，所以菜单里没有这两项；标题可以在会话里用 <code>/rename</code> 改。菜单只列出会话所在 Harness 支持的操作：停止只对 Claude Code，分叉对 Claude Code 和 Codex，DeepSeek Harness 会话没有“打开”。</p>
+<h3 id="复制会话地址">复制会话地址<a class="headerlink" href="#复制会话地址" title="Permanent link">&para;</a></h3>
+<p>地址是会话在 Reins 通讯录里的名字。复制后，到别的对话里告诉 agent “发给 @这个地址”，它就会用 <code>reins send</code> 送过去。已经有名字的会话，标题前面会显示 <code>@名字</code>，置顶的会话前面有 <code>★</code>。</p>
+<ul>
+<li>有名字：选 “Copy address”；要换名字选 “Rename address...”，旧名字随之作废。别的会话已经在用的名字不会被抢走。</li>
+<li>还没有名字：选 “Name it and copy its address...”，面板会建议一个名字，确认后登记进通讯录并复制。</li>
+</ul>
+<p>复制会先通过终端的剪贴板协议（OSC 52）直接写进你本机的剪贴板，同时弹出一个小窗，把复制的内容单独放一行。能粘贴就按 <code>Enter</code> 关掉；粘贴出来是空的，说明终端不允许程序写剪贴板（macOS 自带的“终端”和 Claude Code Desktop 里的终端都是这样），就在小窗里手动复制：</p>
+<ul>
+<li>macOS 自带的“终端”：按 ⌘R 关掉鼠标报告，拖选那一行，⌘C，再按 ⌘R 恢复。</li>
+<li>iTerm2：按住 ⌥ 拖选，⌘C。</li>
+</ul>
+<p>想让复制直接生效，可以用 iTerm2（在 Settings → General → Selection 打开 “Applications in terminal may access clipboard”）或 Ghostty。</p>
+<h2 id="窗格操作">窗格操作<a class="headerlink" href="#窗格操作" title="Permanent link">&para;</a></h2>
+<p>窗格只用几个 <code>Alt</code> 键，按一下就生效，没有要记的模式；<code>Ctrl</code> 键全部留给 Claude Code 和终端。鼠标点击切换窗格、滚轮翻看历史也可以。</p>
+<table>
+<thead>
+<tr>
+<th>按键</th>
+<th>作用</th>
+<th>会话怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Alt+←/→/↑/↓</code></td>
+<td>在窗格之间移动</td>
+<td></td>
+</tr>
+<tr>
+<td><code>Alt+x</code></td>
+<td>关掉当前窗格</td>
+<td>Claude Code 和 Codex 照常在后台运行；Pi 会话随之结束</td>
+</tr>
+<tr>
+<td><code>Alt+f</code></td>
+<td>当前窗格全屏 / 还原</td>
+<td></td>
+</tr>
+<tr>
+<td><code>Alt+=</code> / <code>Alt+-</code></td>
+<td>调大 / 调小当前窗格</td>
+<td></td>
+</tr>
+<tr>
+<td><code>Alt+r</code></td>
+<td>回到面板；面板被关掉了就在左边重新打开</td>
+<td>已开的窗格照常运行，只是挪到面板右边</td>
+</tr>
+<tr>
+<td><code>Alt+d</code></td>
+<td>暂时离开，以后运行 <code>reins tui</code> 回来</td>
+<td>布局和窗格都保留</td>
+</tr>
+<tr>
+<td><code>Alt+q</code></td>
+<td>先问一句，默认选中“暂时离开”（Detach）；选 Quit 才结束整个界面</td>
+<td>结束时 Claude Code 和 Codex 照常在后台运行；界面里的 Pi 会话和你开的终端随之结束</td>
+</tr>
+</tbody>
+</table>
+<p>在面板里按 <code>Ctrl+Q</code> 也能离开：可以选暂时离开（同 <code>Alt+d</code>），或结束整个界面（同 <code>Alt+q</code>）。</p>
+<p><strong>Mac 上 Alt 就是 Option 键</strong>，但终端默认不把它当 Alt 发出去，<code>Alt</code> 键会全部失灵：</p>
+<ul>
+<li>macOS 自带的“终端”：设置 → 描述文件 → 键盘，勾选“将 Option 键用作 Meta 键”。</li>
+<li>iTerm2：Settings → Profiles → Keys，把 Left Option key 设成 <code>Esc+</code>。</li>
+</ul>
+<p>没改之前，用面板里的 <code>Ctrl+Q</code> 离开或结束。</p>
+<p>要停止某个会话，在面板里选中它按 <code>s</code>：进程停止，对话保留。</p>
+<p>面板窗格被关掉了也没关系：按 <code>Alt+r</code>，面板会在左边重新打开，已经开着的会话、终端和 Pi 会话都不受影响，只是挪到面板右边重新排列。在界面里面的终端里运行 <code>reins tui</code>，它会告诉你已经在界面里了。</p>
+<h2 id="codexpi-和-deepseek-harness">Codex、Pi 和 DeepSeek Harness<a class="headerlink" href="#codexpi-和-deepseek-harness" title="Permanent link">&para;</a></h2>
+<p>每个 Harness 都用自己的原生界面打开，Reins 对每个都守同一条承诺：一个会话只有一个进程。</p>
+<table>
+<thead>
+<tr>
+<th>Harness</th>
+<th>会话列表来自</th>
+<th>会话窗格运行</th>
+<th>关掉窗格后</th>
+<th>打开期间的回调</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td><code>claude agents</code></td>
+<td><code>claude attach</code>，后台会话</td>
+<td>照常运行</td>
+<td>会话里的 Reins hook</td>
+</tr>
+<tr>
+<td>Codex</td>
+<td>Codex 的 app-server 守护进程</td>
+<td><code>codex resume --remote</code>，守护进程上的线程</td>
+<td>留在守护进程上，空闲后由它卸载</td>
+<td>守护进程上这个线程的新一轮</td>
+</tr>
+<tr>
+<td>Pi</td>
+<td>Pi 的会话文件</td>
+<td><code>reins pi</code>，带 Reins 扩展和写入租约的 Pi</td>
+<td>Pi 随窗格结束</td>
+<td>Reins 的 Pi 扩展</td>
+</tr>
+<tr>
+<td>DeepSeek Harness</td>
+<td>Reins 通讯录和任务记录</td>
+<td>不打开：它没有终端界面</td>
+<td></td>
+<td>它自己运行的 <code>reins wait</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Codex</strong> 会话通过 Codex 共享的 app-server 守护进程（<code>codex app-server daemon</code>）打开，所以 Reins 窗格、通过 SSH 连接的 Codex Desktop 和 <code>codex resume --remote</code> 看到的是同一个线程。守护进程没在运行时，Reins 会先启动它。不带 <code>--remote</code> 打开的 Codex 窗口自己写线程：面板显示它开在别的终端里，不会再打开一份。新建的 Codex 会话发出第一条消息后才会出现在列表里。</li>
+<li>Codex 收到回调时保留线程自己的设置，只把 Reins 的队列和通讯录目录加进可写目录，所以 agent 不用申请提权就能 ACK；线程留在守护进程上期间一直有这项权限。</li>
+<li><strong>Pi</strong> 没有守护进程，会话就活在它的窗格里。在别处带着 Reins 扩展打开的 Pi 会话显示为开在别的终端；不带扩展打开的看不到。</li>
+<li><strong>DeepSeek Harness</strong>：有 Reins 名字或派过任务的会话会列出来，可以发消息、复制地址、看任务日志。打开请用 DeepSeek Harness 的网页版或桌面版。</li>
+</ul>
+<h2 id="打开会话时会发生什么">打开会话时会发生什么<a class="headerlink" href="#打开会话时会发生什么" title="Permanent link">&para;</a></h2>
+<p>你只需要按 <code>Enter</code> 或双击，Reins 按会话现在的状态选择做法。以 Claude Code 会话为例：</p>
+<table>
+<thead>
+<tr>
+<th>会话状态</th>
+<th>Reins 的做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>已经在某个窗格里</td>
+<td>跳到那个窗格</td>
+</tr>
+<tr>
+<td>在后台运行，或已停止</td>
+<td>新开窗格，<code>claude attach</code> 接上；已停止的会话会被重新拉起</td>
+</tr>
+<tr>
+<td>已关闭</td>
+<td>先用 <code>claude --bg --resume</code> 把它转成后台会话，再接上。ID 和对话都不变</td>
+</tr>
+<tr>
+<td>在 Desktop 或别的终端里开着</td>
+<td>不打开，提示它在哪里；照样可以发消息、看任务日志。那边关掉后就能打开</td>
+</tr>
+</tbody>
+</table>
+<p>直接打开某个会话，可以写会话 ID，也可以写任务 ID 或回调 ID：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>reins<span class="w"> </span>tui<span class="w"> </span>cf408bf5
+</code></pre></div>
+<h2 id="和-desktop-一起用">和 Desktop 一起用<a class="headerlink" href="#和-desktop-一起用" title="Permanent link">&para;</a></h2>
+<p>Claude Code Desktop 打不开正在后台运行的会话，会提示 “That session is running in the background”。在面板里选中它按 <code>s</code> 停止，或者运行 <code>claude stop &lt;id&gt;</code>，Desktop 就能打开。</p>
+<h2 id="安装">安装<a class="headerlink" href="#安装" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>npm 安装</strong>：已经带上 Zellij 和面板，不用另装。</li>
+<li><strong>pip 安装</strong>：<code>pip install 'harness-reins[tui]'</code>，再从系统的包管理器安装 <a href="https://zellij.dev">Zellij</a>，或者用 <code>REINS_ZELLIJ</code> 指定它的路径。</li>
+<li><strong>Windows</strong>：Zellij 不支持 Windows，请用 <code>reins status</code> 和 <code>reins log</code>。</li>
+</ul>
+<p>Reins 用自己的 Zellij 配置（<code>~/.reins/zellij</code>），不影响你本机的 Zellij。它的会话索引放在本机临时目录（<code>/tmp/reins-zellij-&lt;uid&gt;</code>），所以 <code>~/.cache</code> 挂在 JuiceFS、NFS 这类网络盘上时也不会卡住；窗格里的程序仍用你自己的 <code>XDG_CACHE_HOME</code>。<code>reins tui</code> 只给人用；在 agent 会话里运行会直接报错。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../../benchmark/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 基准测试">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                基准测试
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../run/" class="md-footer__link md-footer__link--next" aria-label="下一页: 运行命令">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                运行命令
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.sections", "navigation.indexes", "toc.follow", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

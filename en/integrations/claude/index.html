@@ -495,6 +495,8 @@
       
         
       
+        
+      
     
     
     
@@ -530,6 +532,29 @@
             User guides
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/tui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Terminal UI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -1277,7 +1302,7 @@
 
 
 <h1 id="claude-code">Claude Code<a class="headerlink" href="#claude-code" title="Permanent link">&para;</a></h1>
-<p>Live callback delivery uses the <code>0.7.1</code> preview. Follow <a href="../../installation/#install-the-preview">preview installation</a>, then run <code>reins setup</code> to install the Reins skill for Claude Code.</p>
+<p>Follow the <a href="../../installation/">installation guide</a>, then run <code>reins setup</code> to install the Reins skill for Claude Code.</p>
 <h2 id="submit-a-task-and-receive-the-result">Submit a task and receive the result<a class="headerlink" href="#submit-a-task-and-receive-the-result" title="Permanent link">&para;</a></h2>
 <p>Ask Claude to submit this in the current conversation:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--cwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span><span class="w"> </span>--task<span class="w"> </span><span class="s2">"Run the tests"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/

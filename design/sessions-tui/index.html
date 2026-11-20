@@ -1,0 +1,2138 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="长任务结束后，让 Agent 回到原会话继续工作。">
+      
+      
+      
+        <link rel="canonical" href="https://lz59970062.github.io/harness-reins/design/sessions-tui/">
+      
+      
+      
+      
+      <link rel="icon" href="../../assets/logo.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>会话托管与 Reins TUI - Harness Reins</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#会话托管与-reins-tui" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../.." title="Harness Reins" class="md-header__button md-logo" aria-label="Harness Reins" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Harness Reins
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              会话托管与 Reins TUI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="切换深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="切换浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              简体中文
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../en/design/sessions-tui/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/lz59970062/harness-reins" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    lz59970062/harness-reins
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Harness Reins" class="md-nav__button md-logo" aria-label="Harness Reins" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="logo">
+
+    </a>
+    Harness Reins
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/lz59970062/harness-reins" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    lz59970062/harness-reins
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    首页
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    入门
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            入门
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    安装
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    第一个任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    架构概览
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    典型使用场景
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    基准测试
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    使用指南
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            使用指南
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/tui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    终端界面
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    运行命令
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    启动子 Agent
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/external-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接入已有任务
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/callbacks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    接收与确认回调
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    会话之间发消息
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    编写任务模板
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/goals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    跟踪多阶段目标
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Agent 接入
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Agent 接入
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Harness 支持情况
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/codex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Codex CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/claude/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Claude Code
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/pi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Pi
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/dsh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/desktop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Codex Desktop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    参考
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            参考
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    命令速查
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    配置与文件位置
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    常见问题
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    开发资料
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    参与文档维护
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    文档发布与同步
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/lz59970062/harness-reins/blob/main/CHANGELOG.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    版本记录
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-为什么要做" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. 为什么要做
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-五条不变量" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. 五条不变量
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-两组命令" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. 两组命令
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 两组命令">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-给-agent-用的命令" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.1 给 Agent 用的命令
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-给用户用的入口" class="md-nav__link">
+    <span class="md-ellipsis">
+      3.2 给用户用的入口
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-会话状态" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. 会话状态
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 会话状态">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-统一的状态" class="md-nav__link">
+    <span class="md-ellipsis">
+      4.1 统一的状态
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-claude-的状态从哪来" class="md-nav__link">
+    <span class="md-ellipsis">
+      4.2 Claude 的状态从哪来
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-打开会话" class="md-nav__link">
+    <span class="md-ellipsis">
+      5. 打开会话
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-托管与投递" class="md-nav__link">
+    <span class="md-ellipsis">
+      6. 托管与投递
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 托管与投递">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-reins-的恢复方式改变" class="md-nav__link">
+    <span class="md-ellipsis">
+      6.1 Reins 的恢复方式改变
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-后台会话的回收" class="md-nav__link">
+    <span class="md-ellipsis">
+      6.2 后台会话的回收
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-后台会话的托管进程" class="md-nav__link">
+    <span class="md-ellipsis">
+      6.3 后台会话的托管进程
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-权限模式与-reins-命令" class="md-nav__link">
+    <span class="md-ellipsis">
+      6.4 权限模式与 Reins 命令
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-tui" class="md-nav__link">
+    <span class="md-ellipsis">
+      7. TUI
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. TUI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-布局" class="md-nav__link">
+    <span class="md-ellipsis">
+      7.1 布局
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-按键初稿" class="md-nav__link">
+    <span class="md-ellipsis">
+      7.2 按键（初稿）
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-滚动" class="md-nav__link">
+    <span class="md-ellipsis">
+      7.3 滚动
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-zellij-的分发" class="md-nav__link">
+    <span class="md-ellipsis">
+      7.4 Zellij 的分发
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-典型流程" class="md-nav__link">
+    <span class="md-ellipsis">
+      8. 典型流程
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-安全边界" class="md-nav__link">
+    <span class="md-ellipsis">
+      9. 安全边界
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-和现有功能的关系" class="md-nav__link">
+    <span class="md-ellipsis">
+      10. 和现有功能的关系
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-待验证" class="md-nav__link">
+    <span class="md-ellipsis">
+      11. 待验证
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-实现顺序" class="md-nav__link">
+    <span class="md-ellipsis">
+      12. 实现顺序
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-决定" class="md-nav__link">
+    <span class="md-ellipsis">
+      13. 决定
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/lz59970062/harness-reins/edit/main/docs/design/sessions-tui.md" title="编辑此页" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="会话托管与-reins-tui">会话托管与 Reins TUI<a class="headerlink" href="#会话托管与-reins-tui" title="Permanent link">&para;</a></h1>
+<p>状态：已随 0.14.0 发布（2026-11-18）。使用流程已经和维护者对齐，第 13 节的三项决定已定；第 11 节的 9 项验证已全部完成。目标版本：Claude、Codex、Pi 的会话管理和 DSH 的列表进 0.14（2026-11-17 维护者要求一起适配），可接入的子 agent 进 0.15。</p>
+<p>相关文档：会话之间发消息见 <a href="../link-protocol/">link-protocol.md</a>，现有分层见 <a href="../architecture/">architecture.md</a>。</p>
+<h2 id="1-为什么要做">1. 为什么要做<a class="headerlink" href="#1-为什么要做" title="Permanent link">&para;</a></h2>
+<p>服务器上只有 CLI 时，用户要看一个会话的进度，现在唯一的办法是 <code>claude --resume &lt;id&gt;</code>。这会出问题：</p>
+<ul>
+<li>窗口关着时，Reins 会无头恢复这个会话，处理回调和 goal 提醒，并接着干活。</li>
+<li>用户这时 <code>claude --resume</code> 进去看，窗口只加载了那一刻的 transcript，之后无头进程和窗口各写各的，会话分成两条分支。窗口里的 Claude 不记得无头那边派过的任务，也不认它改过的文件。</li>
+<li>无头进程运行期间不检查会话有没有被窗口打开，照样接新回调，分叉越来越大（<code>harness/claude/stream.py</code> 的 <code>supervise</code> 循环）。</li>
+</ul>
+<p>Desktop 用户没有这个问题，因为 Desktop 本来就能看各个会话的状态。本设计要在终端里给出同样的能力：用一个终端、认证一次，就能看、打开、管理所有会话，并且同一个会话永远只有一个进程。</p>
+<p><strong>包含：</strong></p>
+<ul>
+<li>基于 Zellij 的 TUI：左侧 Reins 面板，右侧按需分屏的会话窗格和日志窗格。用户管理会话只通过它，覆盖所有 Harness，操作一致</li>
+<li>Claude 会话改由官方后台会话托管，Reins 的恢复不再起无头进程</li>
+<li>Codex 会话由它自己的 app-server 守护进程托管，Pi 会话在 Reins 的 Zellij 窗格里运行，DSH 只列出（0.14，见第 6 节）</li>
+</ul>
+<p><strong>不包含：</strong></p>
+<ul>
+<li>自己实现聊天客户端。会话交互一律用各 Harness 的原生界面</li>
+<li>解析或展示模型的思考内容</li>
+<li>跨机器查看会话。多机走 Link 协议，以后再做</li>
+<li>Windows 上的分屏。Zellij 不支持 Windows，Windows 第一版只有命令行</li>
+</ul>
+<h2 id="2-五条不变量">2. 五条不变量<a class="headerlink" href="#2-五条不变量" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>一个会话同一时间只有一个进程。</strong> 打开、恢复、投递之前都先查会话状态，绝不另起第二个进程。</li>
+<li><strong>状态现问源头。</strong> Reins 不另外记一份 Harness 会话的状态。Claude 问 <code>claude agents --json --all</code>，Zellij 托管的会话问 Zellij，任务、回调、goal 看 Reins 自己的记录。用户用原生命令做的任何改动，下次读状态时都能看到。面板唯一自己记的是用户的偏好：哪些会话置顶、哪些归档（<code>~/.reins/tui/sessions.json</code>），它们只决定列表怎么排、显不显示，不代表会话状态。</li>
+<li><strong>只用官方的公开接口。</strong> 只调用用户安装的原版 Harness 程序和它公开的命令。不直接请求模型 API，不读、不存、不转发登录凭据，不碰思考内容。</li>
+<li><strong>两组命令分开。</strong> 给 agent 用的命令不交互、不阻塞，只能操作自己名下的东西；给用户用的命令可以交互，能看全部。用户命令不写进技能文档。</li>
+<li><strong>回调送到会话的托管者那里。</strong> 会话由谁托管，回调就交给谁，不为投递单独起进程。</li>
+</ol>
+<h2 id="3-两组命令">3. 两组命令<a class="headerlink" href="#3-两组命令" title="Permanent link">&para;</a></h2>
+<h3 id="31-给-agent-用的命令">3.1 给 Agent 用的命令<a class="headerlink" href="#31-给-agent-用的命令" title="Permanent link">&para;</a></h3>
+<p>基本就是现有命令，本设计不改它们的行为：</p>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>命令</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>派活</td>
+<td><code>reins run</code>、<code>reins agent</code>（<code>continue</code>、<code>fork</code>、<code>expert</code>）、<code>reins done</code></td>
+</tr>
+<tr>
+<td>收结果</td>
+<td><code>reins ack</code>、<code>reins wait</code>、处理 <code>[reins-status]</code> 修复块</td>
+</tr>
+<tr>
+<td>多步骤工作</td>
+<td><code>reins goal start / check / set-plan / ack</code></td>
+</tr>
+<tr>
+<td>会话间通信</td>
+<td><code>reins session register / list / unregister</code>、<code>reins send / reply / inbox</code></td>
+</tr>
+<tr>
+<td>看任务输出</td>
+<td><code>reins log &lt;id&gt; --no-follow</code></td>
+</tr>
+</tbody>
+</table>
+<p>规则：</p>
+<ul>
+<li>不需要 TTY，输出方便程序读取，绝不无限期阻塞。</li>
+<li>只操作自己名下的任务、子 agent、goal 和消息。</li>
+<li><code>reins ack</code> 只该由收到回调的 agent 执行。用户想让一条回调不再投递，用 <code>reins cancel</code>。</li>
+</ul>
+<h3 id="32-给用户用的入口">3.2 给用户用的入口<a class="headerlink" href="#32-给用户用的入口" title="Permanent link">&para;</a></h3>
+<p>会话管理（列出、新建、打开、停止、删除、看最近输出）只在 TUI 里提供，不单独做一组命令行子命令（2026-11-15 决定）。概念最少，也不会和 agent 用的 <code>reins session</code> 混淆。</p>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>入口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主界面</td>
+<td><code>reins tui</code></td>
+</tr>
+<tr>
+<td>直接打开某个会话</td>
+<td><code>reins tui &lt;会话ID或任务ID&gt;</code>：进入 TUI 并按第 5 节打开它</td>
+</tr>
+<tr>
+<td>发消息</td>
+<td>TUI 里按 <code>m</code>，或 <code>reins send &lt;会话&gt; …</code>（和 agent 用的同一条）</td>
+</tr>
+<tr>
+<td>看任务</td>
+<td>TUI 里按 <code>l</code>，或 <code>reins log &lt;任务ID&gt;</code>、<code>reins status</code></td>
+</tr>
+<tr>
+<td>手动清理</td>
+<td>TUI 里按 <code>c</code>，或 <code>reins cancel</code>、<code>reins retry</code></td>
+</tr>
+<tr>
+<td>安装维护</td>
+<td><code>reins setup</code>、<code>reins doctor</code></td>
+</tr>
+</tbody>
+</table>
+<p>规则：</p>
+<ul>
+<li><code>reins tui &lt;id&gt;</code> 接受会话 ID，也接受任务 ID 或回调 ID，并从任务记录找到派它的会话。用户通常记得任务，不记得会话。</li>
+<li>在会话里（检测到 Reins 的 agent 环境）调用 <code>reins tui</code> 时直接报错，说明这是给用户用的入口。</li>
+<li>代价：会话的新建、停止、删除没法写进脚本。真有需要时，可以直接用各 Harness 的原生命令（如 <code>claude --bg</code>、<code>claude stop</code>），Reins 读状态时照样能看到（不变量 2）。</li>
+<li><code>reins log</code> 默认持续跟踪，是给人用的。stdout 不是 TTY 时自动不跟踪，防止 agent 被卡住。</li>
+</ul>
+<h2 id="4-会话状态">4. 会话状态<a class="headerlink" href="#4-会话状态" title="Permanent link">&para;</a></h2>
+<h3 id="41-统一的状态">4.1 统一的状态<a class="headerlink" href="#41-统一的状态" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attached</code></td>
+<td>由 Reins 侧托管，正在某个 TUI 窗格里接着</td>
+</tr>
+<tr>
+<td><code>running</code></td>
+<td>由 Reins 侧托管，没有窗格接着</td>
+</tr>
+<tr>
+<td><code>foreign</code></td>
+<td>在 Desktop 或 Reins 之外的终端窗口里开着</td>
+</tr>
+<tr>
+<td><code>stopped</code></td>
+<td>托管者还记得它，但进程已经停了</td>
+</tr>
+<tr>
+<td><code>closed</code></td>
+<td>没有任何进程，只有 transcript</td>
+</tr>
+</tbody>
+</table>
+<p>另外标注忙闲（<code>busy</code> / <code>idle</code>），以及名下正在跑的任务数、未处理的回调数和 goal。</p>
+<h3 id="42-claude-的状态从哪来">4.2 Claude 的状态从哪来<a class="headerlink" href="#42-claude-的状态从哪来" title="Permanent link">&para;</a></h3>
+<p>以 <code>claude agents --json --all</code> 为准。2.1.325 上实测的字段（2026-11-16，V8）：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>交互会话</th>
+<th>后台会话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code></td>
+<td><code>interactive</code></td>
+<td><code>background</code></td>
+</tr>
+<tr>
+<td><code>id</code>（短 ID，attach 用）</td>
+<td>无</td>
+<td>有，即会话 ID 的前 8 位</td>
+</tr>
+<tr>
+<td><code>pid</code></td>
+<td>有</td>
+<td>运行中有；进程已退出为空</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>idle</code> 等</td>
+<td>运行中有；进程已退出为空</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>无</td>
+<td><code>working</code>、<code>done</code>、<code>blocked</code>（实测见过这三种；<code>blocked</code> 出现在一次工具调用被拒之后）</td>
+</tr>
+<tr>
+<td><code>sessionId</code>、<code>name</code>、<code>cwd</code>、<code>startedAt</code></td>
+<td>有</td>
+<td>有</td>
+</tr>
+</tbody>
+</table>
+<p>映射：</p>
+<ul>
+<li><code>kind</code> 为 <code>background</code> 且有 <code>pid</code> → <code>running</code>；被某个 Reins 窗格接着时为 <code>attached</code>。<code>claude agents</code> 不报告有没有客户端接着，<code>attached</code> 只看 Reins 自己的窗格</li>
+<li><code>kind</code> 为 <code>interactive</code> → <code>foreign</code></li>
+<li><code>kind</code> 为 <code>background</code> 但 <code>pid</code> 为空 → <code>stopped</code>。后台会话空闲一段时间后进程会自己退出（实测隔夜后已退出），<code>claude attach</code> 时自动重新拉起（V1）</li>
+<li>不在列表里、但有 transcript 的 → <code>closed</code></li>
+<li>忙闲看 <code>state</code>（后台会话）或 <code>status</code>（交互会话）</li>
+</ul>
+<p>后台会话在 <code>~/.claude/sessions/&lt;pid&gt;.json</code> 里也有记录：<code>kind</code> 为 <code>bg</code>，<code>entrypoint</code> 为 <code>cli</code>。现有的 <code>open_window</code> 判断会把它当成开着的窗口，所以现有投递逻辑不会对后台会话起无头进程。<code>claude agents</code> 不可用（旧 CLI）时，退回 <code>~/.claude/sessions/&lt;pid&gt;.json</code>。</p>
+<p>会话名直接用 Claude 自动生成的标题，Reins 不另起名字。</p>
+<h2 id="5-打开会话">5. 打开会话<a class="headerlink" href="#5-打开会话" title="Permanent link">&para;</a></h2>
+<p>用户只有一个“打开”动作，由 Reins 按状态选命令：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attached</code></td>
+<td>跳到那个窗格，不重复打开</td>
+</tr>
+<tr>
+<td><code>running</code> 或 <code>stopped</code></td>
+<td>新开窗格，运行 <code>claude attach &lt;id&gt;</code></td>
+</tr>
+<tr>
+<td><code>closed</code></td>
+<td>先 <code>claude --bg --resume &lt;id&gt;</code> 转成后台会话，再新开窗格 attach</td>
+</tr>
+<tr>
+<td><code>foreign</code></td>
+<td>不打开，提示会话在哪里开着；可以发消息、看任务日志。原来的窗口关掉后，状态变成 <code>closed</code>，就能打开</td>
+</tr>
+<tr>
+<td>有 Reins 旧方式的无头进程</td>
+<td>等它做完当前这一轮退出，再按 <code>closed</code> 处理</td>
+</tr>
+</tbody>
+</table>
+<p>依据：</p>
+<ul>
+<li><code>claude attach</code>：“Open the background session in this terminal… The session keeps running either way.”（2.1.321 <code>--help</code>）</li>
+<li><code>claude stop</code>：“Its conversation is kept; resume it later with <code>claude attach &lt;id&gt;</code>.”</li>
+<li><code>--bg --resume &lt;session-id&gt;</code>：“continues that session in the background under the same ID, or starts a copy and says so when the session is already running.” Reins 必须先确认会话不在运行，才能用它。已停止的后台会话只能不带别的参数唤醒，否则也会起副本（V12）。</li>
+<li>官方文档：对正在后台运行的会话执行 <code>claude --resume</code>，会接到这个会话上，而不是重新加载 transcript。所以用户在别处手动 resume 也不会分叉。</li>
+</ul>
+<p>新建会话一律用 <code>claude --bg</code> 启动，再 attach。</p>
+<p>实测（2.1.325，V1、V2、V3、V5）：</p>
+<ul>
+<li>进程已退出的后台会话，<code>claude attach</code> 会重新拉起它，显示原来的对话，会话 ID 和 transcript 文件不变，没有新分支。</li>
+<li>对交互会话执行 <code>claude attach</code>，返回 <code>No job matching '&lt;id&gt;'</code>，退出码 1，不另起副本。所以 <code>foreign</code> 会话不会被 attach 意外抢走。</li>
+<li>已关闭的普通会话用 <code>claude --bg --resume &lt;id&gt; [提示]</code> 拉起后，变成后台会话，ID 和 transcript 文件不变，新回复接在原分支后面。</li>
+<li>两个终端可以同时 attach 同一个后台会话，画面同步，两边都能输入，transcript 仍是一条分支。TUI 默认跳到已经打开的窗格，不重复打开；用户想在两个窗格里看同一个会话也可以。</li>
+<li>所有客户端都断开后，后台会话继续运行。</li>
+</ul>
+<h2 id="6-托管与投递">6. 托管与投递<a class="headerlink" href="#6-托管与投递" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Harness</th>
+<th>托管者</th>
+<th>回调投递</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude</td>
+<td>官方后台会话（<code>--bg</code>、<code>attach</code>、<code>stop</code>、<code>rm</code>）</td>
+<td>现有的 Stop / SessionStart hook（<code>asyncRewake</code>）</td>
+</tr>
+<tr>
+<td>Codex</td>
+<td>Codex 自己的 app-server 守护进程；Reins 窗格运行 <code>codex resume --remote</code>（V16）</td>
+<td>线程在守护进程上时在守护进程上开新一轮，并把队列加进可写目录（V22；只读线程走 <code>codex queue</code>），否则沿用 <code>codex exec resume</code></td>
+</tr>
+<tr>
+<td>Pi</td>
+<td>Reins 的 Zellij 窗格运行 <code>reins pi</code>，Pi 随窗格结束</td>
+<td>Pi extension 的信箱</td>
+</tr>
+<tr>
+<td>DSH</td>
+<td>不托管：没有终端界面，用它自己的网页版或桌面版</td>
+<td>现有的 live 通道</td>
+</tr>
+</tbody>
+</table>
+<p>Claude 不放进 Zellij 托管：Desktop 和其他终端不知道 Zellij 里有这个会话，<code>claude --resume</code> 会另起进程，又回到分叉问题。官方后台会话自带防分叉保证，比统一实现更重要。</p>
+<h3 id="61-reins-的恢复方式改变">6.1 Reins 的恢复方式改变<a class="headerlink" href="#61-reins-的恢复方式改变" title="Permanent link">&para;</a></h3>
+<p>现在：会话关闭时，有回调或 goal 提醒，daemon 用 <code>claude -p --resume &lt;id&gt;</code> 起无头进程。</p>
+<p>改为：daemon 用 <code>claude --bg --resume &lt;id&gt;</code> 把会话拉成后台会话，回调通过 hook 送进去。用户随时可以 attach 进去看，不会分叉。</p>
+<ul>
+<li>旧版 CLI 没有 <code>--bg</code> 时，退回现在的无头 stream 方式。</li>
+<li>无头 stream 方式本身也要补交接（0.14 的 PR 0，不依赖本设计的其他部分）：<code>supervise</code> 循环发现这个会话有窗口打开后，不再接新回调，并关闭 stdin，让它做完当前这一轮就退出；同时把这一轮的最终输出作为一条消息送进窗口，因为窗口打开时这一轮还没写进 transcript。</li>
+</ul>
+<h3 id="62-后台会话的回收">6.2 后台会话的回收<a class="headerlink" href="#62-后台会话的回收" title="Permanent link">&para;</a></h3>
+<p>后台会话长时间空闲时，Reins 不主动停止它，由 Claude 自己管理（实测空闲后进程会自己退出）。用户可以在 TUI 里按 <code>s</code> 或用 <code>claude stop</code> 停掉，下次打开或有回调时再拉起来。资源占用和额度消耗跟普通会话一样，这一点在用户文档里写明。</p>
+<p>进程已退出的后台会话收到回调时怎么拉起，要在 PR 2 里验证：先试 hook 能不能在 <code>claude attach</code> 之外触发重新拉起；不能的话，daemon 用 <code>claude --bg --resume &lt;id&gt;</code>。</p>
+<h3 id="63-后台会话的托管进程">6.3 后台会话的托管进程<a class="headerlink" href="#63-后台会话的托管进程" title="Permanent link">&para;</a></h3>
+<p>实测（V7）：<code>claude --bg</code> 把会话交给 Claude 自己的守护进程（<code>claude daemon</code>，下面每个会话一个 <code>bg-pty-host</code>）。启动它的进程退出后，会话照常运行：从一个运行完就退出的 systemd 临时单元里起的后台会话，单元结束后仍在运行。</p>
+<p>但守护进程留在第一个启动它的进程所在的 cgroup 里。本机它在一个已经断开的 SSH 登录会话（<code>session-17.scope</code>，状态 <code>closing</code>）里，因为 <code>KillUserProcesses=no</code> 且开了 linger，进程没有被杀掉。在 <code>KillUserProcesses=yes</code> 的机器上，SSH 一断，所有后台会话都会被杀掉。</p>
+<p>所以 Reins 拉起后台会话时，如果 Claude 守护进程还没运行，就先在 <code>systemd-run --user --scope</code> 里启动，让它不依赖任何登录会话。macOS 和 Windows 的做法在实现时再定。</p>
+<h3 id="64-权限模式与-reins-命令">6.4 权限模式与 Reins 命令<a class="headerlink" href="#64-权限模式与-reins-命令" title="Permanent link">&para;</a></h3>
+<p>实测（V6）：2.1.325 的后台会话默认开着 auto mode。回调通过 hook 送进了没有客户端接着的后台会话，但会话里的 Claude 执行 <code>/home/lizhi_2024/.reins/bin/reins ack &lt;id&gt;</code> 时，被 auto mode 的分类器以 “Destructive or Unwanted Actions” 拒绝，回调一直停在 pending。</p>
+<p>V9 实测（2026-11-16，三个后台会话，各投递一次回调）：</p>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>项目 <code>.claude/settings.json</code> 的 <code>permissions.allow</code>，旧写法 <code>Bash(reins ack:*)</code> 和完整路径的同类写法</td>
+<td>ACK 仍被拒</td>
+</tr>
+<tr>
+<td><code>claude --bg --settings '&lt;JSON&gt;'</code> 传入 <code>permissions.allow</code>，新写法 <code>Bash(/home/…/.reins/bin/reins ack *)</code> 和 <code>Bash(reins ack *)</code></td>
+<td>ACK 通过</td>
+</tr>
+<tr>
+<td><code>claude --bg --settings '&lt;JSON&gt;'</code> 传入 <code>autoMode.allow</code>（<code>"$defaults"</code> 加一句说明 <code>reins ack</code> 是预期操作）</td>
+<td>ACK 通过</td>
+</tr>
+</tbody>
+</table>
+<p>第一种失败的原因没有单独拆开：可能是旧的 <code>:*</code> 写法没匹配上，也可能是项目级设置的问题。官方文档说具体的 Bash allow 规则在分类器之前生效，宽泛的规则（如 <code>Bash(*)</code>）进入 auto mode 时会被丢弃；<code>autoMode</code> 只从用户设置、托管设置或 <code>--settings</code> 读取，不读项目设置（<a href="https://code.claude.com/docs/en/auto-mode-config.md">auto-mode-config</a>）。</p>
+<p>处理：</p>
+<ul>
+<li>Reins 不替用户改会话的权限模式，沿用用户的默认设置。</li>
+<li><strong>Reins 拉起的后台会话</strong>：启动时用 <code>--settings</code> 传入具体的 allow 规则，只限第 3.1 节的 agent 命令（如 <code>reins ack *</code>、<code>reins goal check *</code>），不含 <code>cancel --all</code> 之类，也不用宽泛的通配。不改用户的设置文件。优先用 <code>permissions.allow</code>，它是确定的规则匹配；<code>autoMode.allow</code> 依赖分类器的理解，只作后备。</li>
+<li><strong>用户自己开的会话</strong>（Desktop、终端）：<code>reins setup</code> 已经会改 <code>~/.claude/settings.json</code> 装 hook，同时加上同样的具体 allow 规则，并在输出里列出加了哪些。</li>
+<li>规则用 <code>*</code> 的新写法，并在 PR 2 里补一次项目级和用户级设置的对照测试，弄清第一种失败的原因。</li>
+<li>回调文本里仍要告诉 agent：ACK 被拦时，请用户批准，不要换别的办法绕过。</li>
+</ul>
+<h2 id="7-tui">7. TUI<a class="headerlink" href="#7-tui" title="Permanent link">&para;</a></h2>
+<h3 id="71-布局">7.1 布局<a class="headerlink" href="#71-布局" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─ Reins 面板 ──────────────┬─ 会话：嵌入空间运动图 ─────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│ [会话] 任务  Goal  消息    │                                     │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│ ● 嵌入空间运动图   后台 2任务 │   （Claude 原生界面，claude attach）  │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│ ○ 两页进展 PPT   Desktop   │                                     │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│ ◌ LTC Callback   已关闭    ├─ 任务 cf408bf5 日志 ────────────────┤
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│                           │   （reins log 持续跟踪）              │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>└───────────────────────────┴─────────────────────────────────────┘
+</code></pre></div>
+<ul>
+<li><code>reins tui</code> 接上名为 <code>reins</code> 的 Zellij 会话，没有就按 Reins 的布局新建。SSH 断开后布局保留，重新运行 <code>reins tui</code> 就接回来。</li>
+<li>左侧面板是用 Textual 写的终端程序（2026-11-15 决定），随冻结二进制一起打包，有四个标签页：</li>
+<li><strong>会话</strong>：会话名、agent 类型、目录、状态、名下任务数；</li>
+<li><strong>任务</strong>：每个任务都显示是哪个会话派的；</li>
+<li><strong>Goal</strong>：计划和进度；</li>
+<li><strong>消息</strong>：收件箱。</li>
+<li>右侧窗格由面板通过 <code>zellij action</code> 打开：会话窗格运行 <code>claude attach</code>，任务窗格运行 <code>reins log</code>，临时查看用浮动窗格。</li>
+<li>关掉窗格只是离开，会话照常在后台跑。</li>
+</ul>
+<h3 id="72-按键初稿">7.2 按键（初稿）<a class="headerlink" href="#72-按键初稿" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>动作</th>
+<th>命令行里的同等操作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Enter</code></td>
+<td>打开会话；已经开着就跳过去</td>
+<td><code>reins tui &lt;id&gt;</code></td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>新建会话</td>
+<td>无</td>
+</tr>
+<tr>
+<td><code>l</code></td>
+<td>看任务日志</td>
+<td><code>reins log</code></td>
+</tr>
+<tr>
+<td><code>m</code></td>
+<td>发消息</td>
+<td><code>reins send</code></td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td>停止会话</td>
+<td>无（可用原生命令）</td>
+</tr>
+<tr>
+<td><code>c</code></td>
+<td>取消回调</td>
+<td><code>reins cancel</code></td>
+</tr>
+<tr>
+<td>待定</td>
+<td>在当前窗格里切换到另一个会话</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<p>发消息、看日志、取消回调和命令行共用同一份实现，行为一致。</p>
+<h3 id="73-滚动">7.3 滚动<a class="headerlink" href="#73-滚动" title="Permanent link">&para;</a></h3>
+<p>Zellij 默认就能用鼠标滚轮滚动，每个窗格有自己的回滚历史。翻看 Claude 的长对话用 Claude 自带的 Ctrl+O。不选 tmux 是因为 tmux 默认不能用鼠标滚动，打开后也只能在复制模式里滚，而且 Claude 的重绘会把历史塞满重复画面。</p>
+<h3 id="74-zellij-的分发">7.4 Zellij 的分发<a class="headerlink" href="#74-zellij-的分发" title="Permanent link">&para;</a></h3>
+<ul>
+<li>固定一个 Zellij 版本，放进 npm 平台包（<code>@harness-reins/linux-x64</code>，以后的 macOS 包）。服务器访问 GitHub 不稳定，npm 有国内镜像，随包走最可靠。</li>
+<li>Reins 只用自带的这份和自己的配置目录，不受用户本机的 Zellij 影响。</li>
+<li>Zellij 是 MIT 许可，随包附上许可证。</li>
+<li>pip 安装和 Windows 包不带 Zellij。pip 安装时，<code>reins tui</code> 找本机的 <code>zellij</code>，找不到就提示怎么装。</li>
+</ul>
+<h2 id="8-典型流程">8. 典型流程<a class="headerlink" href="#8-典型流程" title="Permanent link">&para;</a></h2>
+<p><strong>新开会话派活，然后离开</strong></p>
+<ol>
+<li><code>reins tui</code>，按 <code>n</code>，选 Claude 和目录。Reins 用 <code>claude --bg</code> 起会话，新开窗格接上。</li>
+<li>用户布置工作；agent 用 <code>reins goal start</code> 开 goal，用 <code>reins run</code> 派出任务。</li>
+<li>用户关掉窗格或断开 SSH，会话照常在后台跑。</li>
+<li>任务结束，回调通过 hook 送进会话，agent 处理后 ACK，面板里任务变成已完成。</li>
+</ol>
+<p><strong>回到之前派过任务的对话</strong></p>
+<ol>
+<li>在“会话”页找到它，或者在“任务”页选中任务，跳到派它的会话。</li>
+<li>按 <code>Enter</code>，Reins 按第 5 节的表处理。</li>
+</ol>
+<p><strong>看子 agent</strong></p>
+<ol>
+<li>agent 用 <code>reins agent</code> 起了子 agent，面板里它显示在父会话下面。</li>
+<li>用户打开它的窗格查看，可以直接插话，必要时停掉。结果照常回到父会话。</li>
+</ol>
+<p>子 agent 默认作为可接入的会话运行（2026-11-15 决定）：Claude 子 agent 是后台会话，Codex、Pi、DSH 子 agent 跑在 Reins 的 Zellij 托管里。0.15 和 Codex、Pi 的托管一起实现；在那之前，子 agent 仍是无头运行，面板里只能看日志。</p>
+<p>用户插话会改变子 agent 的走向，它最后交回父会话的结果要注明“途中有用户介入”，避免父会话误以为结果完全按它的指令产生。</p>
+<p><strong>断线、换电脑</strong></p>
+<p>重新 SSH 上来，运行 <code>reins tui</code>，回到同一个 Zellij 会话，布局和窗格都在。</p>
+<h2 id="9-安全边界">9. 安全边界<a class="headerlink" href="#9-安全边界" title="Permanent link">&para;</a></h2>
+<p>依据官方文档（2026-11-15 查阅）：</p>
+<ul>
+<li><strong>登录方式。</strong> 官方禁止第三方产品接入或代理 claude.ai 登录，也禁止收集、保存或转手登录凭据和会话令牌；但明确允许最终用户用自己的订阅登录原版 Claude Code（<a href="https://code.claude.com/docs/en/legal-and-compliance.md">legal-and-compliance</a>）。Reins 只调用用户自己安装、自己登录的原版 <code>claude</code>，不接触凭据。</li>
+<li><strong>思考内容。</strong> 官方说明原始思考过程本来就拿不到，只有摘要；新模型会拒绝提取推理过程的请求（<a href="https://platform.claude.com/docs/en/build-with-claude/thinking">thinking</a>）。Reins 不解析、不展示、不保存任何思考内容，会话交互全用 Claude 原生界面。</li>
+<li><strong>transcript。</strong> 官方明说格式随版本变，直接解析的脚本随时会坏（<a href="https://code.claude.com/docs/en/sessions.md">sessions</a>）。Reins 的状态以 <code>claude agents --json</code> 为准，不依赖 transcript 的结构。</li>
+<li><strong>不用的功能：</strong></li>
+<li>channels 支持双向收发和远程批准权限，但自定义 channel 要加 <code>--dangerously-load-development-channels</code>，在 <code>-p</code> 下还会被忽略（<a href="https://code.claude.com/docs/en/channels-reference.md">channels-reference</a>）。</li>
+<li>Remote Control 没有给第三方客户端的接口，第二个连接接入会把第一个顶掉（<a href="https://code.claude.com/docs/en/remote-control.md">remote-control</a>）。</li>
+</ul>
+<h2 id="10-和现有功能的关系">10. 和现有功能的关系<a class="headerlink" href="#10-和现有功能的关系" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>reins session</code></strong>：保持现有含义（会话名注册，给 agent 用），不加生命周期命令。</li>
+<li><strong>Claude hook</strong>：继续是投递回调到 Claude 会话的主通道，后台会话也用它（待验证 V6）。</li>
+<li><strong>无头 stream 恢复</strong>：保留作为旧 CLI 的后备，并补上 6.1 的交接。</li>
+<li><strong><code>claude_moves.py</code></strong>：继续跟踪会话 ID 变化，<code>claude agents --json</code> 可以作为它的额外数据来源。</li>
+<li><strong><code>reins log</code></strong>：0.13.3 已发布，加上 3.2 的非 TTY 自动不跟踪。</li>
+</ul>
+<h2 id="11-待验证">11. 待验证<a class="headerlink" href="#11-待验证" title="Permanent link">&para;</a></h2>
+<p>全部只用官方命令，在本机测。会新建几个后台会话，消耗少量额度。V4 需要维护者在 Desktop 里配合。</p>
+<p>用维护者终端里实际使用的 <code>claude</code>（nvm 安装，2026-11-15 为 2.1.325，已登录）来测，不用 Desktop 自带的那份（2.1.321）。本文引用的 <code>--help</code> 原文来自 2.1.321，测试时先用 2.1.325 核对一遍。</p>
+<p>2026-11-16 在本机用 2.1.325 测过（测试目录在临时目录里，模型用 Haiku）。transcript 是否分叉，按 <code>uuid</code> / <code>parentUuid</code> 数叶子节点判断。</p>
+<table>
+<thead>
+<tr>
+<th>编号</th>
+<th>问题</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V1</td>
+<td>进程已退出、或被 <code>claude stop</code> 的后台会话再 <code>claude attach</code></td>
+<td><strong>通过。</strong> 重新拉起，原对话还在，ID 和 transcript 文件不变，1 个叶子</td>
+</tr>
+<tr>
+<td>V2</td>
+<td>对交互会话执行 <code>claude attach</code></td>
+<td><strong>通过。</strong> <code>No job matching '&lt;id&gt;'</code>，退出码 1，不另起副本</td>
+</tr>
+<tr>
+<td>V3</td>
+<td>对已关闭的普通会话执行 <code>claude --bg --resume</code></td>
+<td><strong>通过。</strong> 变成后台会话，ID 不变，transcript 1 个叶子，新回复接在后面</td>
+</tr>
+<tr>
+<td>V4</td>
+<td>会话作为后台会话在跑时，在 Desktop 里打开它</td>
+<td><strong>通过。</strong> 见下</td>
+</tr>
+<tr>
+<td>V5</td>
+<td>两个终端同时 attach 同一个后台会话</td>
+<td><strong>通过。</strong> 两边同时可见、都能输入，transcript 1 个叶子</td>
+</tr>
+<tr>
+<td>V6</td>
+<td>Reins 的 hook 投递进没有客户端接着的后台会话</td>
+<td><strong>投递通过，ACK 不通过。</strong> 回调经 SessionStart hook 送达，没有起无头进程；但 <code>reins ack</code> 被 auto mode 分类器拒绝（第 6.4 节）</td>
+</tr>
+<tr>
+<td>V7</td>
+<td>后台会话的托管者</td>
+<td><strong>通过，有条件。</strong> 启动它的进程退出后仍在运行；但 Claude 守护进程挂在第一个启动它的登录会话的 cgroup 里（第 6.3 节）</td>
+</tr>
+<tr>
+<td>V8</td>
+<td><code>claude agents --json --all</code> 的状态取值</td>
+<td><strong>通过。</strong> 字段和取值见第 4.2 节；不报告是否有客户端接着</td>
+</tr>
+<tr>
+<td>V9</td>
+<td>auto mode 是否尊重 <code>reins ack</code> 等命令的 allow 规则</td>
+<td><strong>通过，有条件。</strong> 用 <code>--settings</code> 传入新写法的 <code>permissions.allow</code>，或 <code>autoMode.allow</code>，ACK 都通过；项目设置里的旧写法不行（第 6.4 节）</td>
+</tr>
+<tr>
+<td>V10</td>
+<td>会话开在交互窗口里时执行 <code>claude --bg --resume</code></td>
+<td><strong>不分叉，但会起副本。</strong> 退出码 0，提示 “open in another Claude Code process, so this started a copy as &lt;新ID&gt;”，原 transcript 不变。Reins 先查状态；万一起了副本，按输出里的短 ID 认出来，立刻 <code>stop</code> 加 <code>rm</code></td>
+</tr>
+<tr>
+<td>V11</td>
+<td>不带提示的 <code>claude --bg --resume &lt;id&gt;</code></td>
+<td><strong>通过。</strong> 会话以原 ID 起来，空闲等待输入；hook 把回调送进去，会话里的 Claude 执行 <code>reins ack</code>（<code>--settings</code> 带了 allow 规则）成功，全程没有无头进程</td>
+</tr>
+<tr>
+<td>V12</td>
+<td>对已停止的后台会话执行 <code>--bg --resume</code></td>
+<td><strong>不带别的参数才接原会话。</strong> 带了 <code>--model</code> 等参数，会另起副本（“keeps its own saved options, so the flags you passed started a copy”）；不带参数时，以原 ID 和当初保存的参数（含 <code>--settings</code>）唤醒</td>
+</tr>
+<tr>
+<td>V14</td>
+<td>Zellij 0.46.0 里的 <code>reins tui</code></td>
+<td><strong>通过。</strong> 在伪终端里对真实队列和 Claude 实测：打开已关闭的会话（先转后台再 attach）、拒绝打开 Desktop 里开着的会话、停止后窗格自动关闭、对已停止的会话按 Enter 重新拉起、新建会话、开日志窗格。注意：自定义配置目录下 Zellij 仍会弹出首次运行的配置向导（<code>configuration</code> 插件），Reins 建好会话后关掉它；<code>list-panes</code> 过一会儿就不再报告 <code>claude attach</code> 窗格的命令，所以 Reins 按自己起的窗格名（<code>claude &lt;短ID&gt; &lt;标题&gt;</code>）认窗格</td>
+</tr>
+<tr>
+<td>V15</td>
+<td>分叉</td>
+<td><strong>通过（Claude 2.1.326）。</strong> <code>claude --bg --resume &lt;id&gt; --fork-session --name N</code> 打印新的短 ID，新会话带着原来的对话，原会话不受影响；在 Desktop 里开着的会话也能这样分叉。面板菜单的 Fork 用的就是它</td>
+</tr>
+<tr>
+<td>V16</td>
+<td>Codex 0.166 的共享守护进程</td>
+<td><strong>通过。</strong> <code>codex resume --remote unix://&lt;socket&gt; &lt;id&gt;</code> 把线程加载到用户的 app-server 守护进程上（<code>thread/loaded/list</code> 可见）；客户端退出后线程仍留在守护进程上，空闲几分钟后由守护进程卸载。不带 <code>--remote</code> 的 <code>codex resume</code> 在自己进程里加载，守护进程看不到</td>
+</tr>
+<tr>
+<td>V17</td>
+<td>Codex 会话列表</td>
+<td><strong>通过。</strong> 守护进程的 <code>thread/list</code> 给出 id、name、preview、cwd、createdAt 和 status（notLoaded / idle / active + activeFlags / systemError），默认只含交互来源，不含 <code>exec</code> 和子 agent；带 <code>useStateDbOnly</code> 约 20 ms，扫描 rollout 要 1.5 到 2.7 s</td>
+</tr>
+<tr>
+<td>V18</td>
+<td>不在守护进程上的 Codex 写入者</td>
+<td><strong>通过（Linux）。</strong> 不带 <code>--remote</code> 的 <code>codex resume</code> 和 <code>codex exec resume</code> 一直开着线程的 rollout 文件；守护进程也开着它已加载线程的 rollout。所以面板按 <code>/proc/&lt;pid&gt;/fd</code> 找出守护进程以外开着 rollout 的 codex 进程，标为别处打开或无头，不再打开</td>
+</tr>
+<tr>
+<td>V19</td>
+<td>用协议新建 Codex 线程</td>
+<td><strong>不可用。</strong> <code>thread/start</code> 建出的线程在第一轮之前 rollout 是空的，<code>codex resume</code> 报 “no rollout found”。所以新建会话由 <code>codex --remote</code> 自己的窗口创建，面板在线程出现在列表里后给窗格改名</td>
+</tr>
+<tr>
+<td>V20</td>
+<td>用协议分叉 Codex 线程</td>
+<td><strong>通过。</strong> <code>thread/fork</code> 返回新线程，带着原来的对话，加载在守护进程上，可以直接 <code>codex resume --remote</code> 打开</td>
+</tr>
+<tr>
+<td>V21</td>
+<td>投递进守护进程上的线程</td>
+<td><strong>通过。</strong> 线程已加载且空闲时，<code>codex queue --thread &lt;id&gt; --message …</code> 由守护进程自己开始新一轮；未加载时加 <code>--resume</code> 才会加载并运行。守护进程上线程的工具环境没有 Desktop 标记，所以这些线程派的任务原本会走 <code>codex exec resume</code>，等于第二个写入者；现在投递前查到线程在守护进程上，就改走 <code>codex queue</code>（端到端实测：没有起 <code>codex exec</code>，回调作为新一轮出现在 Reins 窗格里）。这一轮用线程自己的权限：<code>workspace-write</code> 下 <code>~/.reins</code> 只读，ACK 要提权，或者把 <code>~/.reins</code> 加进 Codex 配置的 <code>writable_roots</code>（<code>--remote</code> 客户端不接受这个覆盖）</td>
+</tr>
+<tr>
+<td>V22</td>
+<td>回调那一轮的沙箱</td>
+<td><strong>通过。</strong> 守护进程上线程的 <code>turn/start</code> 接受 <code>sandboxPolicy</code>，<code>writableRoots</code> 里的目录这一轮就能写（对照：同样的 <code>workspace-write</code> 不加时被拒），并延续到之后的轮次；<code>thread/resume</code> 返回线程当前的 <code>sandbox</code>。所以 Reins 对已加载的线程直接开一轮，在线程原有策略上只追加队列和通讯录目录，不改 cwd 和审批设置；只读线程不放宽，改走 <code>codex queue</code>。端到端实测：队列放在工作区和 <code>/tmp</code> 之外，agent 的 <code>reins ack</code> 不用提权就写入，没有起 <code>codex exec</code></td>
+</tr>
+<tr>
+<td>V23</td>
+<td>发给 Codex 会话的消息</td>
+<td><strong>改过后通过。</strong> 消息默认走 <code>codex queue</code>，线程按自己的权限运行，<code>reins reply</code> 因 <code>~/.reins</code> 只读失败（实测：exec 建的线程审批策略是 never，连提权都不行）。现在线程已加载在守护进程上时，消息也作为守护进程上的一轮送达，带上队列和通讯录的写权限；只交付一次、不重发，和 <code>codex queue</code> 的语义一样。实测：Codex 和 Pi 对端都自己 ACK 并回复；Claude、Codex、Pi 子 agent 的新建、continue、fork 都走通</td>
+</tr>
+<tr>
+<td>V13</td>
+<td>其他</td>
+<td><code>--bg</code> 拒绝没信任过的目录（“Workspace not trusted”）；<code>claude rm</code> 只删后台任务，有对话的 transcript 保留；会话记录文件只有 <code>status</code>，没有 <code>state</code>；刚起来还没收到提示的后台会话，<code>claude agents</code> 报 <code>state: blocked</code>、<code>status: idle</code>；从 Claude 会话里启动 <code>claude</code> 会继承 <code>CLAUDE_CODE_CHILD_SESSION</code> 等变量，不保存 transcript，所以 Reins 启动 Claude 时清掉这些变量</td>
+</tr>
+</tbody>
+</table>
+<p><strong>V4 的过程：</strong></p>
+<ol>
+<li>维护者在 Linux 服务器上运行 <code>claude --resume &lt;id&gt; --desktop</code>，CLI 回复 <code>--desktop isn't available on this platform. It works on macOS and Windows (x64).</code></li>
+<li>在 Desktop 里打开同一目录，会话列表里也找不到这个 CLI 起的后台会话。</li>
+<li>更要紧的情况是 Desktop 自己建的会话：关掉后被 Reins 拉成后台会话，用户再在 Desktop 侧边栏点开它。Desktop 在服务器上打开会话的方式是 <code>ccd-cli --resume=&lt;id&gt; --input-format stream-json --output-format stream-json …</code>（从运行中的 Desktop 会话进程参数看到）。用 Desktop 自带的 ccd-cli 2.1.321 照这个方式去恢复正在后台运行的会话，CLI 直接拒绝，没有写 transcript：</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Error: That session is running in the background (7f7775f4). Run `claude attach 7f7775f4` to open it, or `claude stop 7f7775f4` first to resume it here. Add --fork-session to branch off a copy instead
+</code></pre></div>
+<p>transcript 仍是 1 个叶子，后台会话照常运行。</p>
+<p>结论：Desktop 打不开正在后台运行的会话，所以不会分叉。代价是用户在 Desktop 里点开一个被 Reins 转成后台会话的会话时，会看到报错。TUI 和用户文档要说明：在 TUI 里停止这个会话后，Desktop 就能打开。同样的保护也说明，Reins 现有的 <code>claude -p --resume</code> 无头恢复碰到正在后台运行的会话会被拒绝，不会分叉。</p>
+<p>另外，Zellij 里跑 <code>claude attach</code> 的滚动和按键体验，要维护者亲自试过才算数。</p>
+<p><strong>顺带发现：</strong> 维护者终端里的 <code>reins</code> 先找到 nvm 全局装的 npm 包 0.11.0（<code>~/.nvm/versions/node/v22.23.3/bin/reins</code>），再转给已安装的 0.13.2 执行，每次都会打印一行提示。功能不受影响，升级 npm 包后就会消失。</p>
+<h2 id="12-实现顺序">12. 实现顺序<a class="headerlink" href="#12-实现顺序" title="Permanent link">&para;</a></h2>
+<p>不发 0.13.4，原定的修复全部并入 0.14 一起发（2026-11-16，维护者决定）。</p>
+<ol>
+<li><strong>验证</strong>：第 11 节已完成。</li>
+<li><strong>0.14 PR 0</strong>：不依赖本设计其他部分的修复，可以和 PR 1 并行，任何时候合并：</li>
+<li><strong>registration 锁</strong>：拿不到锁时最多等约 30 秒；拿到锁后在锁文件里写入进程号、主机和时间；超时后报出锁文件路径、持有者以及它是否还活着，提示用 <code>fuser -v &lt;路径&gt;</code> 查；<code>reins setup</code> 打印正常的错误，不再出现 traceback。不自动删锁。</li>
+<li><strong>6.1 的无头交接</strong>：<code>supervise</code> 发现会话有窗口打开后，不再接新回调并关闭 stdin，把这一轮的最终输出送进窗口。</li>
+<li><strong><code>reins log</code></strong>：stdout 不是 TTY 时自动不跟踪。</li>
+<li><strong>普通会话里的 ACK</strong>：Desktop 的会话同样以 <code>--permission-mode=auto</code> 运行（第 11 节 V4 看到的进程参数）。要在真实的 Desktop 会话和终端会话里确认，auto mode 会不会拦 hook 送来的回调的 <code>reins ack</code>。会拦的话，<code>reins setup</code> 写入的 allow 规则（第 6.4 节）提前到 PR 0 做。</li>
+<li><strong>0.14 PR 1</strong>：Claude 状态读取（<code>claude agents --json</code>）和统一状态模型，作为内部模块，带测试。</li>
+<li><strong>0.14 PR 2</strong>：</li>
+<li>会话的新建、打开、停止、删除（内部实现）；</li>
+<li>daemon 的恢复改用 <code>--bg --resume</code>；</li>
+<li>Claude 守护进程放进独立的 systemd scope（第 6.3 节）；</li>
+<li>Reins 拉起的会话用 <code>--settings</code> 带上 allow 规则，<code>reins setup</code> 也写入同样的规则（第 6.4 节）；</li>
+<li>补一次 allow 规则在项目级和用户级设置下的对照测试。</li>
+<li><strong>0.14 PR 3</strong>：<code>reins tui</code>、Textual 面板、Zellij 布局；Textual 进冻结构建，Zellij 打进平台包。</li>
+<li><strong>0.14 发版附带</strong>：</li>
+<li>macOS 平台包：等维护者在 Mac 上构建好 <code>@harness-reins/darwin-*</code>，再把它加进主包的 <code>optionalDependencies</code>；</li>
+<li>npm 启动脚本：对没有预编译包的平台，直接提示用 pip 从源码安装；</li>
+<li>安装文档：去掉写死的 <code>v0.7.0</code>。</li>
+<li><strong>0.15</strong>：Codex、Pi、DSH 的 Zellij 托管，子 agent 默认作为可接入的会话。</li>
+</ol>
+<p>每一步合并前都要 K3 审查，并在真实 Claude 会话上验证。</p>
+<h2 id="13-决定">13. 决定<a class="headerlink" href="#13-决定" title="Permanent link">&para;</a></h2>
+<p><strong>已定（2026-11-15，维护者）：</strong></p>
+<ol>
+<li>不做单独的会话管理命令组，用户管理会话只通过 <code>reins tui</code>；另加 <code>reins tui &lt;id&gt;</code> 直接打开某个会话（第 3.2 节）。</li>
+<li>面板用 Textual。</li>
+<li>子 agent 默认作为可接入的会话运行，0.15 实现（第 8 节）。</li>
+</ol>
+<p><strong>留到实现时：</strong></p>
+<ol>
+<li>Zellij 版本：实现时取最新稳定版，先让维护者在本机试过滚动和按键再固定。macOS 包是否带它，随 macOS 包一起定。</li>
+<li>Codex 的回调投递：0.15 再定。往 Zellij 窗格里模拟打字太粗糙，要先查 Codex 有没有正规的接口。</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.sections", "navigation.indexes", "toc.follow", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

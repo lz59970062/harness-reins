@@ -497,6 +497,8 @@
       
         
       
+        
+      
     
     
     
@@ -532,6 +534,29 @@
             使用指南
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    终端界面
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -1303,7 +1328,8 @@
 <p>提交相关任务时，附上这个目标的 ID：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>reins<span class="w"> </span>run<span class="w"> </span>--goal-id<span class="w"> </span>baseline-report<span class="w"> </span>--cwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">"</span><span class="w"> </span>--task<span class="w"> </span><span class="s2">"训练基线"</span><span class="w"> </span>--<span class="w"> </span>python<span class="w"> </span>train.py
 </code></pre></div>
-<p>任务结束后，Agent 读取结果、确认回调并更新计划文件。活跃目标默认每三小时收到一次进度询问，帮助原会话继续处理当前步骤。</p>
+<p>任务结束后，Agent 读取结果、确认回调并更新计划文件。活跃目标默认每三小时收到一次进度询问，帮助原会话继续处理当前步骤。询问和作业结果走同一条路线，Codex Desktop 线程和 Pi 会话也能收到。</p>
+<p>Agent 技能会要求它在多步工作开始前先建目标。如果同一会话已经跑过别的作业、又没有活跃目标，<code>reins run</code> 还会提示一句。</p>
 <h2 id="完成目标">完成目标<a class="headerlink" href="#完成目标" title="Permanent link">&para;</a></h2>
 <p>所有产物检查完毕后，将计划中的步骤标记为 <code>completed</code>，然后运行：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>goal<span class="w"> </span>check<span class="w"> </span>--id<span class="w"> </span>baseline-report

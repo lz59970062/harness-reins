@@ -24,8 +24,11 @@ The layout survives a dropped SSH connection. Reconnect, run `reins tui` again, 
 
 The Reins panel on the left has four tabs:
 
-- **Sessions**: each session's title, where it runs, whether it is busy, how many of its tasks are running, its
-  pending callbacks and its goal. Closed sessions that started tasks lately are listed too, so you can find them again.
+- **Sessions**: sessions grouped by directory, one row per project folder with its sessions indented under it, so
+  you see at a glance which folder holds which sessions. Each session shows the Reins address you gave it
+  (`@name`) beside the title its harness gave it, then where it runs, whether it is busy, how many of its tasks are
+  running and its pending callbacks. Closed sessions that started tasks lately are listed too, so you can find them
+  again.
 - **Tasks**: every task with the session that started it and whether its callback was acknowledged.
 - **Goals**: plans and progress.
 - **Messages**: messages between sessions.
@@ -43,19 +46,23 @@ below or to the right of the newest pane there (`d` switches which), instead of 
 | Key | Does |
 | --- | --- |
 | `Enter` or double-click | Open the selected session, or jump to its pane if it is already open. On Tasks, open the session that started the task. A single click only selects |
-| `n` | Start a new Claude Code, Codex or Pi session in a directory you choose; with more than one installed, it asks which |
+| `n` | Start a new Claude Code, Codex or Pi session in a directory you choose; with more than one installed, it asks which. A Claude Code or Pi session also gets a name, `<folder>-<harness>` (such as `api-claude`) unless you type another or clear it. A Codex thread exists only after its first message, so name it from its menu then |
 | `l` | Follow a task's output |
-| `t` | Open a terminal in the selected session's directory |
+| `t` | Open a terminal in the selected session's directory, or the selected folder's |
 | `d` | Switch whether new panes open below or to the right; the footer shows which |
 | `m` | Send the selected session a message |
 | `s` | Stop a Claude Code session, after a confirmation. The conversation stays, and `Enter` opens it again |
 | `c` | Cancel a task's callback, after a confirmation |
-| `o` or right-click | Open the selected session's menu (below) |
+| `o` or right-click | Open the selected session's menu (below); on a folder's row: a new session or a terminal there |
 | `a` | Show or hide archived sessions |
 | `1`–`4` | Switch tabs |
 
 The panel refreshes itself every 3 seconds. Its top line shows what `reins doctor` finds: "Reins is ready", or one
 line per problem with what to do.
+
+A session that cannot open says so where you look: double-click a Claude Code session that is open in another
+terminal, and a flashing red window tells you why and what to do; Enter closes it. Any other action that fails does
+the same.
 
 ## The session menu
 

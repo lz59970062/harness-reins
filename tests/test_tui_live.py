@@ -67,6 +67,13 @@ class LiveCase(unittest.TestCase):
         patcher = mock.patch.object(live.claude_agents, "session_views", side_effect=lambda *a, **k: list(self.views))
         patcher.start()
         self.addCleanup(patcher.stop)
+        # What `claude agents` lists; None stands for a listing that failed.
+        self.claude_listing_fails = False
+        listing = mock.patch.object(live.claude_agents, "list_agents", side_effect=lambda *a, **k: None
+                                    if self.claude_listing_fails else
+                                    [{"sessionId": view.session} for view in self.views if view.agent == "claude"])
+        listing.start()
+        self.addCleanup(listing.stop)
         found = mock.patch.object(claude_background, "_executable", return_value=CLAUDE)
         found.start()
         self.addCleanup(found.stop)
@@ -429,6 +436,63 @@ class CollaboratorTests(LiveCase):
         with mock.patch.object(claude_background, "start", side_effect=claude_background.BackgroundError("nope")):
             result = self.backend.start_collaborator(SESSION, "claude", str(self.home))
         self.assertEqual((result.ok, result.message), (False, "nope"))
+        self.assertFalse(any(call[0] == "send" for call in self.reins_calls()))
+
+    def test_a_new_claude_session_gets_the_name_given_at_its_start(self) -> None:
+        with mock.patch.object(claude_background, "start", side_effect=self.start):
+            result = self.backend.new_session("claude", str(self.home), " api-claude ")
+        self.assertTrue(result.ok, result.message)
+        self.assertEqual(self.reins_calls(), [["session", "register", "api-claude", "--agent", "claude", "--session",
+                                               OTHER, "--cwd", str(self.home)]])
+        argv, name, _direction, _close = self.zellij.opened[-1]
+        self.assertEqual(bare(argv), [CLAUDE, "attach", OTHER[:8]])
+        self.assertIn("@api-claude", name)
+
+    def test_a_new_session_with_a_taken_or_unusable_name_does_not_start(self) -> None:
+        write(self.root.parent / "link" / "sessions" / "lab.json",
+              {"schema": "reins.session/v1", "name": "lab", "harness": "claude", "session": SESSION, "route": {}})
+        with mock.patch.object(claude_background, "start", side_effect=self.start) as start:
+            taken = self.backend.new_session("claude", str(self.home), "lab")
+            unusable = self.backend.new_session("claude", str(self.home), "Lab Notes")
+        self.assertEqual((taken.ok, unusable.ok), (False, False))
+        self.assertIn("@lab already names another session", taken.message)
+        self.assertIn("not a usable session name", unusable.message)
+        start.assert_not_called()
+        self.assertEqual((self.reins_calls(), self.zellij.opened), ([], []))
+
+    def test_a_new_claude_session_that_never_lists_opens_and_says_it_has_no_name(self) -> None:
+        self.backend.sleep = lambda seconds: setattr(self, "now", self.now + seconds)
+        with mock.patch.object(claude_background, "start", return_value="abcdef12"):
+            result = self.backend.new_session("claude", str(self.home), "api-claude")
+        self.assertFalse(result.ok)
+        self.assertIn("it has no name", result.message)
+        self.assertIn("name it @api-claude from its menu", result.message)
+        self.assertEqual(self.reins_calls(), [])
+        self.assertEqual(bare(self.zellij.opened[-1][0]), [CLAUDE, "attach", "abcdef12"])
+
+    def test_an_older_session_with_the_same_first_characters_is_never_named(self) -> None:
+        self.backend.sleep = lambda seconds: setattr(self, "now", self.now + seconds)
+        older = OTHER[:8] + "-0000-4000-8000-000000000000"
+        self.views.append(SessionView(agent="claude", session=older, state=sessions.STOPPED, handle=OTHER[:8]))
+        with mock.patch.object(claude_background, "start", return_value=OTHER[:8]):
+            # The new session is not listed yet; only the older one with its first eight characters is.
+            result = self.backend.new_session("claude", str(self.home), "api-claude")
+        self.assertFalse(result.ok)
+        self.assertIn("it has no name", result.message)
+        self.assertEqual(self.reins_calls(), [])
+        with mock.patch.object(claude_background, "start", side_effect=self.start):
+            result = self.backend.new_session("claude", str(self.home), "api-claude")
+        self.assertTrue(result.ok, result.message)
+        self.assertIn(OTHER, self.reins_calls()[-1])
+
+    def test_without_a_list_of_claude_sessions_nothing_named_starts(self) -> None:
+        self.claude_listing_fails = True
+        with mock.patch.object(claude_background, "start", side_effect=self.start) as start:
+            named = self.backend.new_session("claude", str(self.home), "api-claude")
+            mate = self.backend.start_collaborator(SESSION, "claude", str(self.home))
+        self.assertEqual((named.ok, mate.ok), (False, False))
+        self.assertIn("could not list Claude sessions", named.message)
+        start.assert_not_called()
         self.assertFalse(any(call[0] == "send" for call in self.reins_calls()))
 
     def test_a_claude_session_that_never_lists_is_reported_not_told(self) -> None:

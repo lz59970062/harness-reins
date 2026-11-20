@@ -53,11 +53,21 @@ NAME_LIMIT = 32
 AGENT_TITLES = {"claude": "Claude Code", "codex": "Codex", "pi": "Pi", "dsh": "DeepSeek Harness"}
 
 
+def _slug(text: str) -> str:
+    """Lowercase letters, digits and '-' from ``text``; empty when nothing usable is left."""
+    name = "".join(ch if ch.isascii() and ch.isalnum() else "-" for ch in text.lower())
+    return "-".join(part for part in name.split("-") if part)[:NAME_LIMIT].strip("-")
+
+
 def suggested_name(title: str, session: str) -> str:
     """An address-book name from a session's title: lowercase letters, digits and '-'."""
-    name = "".join(ch if ch.isascii() and ch.isalnum() else "-" for ch in title.lower())
-    name = "-".join(part for part in name.split("-") if part)[:NAME_LIMIT].strip("-")
-    return name if name else "s-" + short_id(session)
+    return _slug(title) or "s-" + short_id(session)
+
+
+def new_session_name(directory: str, agent: str, taken: Container[str]) -> str:
+    """The name offered for a new session: its directory and harness, as in ``api-claude``, free of ``taken``."""
+    folder = os.path.basename(os.path.abspath(os.path.expanduser(directory)).rstrip(os.sep))
+    return free_name(_slug(folder) or "new", taken, keep=f"-{agent}")
 
 
 def free_name(base: str, taken: Container[str], keep: str = "") -> str:
@@ -157,8 +167,8 @@ class Backend(Protocol):
     def new_agents(self) -> Sequence[str]:
         """The harnesses a new session can start in, the first being the default."""
 
-    def new_session(self, agent: str, cwd: str) -> ActionResult:
-        """Start a new session in ``cwd`` and open it in a pane."""
+    def new_session(self, agent: str, cwd: str, name: str = "") -> ActionResult:
+        """Start a new session in ``cwd`` and open it in a pane; with ``name``, give it that Reins address."""
 
     def stop_session(self, session: str) -> ActionResult:
         """Stop its process; the conversation stays and it can be opened again."""
@@ -246,9 +256,9 @@ class FakeBackend:
     def new_agents(self) -> Sequence[str]:
         return list(self.agents)
 
-    def new_session(self, agent: str, cwd: str) -> ActionResult:
-        self.calls.append(("new", agent, cwd))
-        return ActionResult(True, f"started a {agent} session in {cwd}")
+    def new_session(self, agent: str, cwd: str, name: str = "") -> ActionResult:
+        self.calls.append(("new", agent, cwd, name))
+        return ActionResult(True, f"started a {agent} session in {cwd}" + (f" as @{name}" if name else ""))
 
     def stop_session(self, session: str) -> ActionResult:
         self.calls.append(("stop", session))

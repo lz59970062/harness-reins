@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `reins tui`: sessions are grouped by directory, each folder on its own row with its sessions indented under it.
+  A session shows the Reins address you gave it beside the title its harness gave it, so two sessions with similar
+  automatic titles are told apart. `n` names a new Claude Code or Pi session as it starts (`<folder>-<harness>`
+  unless you type another); a folder's row offers a new session or a terminal there.
+- `reins tui`: a session that cannot open, such as a Claude Code session open in another terminal, now says why in
+  a flashing window instead of one line at the bottom of the panel; so does any other action that fails.
+
 ## 0.14.1 — 2026-11-19
 
 - `reins tui`: Start a collaborator... in a session's menu starts a Claude Code, Codex or Pi session to work with

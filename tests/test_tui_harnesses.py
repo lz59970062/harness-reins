@@ -364,6 +364,23 @@ class HarnessBackendTests(LiveCase):
                                                  str(workdir), "--queue-dir", str(self.root)])
         self.assertIn("plots-pi", self.zellij.opened[-1][1])
 
+    def test_a_new_pi_session_is_named_before_pi_starts(self) -> None:
+        workdir = self.collaborate_setup()
+        with mock.patch.dict(os.environ, {pi_channel.PROFILE_ENV: str(self.pi_profile)}):
+            result = self.backend.new_session("pi", str(workdir), "plots-pi")
+        self.assertTrue(result.ok, result.message)
+        argv = bare(self.zellij.opened[-1][0])
+        session = argv[argv.index("--session") + 1]
+        self.assertEqual(self.registered(), [["plots-pi", "--agent", "pi", "--session", session, "--cwd",
+                                              str(workdir), "--queue-dir", str(self.root)]])
+        self.assertIn("@plots-pi", self.zellij.opened[-1][1])
+
+    def test_a_new_codex_session_is_never_named_before_its_thread_exists(self) -> None:
+        workdir = self.collaborate_setup()
+        result = self.backend.new_session("codex", str(workdir), "review-codex")
+        self.assertTrue(result.ok, result.message)
+        self.assertEqual(self.registered(), [])
+
     def test_stop_is_only_for_claude(self) -> None:
         self.codex.threads = [thread(THREAD, "idle")]
         self.rows()

@@ -114,6 +114,14 @@ def status_is_error(app: "panel.ReinsPanel") -> bool:
     return app.query_one("#status", Static).has_class("error")
 
 
+def select(app: "panel.ReinsPanel", key: str) -> "DataTable":
+    """Put the sessions table's cursor on the row with ``key`` (a session, or a folder's key)."""
+    table = app.query_one("#sessions-table", DataTable)
+    table.focus()
+    table.move_cursor(row=table.get_row_index(key))
+    return table
+
+
 @unittest.skipUnless(HAVE_TEXTUAL, "textual is not installed")
 class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
     async def test_rows_render_and_sort(self):
@@ -122,22 +130,28 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         async with app.run_test() as pilot:
             await settle(app, pilot)
             table = app.query_one("#sessions-table", DataTable)
-            self.assertEqual(table.row_count, 4)
-            # Process-bearing sessions first, newest first; closed last.
-            titles = [str(table.get_row_at(i)[1]) for i in range(4)]
-            self.assertEqual(
-                titles, ["attached one", "ppt draft", "motion graphs", "old callback"]
-            )
-            wheres = [str(table.get_row_at(i)[2]) for i in range(4)]
-            self.assertEqual(wheres, ["here", "Desktop", "background", "closed"])
-            marks = [str(table.get_row_at(i)[0]) for i in range(4)]
-            self.assertEqual(marks, ["\u25cf", "\u25cb", "\u25cf", "\u25cc"])
+            # Each folder's row, then its sessions under it: process-bearing sessions first, newest first;
+            # closed last. Each session here has a folder of its own.
+            self.assertEqual(self.shown(app), [
+                panel.FOLDER_KEY + os.path.join(os.path.expanduser("~"), "att"), SESSION_D,
+                panel.FOLDER_KEY + "/home/u/ppt", SESSION_B,
+                panel.FOLDER_KEY + "/home/u/motion", SESSION_A,
+                panel.FOLDER_KEY + "/home/u/old", SESSION_C,
+            ])
+            rows = [table.get_row(key) for key in (SESSION_D, SESSION_B, SESSION_A, SESSION_C)]
+            self.assertEqual([str(row[1]) for row in rows],
+                             ["attached one", "ppt draft", "motion graphs", "old callback"])
+            self.assertEqual([str(row[2]) for row in rows], ["here", "Desktop", "background", "closed"])
+            # The mark sits indented under the folder's row.
+            self.assertEqual([str(row[0]) for row in rows], ["  \u25cf ", "  \u25cb ", "  \u25cf ", "  \u25cc "])
             # cwd under HOME shortens to ~, an absolute path stays.
-            self.assertEqual(str(table.get_row_at(0)[7]), "~/att")
-            self.assertEqual(str(table.get_row_at(2)[7]), "/home/u/motion")
-            self.assertEqual(str(table.get_row_at(2)[3]), "claude")  # the harness, beside where it runs
-            self.assertEqual(str(table.get_row_at(2)[5]), "2")   # running tasks
-            self.assertEqual(str(table.get_row_at(2)[6]), "1")   # pending callbacks
+            self.assertEqual(str(table.get_row_at(0)[0]), "\u25be ~/att")
+            self.assertEqual(str(table.get_row_at(0)[1]), "1 session")
+            self.assertEqual(str(table.get_row_at(4)[0]), "\u25be /home/u/motion")
+            motion = table.get_row(SESSION_A)
+            self.assertEqual(str(motion[3]), "claude")  # the harness, beside where it runs
+            self.assertEqual(str(motion[5]), "2")   # running tasks
+            self.assertEqual(str(motion[6]), "1")   # pending callbacks
 
             tasks = app.query_one("#tasks-table", DataTable)
             self.assertEqual(tasks.row_count, 3)
@@ -207,15 +221,15 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await settle(app, pilot)
             table = app.query_one("#sessions-table", DataTable)
             for _ in range(2):  # Clicking the highlighted row again still only selects it.
-                await pilot.click("#sessions-table", offset=(4, 1))
+                await pilot.click("#sessions-table", offset=(4, 2))
                 await pilot.pause(0.6)
             await settle(app, pilot)
             self.assertEqual(backend.calls, [])
-            await pilot.click("#sessions-table", offset=(4, 2))
+            await pilot.click("#sessions-table", offset=(4, 4))  # Row 3: the second folder's session.
             await pilot.pause(0.6)
-            self.assertEqual(table.cursor_row, 1)
+            self.assertEqual(table.cursor_row, 3)
             self.assertEqual(backend.calls, [])
-            await pilot.double_click("#sessions-table", offset=(4, 2))
+            await pilot.double_click("#sessions-table", offset=(4, 4))
             await settle(app, pilot)
             opened = [call for call in backend.calls if call[0] == "open"]
             self.assertEqual(len(opened), 1)
@@ -226,23 +240,25 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         app = make_app(backend)
         async with app.run_test() as pilot:
             await settle(app, pilot)
-            table = app.query_one("#sessions-table", DataTable)
-            table.focus()
-            table.move_cursor(row=1)  # "ppt draft", open on the Desktop
+            select(app, SESSION_B)  # "ppt draft", open on the Desktop
             await pilot.press("enter")
             await settle(app, pilot)
             self.assertIn(("open", SESSION_B), backend.calls)
             self.assertIn("another window", status_text(app))
             self.assertTrue(status_is_error(app))
+            # Not only the status line: a window says why, and Enter closes it.
+            self.assertIsInstance(app.screen, panel.AlertScreen)
+            self.assertIn("another window", str(app.screen.query_one("#alert-text", panel.Label).content))
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertNotIsInstance(app.screen, panel.AlertScreen)
 
     async def test_stop_session_requires_confirmation(self):
         backend = make_backend()
         app = make_app(backend)
         async with app.run_test() as pilot:
             await settle(app, pilot)
-            table = app.query_one("#sessions-table", DataTable)
-            table.focus()
-            table.move_cursor(row=2)  # "motion graphs", running
+            select(app, SESSION_A)  # "motion graphs", running
             await pilot.press("s")
             await pilot.pause()
             self.assertIsInstance(app.screen, panel.ConfirmScreen)
@@ -267,9 +283,7 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         app = make_app(backend)
         async with app.run_test() as pilot:
             await settle(app, pilot)
-            table = app.query_one("#sessions-table", DataTable)
-            table.focus()
-            table.move_cursor(row=2)  # cwd /home/u/motion
+            select(app, SESSION_A)  # cwd /home/u/motion
             await pilot.press("n")
             await settle(app, pilot)
             self.assertIsInstance(app.screen, panel.TextPromptScreen)
@@ -280,12 +294,17 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertNotIsInstance(app.screen, panel.TextPromptScreen)
             self.assertEqual(backend.calls, [])
-            # With only Claude Code installed there is nothing to choose: Enter submits the directory.
+            # With only Claude Code installed there is nothing to choose: Enter submits the directory, then
+            # the name, offered from the directory and the harness.
             await pilot.press("n")
             await settle(app, pilot)
             await pilot.press("enter")
             await settle(app, pilot)
-            self.assertIn(("new", "claude", "/home/u/motion"), backend.calls)
+            self.assertIsInstance(app.screen, panel.TextPromptScreen)
+            self.assertEqual(app.screen.query_one("#dialog-input", Input).value, "motion-claude")
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertIn(("new", "claude", "/home/u/motion", "motion-claude"), backend.calls)
             self.assertFalse(status_is_error(app))
 
     async def test_log_on_tasks_tab(self):
@@ -304,15 +323,13 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         app = make_app(backend)
         async with app.run_test() as pilot:
             await settle(app, pilot)
-            table = app.query_one("#sessions-table", DataTable)
-            table.focus()
-            table.move_cursor(row=2)  # "motion graphs": two running tasks
+            table = select(app, SESSION_A)  # "motion graphs": two running tasks
             await pilot.press("l")
             await settle(app, pilot)
             # The newest running task wins.
             self.assertIn(("log", TASK_2), backend.calls)
             # A session without a running task gets a status message instead.
-            table.move_cursor(row=3)  # "old callback", closed
+            table.move_cursor(row=table.get_row_index(SESSION_C))  # "old callback", closed
             calls_before = len(backend.calls)
             await pilot.press("l")
             await pilot.pause()
@@ -364,8 +381,8 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(health.has_class("ok"))
 
     async def right_click_first_session(self, app, pilot):
-        # A real right click through Textual's mouse routing: first row, just under the header.
-        await pilot.click("#sessions-table", offset=(4, 1), button=3)
+        # A real right click through Textual's mouse routing: the first session, under the header and its folder.
+        await pilot.click("#sessions-table", offset=(4, 2), button=3)
         await settle(app, pilot)
 
     async def choose(self, app, pilot, option):
@@ -380,9 +397,9 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         table = app.query_one("#sessions-table", DataTable)
         return table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value if table.row_count else None
 
-    def shown(self, app):
+    def shown(self, app, folders: bool = True):
         table = app.query_one("#sessions-table", DataTable)
-        return [key.value for key in table.rows]
+        return [key.value for key in table.rows if folders or not key.value.startswith(panel.FOLDER_KEY)]
 
     async def test_right_click_copies_a_named_sessions_address(self):
         backend = make_backend()
@@ -393,7 +410,9 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         app.copy_to_clipboard = copied.append
         async with app.run_test() as pilot:
             await settle(app, pilot)
-            self.assertTrue(str(app.query_one("#sessions-table", DataTable).get_row_at(0)[1]).startswith("@lab "))
+            row = app.query_one("#sessions-table", DataTable).get_row(SESSION_D)
+            # The name given in Reins, and beside it the title the harness gave the session.
+            self.assertEqual((str(row[0]), str(row[1])), ("  \u25cf @lab", "attached one"))
             await self.right_click_first_session(app, pilot)
             await self.choose(app, pilot, "copy-address")
             self.assertEqual(copied, ["lab"])
@@ -513,8 +532,9 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await pilot.press("o")
             await settle(app, pilot)
             await self.choose(app, pilot, "pin")
-            self.assertEqual(self.shown(app)[0], SESSION_C)
-            self.assertTrue(str(table.get_row_at(0)[1]).startswith("\u2605 "))
+            # Its folder moves to the top with it.
+            self.assertEqual(self.shown(app)[:2], [panel.FOLDER_KEY + "/home/u/old", SESSION_C])
+            self.assertIn("\u2605", str(table.get_row(SESSION_C)[0]))
 
     async def test_archive_hides_a_session_and_a_shows_archived_ones(self):
         backend = make_backend()
@@ -603,6 +623,128 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(("collaborate", SESSION_D, "codex", os.path.join(os.path.expanduser("~"), "att"),
                            "check the plots", "down"), backend.calls)
             self.assertIn("to work with attached one", status_text(app))
+
+    async def test_sessions_of_one_folder_sit_together_under_its_row(self):
+        backend = make_backend()
+        backend.session_rows = [replace(row, cwd="/home/u/motion") if row.session == SESSION_C else
+                                replace(row, cwd=None, agent="dsh") if row.session == SESSION_B else row
+                                for row in backend.session_rows]
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            # A folder sorts where its first session would; the closed session joins its folder's running one.
+            self.assertEqual(self.shown(app), [
+                panel.FOLDER_KEY + os.path.join(os.path.expanduser("~"), "att"), SESSION_D,
+                panel.FOLDER_KEY, SESSION_B,
+                panel.FOLDER_KEY + "/home/u/motion", SESSION_A, SESSION_C,
+            ])
+            table = app.query_one("#sessions-table", DataTable)
+            self.assertEqual(str(table.get_row(panel.FOLDER_KEY + "/home/u/motion")[1]), "2 sessions")
+            self.assertEqual(str(table.get_row(panel.FOLDER_KEY)[0]), "\u25be (directory unknown)")
+            # The cursor starts on a session, never on a folder's row.
+            self.assertEqual(table.cursor_row, 1)
+
+    async def test_a_folder_row_opens_nothing_and_starts_new_work_there(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            folder = panel.FOLDER_KEY + "/home/u/motion"
+            select(app, folder)
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertEqual(backend.calls, [])
+            self.assertIn("a folder", status_text(app))
+            self.assertFalse(status_is_error(app))
+            # n starts in that folder.
+            await pilot.press("n")
+            await settle(app, pilot)
+            self.assertEqual(app.screen.query_one("#dialog-input", Input).value, "/home/u/motion")
+            await pilot.press("escape")
+            await settle(app, pilot)
+            # A right click on it offers new work there, not a session's menu.
+            await pilot.click("#sessions-table", offset=(4, 1 + app.query_one("#sessions-table", DataTable)
+                                                    .get_row_index(folder)), button=3)
+            await settle(app, pilot)
+            self.assertIsInstance(app.screen, panel.MenuScreen)
+            await self.choose(app, pilot, "shell")
+            self.assertIn(("terminal", "/home/u/motion", "down"), backend.calls)
+
+    async def test_a_new_session_takes_a_free_name_or_none(self):
+        backend = make_backend()
+        backend.session_rows = [replace(row, address="motion-claude") if row.session == SESSION_A else row
+                                for row in backend.session_rows]
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            select(app, SESSION_A)
+            await pilot.press("n")
+            await settle(app, pilot)
+            await pilot.press("enter")
+            await settle(app, pilot)
+            # The name another session holds is not offered again.
+            self.assertEqual(app.screen.query_one("#dialog-input", Input).value, "motion-claude-2")
+            # Escape on the name starts nothing.
+            await pilot.press("escape")
+            await settle(app, pilot)
+            self.assertEqual([call for call in backend.calls if call[0] == "new"], [])
+            # A cleared name starts it without one.
+            await pilot.press("n")
+            await settle(app, pilot)
+            await pilot.press("enter")
+            await settle(app, pilot)
+            app.screen.query_one("#dialog-input", Input).value = ""
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertIn(("new", "claude", "/home/u/motion", ""), backend.calls)
+
+    async def test_a_new_codex_session_is_not_asked_for_a_name(self):
+        backend = make_backend()
+        backend.agents = ["claude", "codex"]
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            select(app, SESSION_A)
+            await pilot.press("n")
+            await settle(app, pilot)
+            await self.choose(app, pilot, "codex")
+            await pilot.press("enter")  # the directory
+            await settle(app, pilot)
+            self.assertIn(("new", "codex", "/home/u/motion", ""), backend.calls)
+
+    async def test_a_name_that_is_refused_says_so_in_a_window(self):
+        backend = make_backend()
+        backend.session_rows = [replace(row, address="lab") if row.session == SESSION_B else row
+                                for row in backend.session_rows]
+        app = make_app(backend)
+        copied = []
+        app.copy_to_clipboard = copied.append
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            await self.right_click_first_session(app, pilot)
+            await self.choose(app, pilot, "name")
+            app.screen.query_one("#dialog-input", Input).value = "lab"  # another session's
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertIsInstance(app.screen, panel.AlertScreen)
+            self.assertTrue(status_is_error(app))
+            self.assertEqual(copied, [])
+
+    async def test_a_failure_while_a_menu_is_open_still_shows_its_window(self):
+        backend = make_backend()
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            select(app, SESSION_B)  # open on the Desktop: opening it fails
+            await pilot.press("o")
+            await settle(app, pilot)
+            self.assertIsInstance(app.screen, panel.MenuScreen)
+            app._finish_action(backend.open_session(SESSION_B), None, "open")
+            await settle(app, pilot)
+            self.assertIsInstance(app.screen, panel.AlertScreen)
+            await pilot.press("enter")
+            await settle(app, pilot)
+            self.assertIsInstance(app.screen, panel.MenuScreen)  # back where the user was
 
     async def test_rename_an_address_and_a_taken_name_is_refused(self):
         backend = make_backend()
@@ -718,16 +860,13 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
         app = make_app(backend)
         async with app.run_test() as pilot:
             await settle(app, pilot)
-            table = app.query_one("#sessions-table", DataTable)
-            table.focus()
-            table.move_cursor(row=2)  # "motion graphs"
-            key_before = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
-            self.assertEqual(key_before, SESSION_A)
+            table = select(app, SESSION_A)  # "motion graphs"
+            row_before = table.cursor_row
             app.refresh_data()
             await settle(app, pilot)
             key_after = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
             self.assertEqual(key_after, SESSION_A)
-            self.assertEqual(table.cursor_row, 2)
+            self.assertEqual(table.cursor_row, row_before)
 
     async def test_raising_backend_read_shows_error_and_app_lives(self):
         class RaisingTasksBackend(FakeBackend):
@@ -741,7 +880,7 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("queue is locked", status_text(app))
             self.assertTrue(status_is_error(app))
             # The sessions that did read still render, and the app keeps running.
-            self.assertEqual(app.query_one("#sessions-table", DataTable).row_count, 4)
+            self.assertEqual(len(self.shown(app, folders=False)), 4)
             await pilot.press("2")
             await pilot.pause()
             self.assertEqual(app.query_one("#tabs", TabbedContent).active, panel.TASKS_TAB)

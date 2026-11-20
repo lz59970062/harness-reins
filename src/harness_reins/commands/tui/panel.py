@@ -37,7 +37,7 @@ from textual.worker import get_current_worker
 
 from ...core import sessions
 from .backend import (AGENT_TITLES, BELOW, BESIDE, ActionResult, Backend, GoalRow, MessageRow, SessionRow, TaskRow,
-                      short_id, suggested_name)
+                      new_session_name, short_id, suggested_name)
 
 SESSIONS_TAB = "tab-sessions"
 TASKS_TAB = "tab-tasks"
@@ -66,6 +66,8 @@ _PROCESS_STATES = (sessions.ATTACHED, sessions.RUNNING, sessions.FOREIGN, sessio
 
 
 AGENT_NAMES = AGENT_TITLES
+# Harnesses a new session can be named in at once; a Codex thread exists only after its first message.
+NAMED_AT_START = ("claude", "pi")
 COPY_ID_LABELS = {"claude": "Claude session id", "codex": "Codex thread id", "pi": "Pi session file",
                   "dsh": "DeepSeek Harness session id"}
 
@@ -124,12 +126,22 @@ def _fit(text: str, width: int) -> str:
     return text + "…"
 
 
+def _fit_tail(text: str, width: int) -> str:
+    """Like ``_fit``, but keeps the end: the last folders of a path tell projects apart."""
+    if cell_len(text) <= width:
+        return text
+    while text and cell_len(text) > width - 1:
+        text = text[1:]
+    return "…" + text
+
+
 def _session_cells(row: SessionRow) -> List[Any]:
-    # Which session, where it runs and what it is doing come first: the panel is narrow.
+    # Which session, where it runs and what it is doing come first: the panel is narrow. The first cell sits
+    # indented under its folder's row and holds the name given in Reins; the harness's own title is beside it.
     cells: List[Any] = [
-        _MARKS.get(row.state, "?"),
-        _fit(("\u2605 " if row.pinned else "") + ("@%s " % row.address if row.address else "") + row.title,
-             TITLE_CELLS),
+        _fit("  %s %s%s" % (_MARKS.get(row.state, "?"), "\u2605 " if row.pinned else "",
+                            "@" + row.address if row.address else ""), TREE_CELLS),
+        _fit(row.title, TITLE_CELLS),
         "archived" if row.archived else _where(row),
         row.agent,
         # Claude reports "blocked" both for a session waiting on a denied tool call and for one
@@ -137,11 +149,29 @@ def _session_cells(row: SessionRow) -> List[Any]:
         "waiting" if row.activity == sessions.BLOCKED else (row.activity or ""),
         str(row.tasks_running) if row.tasks_running else "",
         str(row.callbacks_pending) if row.callbacks_pending else "",
-        _fit(_shorten_cwd(row.cwd), DIRECTORY_CELLS),
     ]
     if row.state == sessions.CLOSED or row.archived:
         return [Text(str(cell), style="dim") for cell in cells]
     return cells
+
+
+def _folder_cells(cwd: str, count: int) -> List[Any]:
+    """The row above a folder's sessions: where they run, and how many there are."""
+    label = _fit_tail(_shorten_cwd(cwd), TREE_CELLS - 2) if cwd else "(directory unknown)"
+    return [Text("\u25be " + label, style="bold"),
+            Text("%d session%s" % (count, "" if count == 1 else "s"), style="dim"), "", "", "", "", ""]
+
+
+def _by_folder(rows: Sequence[SessionRow]) -> List[Tuple[str, List[SessionRow]]]:
+    """Sessions grouped by directory; a folder sorts where its first session would (pinned, running, newest)."""
+    groups: Dict[str, List[SessionRow]] = {}
+    for row in sorted(rows, key=_session_sort_key):
+        groups.setdefault(row.cwd or "", []).append(row)
+    return list(groups.items())  # dicts keep insertion order: each folder in the order its first session came
+
+
+def _folder_menu() -> List[Tuple[str, str]]:
+    return [("new", "New session here..."), ("shell", "Terminal here")]
 
 
 def _session_menu(row: SessionRow) -> List[Tuple[str, str]]:
@@ -189,8 +219,25 @@ def _message_cells(row: MessageRow) -> List[Any]:
 
 
 TITLE_CELLS = 26
+TREE_CELLS = 24
 HEALTH_SECONDS = 60.0
-DIRECTORY_CELLS = 30
+# A folder's row in the sessions table has this key and its directory after it; no session id starts so.
+FOLDER_KEY = "folder:"
+ALERT_FLASHES = 3
+ALERT_FLASH_SECONDS = 0.18
+
+# What a failed action's window is titled; the message under it says why and what to do.
+FAILED_TITLES = {
+    "open": "Could not open the session",
+    "new session": "Could not start the session",
+    "collaborator": "Could not start the collaborator",
+    "fork": "Could not fork the session",
+    "stop": "Could not stop the session",
+    "log": "Could not open the log",
+    "terminal": "Could not open a terminal",
+    "message": "The message was not sent",
+    "name": "Could not name the session",
+}
 
 # Task states that mean it has not ended yet (the same set `reins log` follows).
 RUNNING_TASK_STATES = frozenset({"submitting", "submitted", "launching", "running"})
@@ -299,6 +346,38 @@ class CopiedScreen(ModalScreen[None]):
 
     def on_mount(self) -> None:
         self.query_one("#ok", Button).focus()
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#ok")
+    def _ok_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(None)
+
+
+class AlertScreen(ModalScreen[None]):
+    """Why an action did not work, in a window that waits for OK, not a line at the bottom one can miss."""
+
+    BINDINGS = [Binding("escape", "close", "Close"), Binding("enter", "close", "Close")]
+
+    def __init__(self, title: str, message: str) -> None:
+        super().__init__()
+        self._title = title
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog", classes="alert"):
+            yield Label(Text(self._title, style="bold"), id="dialog-title")
+            yield Label(self._message, id="alert-text")
+            with Horizontal(id="dialog-buttons"):
+                yield Button("OK", id="ok", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#ok", Button).focus()
+        # A few quick flashes of the frame, so it is seen even when the eyes are on another pane.
+        dialog = self.query_one("#dialog", Vertical)
+        for step in range(1, 2 * ALERT_FLASHES + 1):  # On, off, ... ending off: a red frame again.
+            self.set_timer(step * ALERT_FLASH_SECONDS, lambda on=step % 2 == 1: dialog.set_class(on, "flash"))
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -426,9 +505,15 @@ class ReinsPanel(App[None]):
         color: $text-muted;
     }
     #status.error {
-        color: $text-error;
+        color: $text;
+        background: $error;
+        text-style: bold;
     }
-    ConfirmScreen, TextPromptScreen, MenuScreen, CopiedScreen {
+    #status.busy {
+        color: $text-accent;
+        text-style: bold;
+    }
+    ConfirmScreen, TextPromptScreen, MenuScreen, CopiedScreen, AlertScreen {
         align: center middle;
     }
     #copied-text {
@@ -447,7 +532,18 @@ class ReinsPanel(App[None]):
         background: $surface;
     }
     #dialog-title {
+        width: 100%;
         margin-bottom: 1;
+    }
+    #dialog.alert {
+        border: thick $error;
+    }
+    #alert-text {
+        width: 100%;
+    }
+    #dialog.alert.flash {
+        border: thick $warning;
+        background: $error 30%;
     }
     #dialog-input {
         width: 100%;
@@ -492,7 +588,9 @@ class ReinsPanel(App[None]):
         self._pending: set = set()
         self._refresh_seconds = max(0.5, float(refresh_seconds))
         self._main_screen: Optional[Any] = None
-        self._session_rows: List[SessionRow] = []  # The rows shown, in table order.
+        self._session_rows: List[SessionRow] = []  # The sessions shown, in table order.
+        self._table_rows: List[Tuple[str, Optional[SessionRow]]] = []  # Every table row: key, session or None.
+        self._taken_names: set = set()
         self._show_archived = False
         self._archived_count = 0
         self._task_rows: List[TaskRow] = []
@@ -517,7 +615,7 @@ class ReinsPanel(App[None]):
     def on_mount(self) -> None:
         self._main_screen = self.screen
         self.query_one("#sessions-table", DataTable).add_columns(
-            "", "Session", "Where", "Agent", "Activity", "Tasks", "Callbacks", "Directory"
+            "Folder / name", "Title", "Where", "Agent", "Activity", "Tasks", "Callbacks"
         )
         self.query_one("#tasks-table", DataTable).add_columns(
             "Task", "Title", "State", "Session", "Callback"
@@ -589,12 +687,19 @@ class ReinsPanel(App[None]):
         if fresh is not None:
             every = sorted(fresh, key=_session_sort_key)
             self._session_titles = {row.session: row.title for row in every}
+            self._taken_names = {row.address for row in every if row.address}
             self._archived_count = sum(1 for row in every if row.archived)
-            self._session_rows = [row for row in every if self._show_archived or not row.archived]
-            self._fill(
-                self.query_one("#sessions-table", DataTable),
-                [(row.session, _session_cells(row)) for row in self._session_rows],
-            )
+            shown = [row for row in every if self._show_archived or not row.archived]
+            table_rows: List[Tuple[str, List[Any]]] = []
+            self._table_rows, self._session_rows = [], []
+            for cwd, group in _by_folder(shown):
+                table_rows.append((FOLDER_KEY + cwd, _folder_cells(cwd, len(group))))
+                self._table_rows.append((FOLDER_KEY + cwd, None))
+                for row in group:
+                    table_rows.append((row.session, _session_cells(row)))
+                    self._table_rows.append((row.session, row))
+                    self._session_rows.append(row)
+            self._fill(self.query_one("#sessions-table", DataTable), table_rows)
         fresh = data.get("tasks")
         if fresh is not None:
             self._task_rows = list(fresh)  # type: List[TaskRow]
@@ -621,7 +726,7 @@ class ReinsPanel(App[None]):
 
     @staticmethod
     def _fill(table: DataTable, rows: List[Tuple[str, List[Any]]]) -> None:
-        """Replace the rows, keeping the cursor on the same key if it survives."""
+        """Replace the rows, keeping the cursor on the same key if it survives, else on the first session."""
         selected: Optional[str] = None
         if table.row_count:
             selected = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
@@ -630,6 +735,9 @@ class ReinsPanel(App[None]):
             table.add_row(*cells, key=key)
         if selected is not None and selected in table.rows:
             table.move_cursor(row=table.get_row_index(selected), animate=False)
+        else:
+            first = next((index for index, (key, _) in enumerate(rows) if not key.startswith(FOLDER_KEY)), 0)
+            table.move_cursor(row=first, animate=False)
 
     def _task_cells(self, row: TaskRow) -> List[Any]:
         return [
@@ -654,10 +762,17 @@ class ReinsPanel(App[None]):
             return ""
         return self._session_titles.get(session, short_id(session))
 
-    def _show_status(self, message: str, ok: bool = True) -> None:
+    def _show_status(self, message: str, ok: bool = True, busy: bool = False) -> None:
         bar = self.query_one("#status", Static)
         bar.update(message)
         bar.set_class(not ok, "error")
+        bar.set_class(ok and busy, "busy")
+
+    def _show_failure(self, label: str, message: str) -> None:
+        """A failed action: red in the status line, and a flashing window that says why."""
+        self._show_status(message, ok=False)
+        # Over a menu or prompt the user opened meanwhile, too: OK goes back to it.
+        self.push_screen(AlertScreen(FAILED_TITLES.get(label, "Could not %s" % label), message))
 
     # -------------------------------------------------------------- helpers
 
@@ -681,6 +796,18 @@ class ReinsPanel(App[None]):
             if row.session == key:
                 return row
         return None
+
+    def _selected_folder(self) -> Optional[str]:
+        """The directory of the folder row under the cursor ("" when unknown), None on a session or elsewhere."""
+        key = self._selected_key("sessions-table")
+        if key is None or not key.startswith(FOLDER_KEY):
+            return None
+        return key[len(FOLDER_KEY):]
+
+    def _selected_directory(self) -> Optional[str]:
+        """The selected session's directory, or the selected folder's."""
+        row = self._selected_session()
+        return row.cwd if row is not None else (self._selected_folder() or None)
 
     def _selected_task(self) -> Optional[TaskRow]:
         key = self._selected_key("tasks-table")
@@ -708,7 +835,7 @@ class ReinsPanel(App[None]):
                 return
             self._pending.add(once)
             if busy:
-                self._show_status(busy)
+                self._show_status(busy, busy=True)
         self._action_worker(label, action, once, *args)
 
     @work(thread=True, group="actions")
@@ -722,11 +849,14 @@ class ReinsPanel(App[None]):
         if worker.is_cancelled:
             self._pending.discard(once)  # No UI left to tell; still let the same action run again.
             return
-        self.call_from_thread(self._finish_action, result, once)
+        self.call_from_thread(self._finish_action, result, once, label)
 
-    def _finish_action(self, result: ActionResult, once: Optional[Tuple[str, str]] = None) -> None:
+    def _finish_action(self, result: ActionResult, once: Optional[Tuple[str, str]] = None, label: str = "") -> None:
         self._pending.discard(once)
-        self._show_status(result.message, ok=result.ok)
+        if result.ok:
+            self._show_status(result.message)
+        else:
+            self._show_failure(label, result.message)
         self.refresh_data()
 
     def _open(self, session: str, title: str, direction: str) -> None:
@@ -771,7 +901,9 @@ class ReinsPanel(App[None]):
         if tab == SESSIONS_TAB:
             row = self._selected_session()
             if row is None:
-                self._show_status("no session selected", ok=False)
+                folder = self._selected_folder() is not None
+                self._show_status("a folder: open a session under it, or press n or t to start one here"
+                                  if folder else "no session selected", ok=folder)
                 return
             self._open(row.session, row.title, direction)
         elif tab == TASKS_TAB:
@@ -789,9 +921,8 @@ class ReinsPanel(App[None]):
     def action_new_session(self) -> None:
         if self._modal_open():
             return
-        row = self._selected_session() if self._active_tab() == SESSIONS_TAB else None
-        initial = row.cwd if row is not None and row.cwd else os.getcwd()
-        self._new_session_worker(initial)
+        directory = self._selected_directory() if self._active_tab() == SESSIONS_TAB else None
+        self._new_session_worker(directory or os.getcwd())
 
     @work(thread=True, group="actions")
     def _new_session_worker(self, initial: str, partner: Optional[SessionRow] = None) -> None:
@@ -832,7 +963,18 @@ class ReinsPanel(App[None]):
                 lambda task: self._collaborator_ready(partner, agent, directory, task),
             )
             return
-        self._run_action("new session", self._backend.new_session, agent, directory, once=("new", directory),
+        if agent in NAMED_AT_START:
+            self.push_screen(
+                TextPromptScreen("Name for the new %s session (its Reins address; clear it for none)"
+                                 % AGENT_NAMES.get(agent, agent),
+                                 initial=new_session_name(directory, agent, self._taken_names)),
+                lambda name: name is not None and self._start_new_session(agent, directory, name.strip()),
+            )
+            return
+        self._start_new_session(agent, directory, "")
+
+    def _start_new_session(self, agent: str, directory: str, name: str) -> None:
+        self._run_action("new session", self._backend.new_session, agent, directory, name, once=("new", directory),
                          busy="starting a %s session in %s..." % (AGENT_NAMES.get(agent, agent), directory))
 
     def _collaborator_ready(self, partner: SessionRow, agent: str, directory: str, task: Optional[str]) -> None:
@@ -908,8 +1050,7 @@ class ReinsPanel(App[None]):
         cwd = None
         tab = self._active_tab()
         if tab == SESSIONS_TAB:
-            row = self._selected_session()
-            cwd = row.cwd if row is not None else None
+            cwd = self._selected_directory()
         elif tab == TASKS_TAB:
             task = self._selected_task()
             session = next((row for row in self._session_rows if task is not None and row.session == task.session), None)
@@ -963,13 +1104,17 @@ class ReinsPanel(App[None]):
     # ------------------------------------------------------------ right click
 
     def session_right_click(self, row_index: int) -> None:
-        """Right click on a session: its menu (open, fork, pin, name, copy, stop, archive)."""
-        if self._modal_open() or not 0 <= row_index < len(self._session_rows):
+        """Right click on a session: its menu (open, fork, pin, name, copy, stop, archive); on a folder, its own."""
+        if self._modal_open() or not 0 <= row_index < len(self._table_rows):
             return
         table = self.query_one("#sessions-table", DataTable)
         table.focus()
         table.move_cursor(row=row_index)
-        self.open_session_menu(self._session_rows[row_index])
+        key, row = self._table_rows[row_index]
+        if row is None:
+            self.open_folder_menu(key[len(FOLDER_KEY):])
+        else:
+            self.open_session_menu(row)
 
     def action_session_menu(self) -> None:
         if self._modal_open():
@@ -979,7 +1124,11 @@ class ReinsPanel(App[None]):
             return
         row = self._selected_session()
         if row is None:
-            self._show_status("no session selected", ok=False)
+            folder = self._selected_folder()
+            if folder is None:
+                self._show_status("no session selected", ok=False)
+            else:
+                self.open_folder_menu(folder)
             return
         self.open_session_menu(row)
 
@@ -1005,6 +1154,16 @@ class ReinsPanel(App[None]):
         else:
             self._show_status("archived sessions hidden (a shows them)")
         self.refresh_data()
+
+    def open_folder_menu(self, cwd: str) -> None:
+        title = _shorten_cwd(cwd) or "(directory unknown)"
+        self.push_screen(MenuScreen(title, _folder_menu()), lambda choice: self._folder_chosen(cwd, choice))
+
+    def _folder_chosen(self, cwd: str, choice: Optional[str]) -> None:
+        if choice == "new":
+            self._new_session_worker(cwd or os.getcwd())
+        elif choice == "shell":
+            self._run_action("terminal", self._backend.open_terminal, cwd or os.getcwd(), self._direction)
 
     def open_session_menu(self, row: SessionRow) -> None:
         self.push_screen(MenuScreen(row.title, _session_menu(row)), lambda choice: self._menu_chosen(row, choice))
@@ -1069,7 +1228,7 @@ class ReinsPanel(App[None]):
             self.call_from_thread(self._copy, name, "address")
             self.call_from_thread(self.refresh_data)
         else:
-            self.call_from_thread(self._show_status, result.message, False)
+            self.call_from_thread(self._show_failure, "name", result.message)
 
     def _copy(self, text: str, what: str) -> None:
         # OSC 52: Zellij passes it to the terminal, which puts it on the clipboard if it allows that. Nothing

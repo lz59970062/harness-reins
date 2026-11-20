@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from ...core import sessions
-from ...core.messages import Refused
+from ...core.messages import Refused, validate_name
 from ...core.sessions import SessionView
 from ...engine import claude_background
 from ...harness.claude import agents as claude_agents
@@ -230,6 +230,8 @@ class Zellij:
 # Harnesses whose sessions open in a Reins pane. DeepSeek Harness has no terminal interface.
 PANE_AGENTS = ("claude", "codex", "pi")
 NEW_AGENTS = PANE_AGENTS
+# Harnesses whose new sessions can take a Reins name at once (a Codex thread exists after its first message).
+NAMED_AT_START = ("claude", "pi")
 CODEX_LIST_SECONDS = 30.0  # How long a collaborator waits for Codex to list its new thread.
 _PANE_NAME = re.compile(r"(claude|codex|pi) ([0-9a-f]{8})\b")
 CODEX_NEW_PREFIX = "codex new "
@@ -781,24 +783,69 @@ class LiveBackend:
             found.append("pi")
         return found
 
-    def new_session(self, agent: str, cwd: str) -> ActionResult:
+    def new_session(self, agent: str, cwd: str, name: str = "") -> ActionResult:
         directory = os.path.abspath(os.path.expanduser(cwd))
         if not os.path.isdir(directory):
             return ActionResult(False, f"no directory {cwd}")
         if agent not in NEW_AGENTS:
             return ActionResult(False, DSH_NO_WINDOW if agent == "dsh" else f"Reins cannot start {agent} sessions")
+        # A Codex thread exists only after its first message, so a new Codex session is named from its menu later.
+        name = name.strip() if agent in NAMED_AT_START else ""
+        if name:
+            try:
+                validate_name(name)
+                holder = link.load_session(self.root, name)
+            except Refused as exc:
+                return ActionResult(False, str(exc))
+            if holder is not None:
+                return ActionResult(False, f"@{name} already names another session; choose another name")
         try:
             if agent == "codex":
                 return self._new_codex(directory)
             if agent == "pi":
                 session = pi_channel.create_session(directory)
-                handle = pi_sessions.handle(session)
-                return self._open_pane("pi", handle, f"new in {os.path.basename(directory) or directory}",
-                                       lambda: pi_sessions.open_command(session, directory), cwd=directory)
+                if name:
+                    named = self._register(name, "pi", session, directory)
+                    if not named.ok:
+                        return ActionResult(False, f"could not name the new Pi session {name}: {named.message}")
+                return self._open_pane("pi", pi_sessions.handle(session),
+                                       f"new in {os.path.basename(directory) or directory}",
+                                       lambda: pi_sessions.open_command(session, directory), cwd=directory,
+                                       address=name or None)
+            if not name:
+                handle = claude_background.start(directory, self.environment, settings=self._settings(),
+                                                 run=self.run)
+                return self._attach(handle, handle)
+            before = self._claude_ids()
+            if before is None:
+                return ActionResult(False, "could not list Claude sessions, so the new one could not be told apart "
+                                           "to name it; try again, or start it without a name")
             handle = claude_background.start(directory, self.environment, settings=self._settings(), run=self.run)
-            return self._attach(handle, handle)
+            full = self._claude_full_id(handle, before)
+            named = (self._register(name, "claude", full, directory) if full is not None else
+                     ActionResult(False, "`claude agents` does not list it yet"))
+            opened = self._attach(handle, handle, address=name if named.ok else None)
+            if named.ok or not opened.ok:
+                return opened
+            return ActionResult(False, f"{opened.message}, but it has no name: {named.message}; "
+                                       f"name it @{name} from its menu")
         except (claude_background.BackgroundError, RuntimeError, OSError, ValueError) as exc:
             return ActionResult(False, str(exc))
+
+    def _claude_ids(self) -> Optional[set[str]]:
+        """The ids `claude agents` lists now; None when it could not list them."""
+        entries = claude_agents.list_agents(self.environment, run=self.run)
+        return None if entries is None else {str(entry["sessionId"]) for entry in entries}
+
+    def _claude_full_id(self, handle: str, before: set[str]) -> Optional[str]:
+        """The full id of the background session ``handle`` names, once `claude agents` lists it: the one id
+        starting with ``handle`` that was not listed before it started, so an older session with the same first
+        eight characters is never taken for it."""
+        def found() -> Optional[str]:
+            new = [session for session in self._claude_ids() or () if session.startswith(handle)
+                   and session not in before]
+            return new[0] if len(new) == 1 else None
+        return self._wait_for(found)
 
     def _new_codex(self, directory: str) -> ActionResult:
         refused = self._ensure_codex_daemon()
@@ -902,10 +949,13 @@ class LiveBackend:
                                    mate, directory)
         if agent == "codex":
             return self._start_codex_mate(directory, mate, prompt, direction)
+        before = self._claude_ids()
+        if before is None:
+            return ActionResult(False, "could not list Claude sessions, so the new one could not be told apart "
+                                       "to name it; try again")
         handle = claude_background.start(directory, self.environment, settings=self._settings(), prompt=prompt,
                                          run=self.run)
-        full = self._wait_for(lambda: next((view.session for view in claude_agents.session_views(
-            self.environment, run=self.run) if view.session.startswith(handle)), None))
+        full = self._claude_full_id(handle, before)
         if full is None:
             return ActionResult(False, f"Claude started {handle}, but `claude agents` does not list it; "
                                        f"name it @{mate} from its menu so its partner can reach it")

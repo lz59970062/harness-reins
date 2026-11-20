@@ -191,6 +191,7 @@ def invoke_with_diagnostics(args: argparse.Namespace, operation: Callable[[argpa
 # directly, never forward to the canonical installation.
 LOCAL_MODES = frozenset({
     "log",  # Read-only: an older installed Reins may not have it.
+    "owner",  # Read-only, like log.
     "tui",  # Interactive, for people; it runs the Reins they typed.
     "setup", "migrate", "daemon", "desktop", "install-skill", "install-pi-extension", "install-shell-hook", "install-claude-hook",
     "install-systemd", "install-launchd", "install-supervisor", "install-windows-task", "uninstall-windows-task",
@@ -612,6 +613,13 @@ def main() -> int:
     log_parser.add_argument("--no-follow", action="store_true", help="Print and exit instead of following")
     log_parser.add_argument("--queue-dir", help="Wakeup queue directory")
 
+    owner_parser = sub.add_parser(
+        "owner", help="Which session started a Reins task, with its Reins name; "
+                      "with no task given, every task that has not ended")
+    owner_parser.add_argument("task_id", nargs="?", help="Task id, a unique prefix of one, or a callback id")
+    owner_parser.add_argument("--json", action="store_true", help="Print JSON (schema reins.owner/1)")
+    owner_parser.add_argument("--queue-dir", help="Wakeup queue directory")
+
     shell_hook_parser = sub.add_parser("install-shell-hook", help="Install an idempotent pending-status check in Bash startup")
     shell_hook_parser.add_argument("--rc-file", help="Bash rc file (default: ~/.bashrc)")
     shell_hook_parser.add_argument("--command", help="Executable path embedded in the hook")
@@ -737,6 +745,9 @@ def main() -> int:
     if args.mode == "log":
         from .commands import logs as log_commands
         return log_commands.log(args)
+    if args.mode == "owner":
+        from .commands import owner as owner_commands
+        return owner_commands.owner(args)
     if args.mode == "tui":
         from .commands.tui import launch as tui_launch
         return tui_launch.main(args)

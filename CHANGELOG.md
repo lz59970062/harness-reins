@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `reins owner <task-id>` tells you which session started a Reins task, by that session's name in the Reins
+  address book, with how long the task has run and when its log last moved. With no task id it lists every task
+  that has not ended, the longest-quiet first, so you can see whose job holds a resource and ask them with
+  `reins send`.
+
 ## 0.14.2 — 2026-11-20
 
 - `reins tui`: sessions are grouped by directory, each folder on its own row with its sessions indented under it.

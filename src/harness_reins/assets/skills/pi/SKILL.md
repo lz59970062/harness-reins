@@ -118,6 +118,7 @@ reins run --goal-id <goal-id> --cwd "$PWD" --task "step 1" -- ...
   learned; `reins context show <node>` gives summaries (never read its raw session).
 - `reins done --cwd "$PWD" --task "..." --exit-code 0` — report work you are already supervising.
 - `reins status --state pending --state running` — inspect tasks and callbacks.
+- `reins owner <task-id>` — which session started a Reins task, by its Reins name; `reins owner` alone lists tasks that have not ended. Ask that session before touching its work.
 
 ## Messages from other sessions
 

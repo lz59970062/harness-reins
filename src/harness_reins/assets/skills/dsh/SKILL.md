@@ -208,3 +208,5 @@ macOS the desktop app keeps it at
 Useful commands: `reins status` (unacknowledged callbacks), `reins cancel --id <id>`,
 `reins retry --id <id>` (re-deliver a result without rerunning the task),
 `tail -f <task log>` when the user asks to watch progress.
+
+Whose task is it: `reins owner <task-id>` names the session that started a Reins task (its Reins name, if any); `reins owner` alone lists tasks that have not ended, the longest-quiet log first. Ask that session (`reins send <name>`) before touching its work.

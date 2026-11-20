@@ -929,7 +929,7 @@ class ReinsPanel(App[None]):
         try:
             agents = list(self._backend.new_agents())
         except Exception as exc:
-            self.call_from_thread(self._show_status, "new session: %s" % exc, False)
+            self.call_from_thread(self._show_failure, "new session" if partner is None else "collaborator", str(exc))
             return
         self.call_from_thread(self._choose_new_agent, agents, initial, partner)
 
@@ -938,7 +938,8 @@ class ReinsPanel(App[None]):
         if self._modal_open():
             return
         if not agents:
-            self._show_status("no Claude Code, Codex or Pi found on PATH", ok=False)
+            self._show_failure("new session" if partner is None else "collaborator",
+                               "no Claude Code, Codex or Pi found on PATH")
         elif len(agents) == 1:
             self._ask_new_directory(agents[0], initial, partner)
         else:

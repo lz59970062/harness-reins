@@ -712,6 +712,18 @@ class ReinsPanelTests(unittest.IsolatedAsyncioTestCase):
             await settle(app, pilot)
             self.assertIn(("new", "codex", "/home/u/motion", ""), backend.calls)
 
+    async def test_no_harness_to_start_says_so_in_a_window(self):
+        backend = make_backend()
+        backend.agents = []
+        app = make_app(backend)
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            select(app, SESSION_A)
+            await pilot.press("n")
+            await settle(app, pilot)
+            self.assertIsInstance(app.screen, panel.AlertScreen)
+            self.assertTrue(status_is_error(app))
+
     async def test_a_name_that_is_refused_says_so_in_a_window(self):
         backend = make_backend()
         backend.session_rows = [replace(row, address="lab") if row.session == SESSION_B else row

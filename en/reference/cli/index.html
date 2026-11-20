@@ -1444,6 +1444,14 @@
 <td><code>reins log &lt;task-id&gt; --all</code></td>
 <td>Print the whole log from its first line; on a terminal, then follow it</td>
 </tr>
+<tr>
+<td><code>reins owner</code></td>
+<td>List the tasks that have not ended and, for each, the Reins name of the session that started it; the longest-quiet log first</td>
+</tr>
+<tr>
+<td><code>reins owner &lt;task-id&gt;</code></td>
+<td>Which session started a task (its Reins name, harness and session id), how long it has run and when its log was last written. Add <code>--json</code> for machine-readable output</td>
+</tr>
 </tbody>
 </table>
 <p>Put submission options before <code>--</code>:</p>

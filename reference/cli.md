@@ -35,6 +35,8 @@ reins agent --help
 | `reins log <task-id>` | Print the last 10 lines of a task's output; on a terminal, follow it until the task ends, like `tail -f`. Piped or redirected output is printed without following. A unique prefix of the id is enough |
 | `reins log <task-id> -n 100 --no-follow` | Print the last 100 lines and exit |
 | `reins log <task-id> --all` | Print the whole log from its first line; on a terminal, then follow it |
+| `reins owner` | List the tasks that have not ended and, for each, the Reins name of the session that started it; the longest-quiet log first |
+| `reins owner <task-id>` | Which session started a task (its Reins name, harness and session id), how long it has run and when its log was last written. Add `--json` for machine-readable output |
 
 Put submission options before `--`:
 

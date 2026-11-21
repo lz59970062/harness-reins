@@ -165,6 +165,8 @@ ATC 的 systemd drop-in 和 `experts.yaml` 会带到 Reins。
 | `reins tui` | 在一个终端里看本机所有 Claude Code、Codex、Pi 会话和它们的任务、消息，双击就在旁边窗格打开，详见[指南](docs/guides/tui.md) |
 | `reins ack <回调ID>` | 确认已经收到并看过结果（不等于任务完成） |
 | `reins status` | 查看还需要处理的回调 |
+| `reins owner [<任务ID>]` | 这个任务是哪个会话发起的，显示它在 Reins 通讯录里的名字 |
+| `reins stop <任务ID> -m "原因"` | 有意停掉任务；发起它的会话会被告知不要重新运行 |
 | `reins doctor` | 检查环境，给出可以交给 Agent 执行的修复计划 |
 | `reins migrate` | 从 LTC 迁移 |
 

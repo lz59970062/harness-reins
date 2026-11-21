@@ -8,7 +8,7 @@
 <h3 align="center">Dispatch work to any agent and route the result back to the session that asked.</h3>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.2-2a78d6" alt="Release 0.14.2"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.3-2a78d6" alt="Release 0.14.3"></a>
   <a href="https://www.npmjs.com/package/harness-reins"><img src="https://img.shields.io/badge/npm-harness--reins-2a78d6" alt="npm harness-reins"></a>
   <img src="https://img.shields.io/badge/python-%E2%89%A53.9-2a78d6" alt="Python ≥ 3.9">
   <img src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-2a78d6" alt="Linux, macOS, Windows">
@@ -364,6 +364,8 @@ reins ack <callback-id>        # confirm a callback was received and inspected
 reins status                        # list callbacks that still need handling
 reins cancel --id <callback-id>     # cancel a queued callback
 reins retry --id <callback-id>      # re-deliver a result without rerunning the task
+reins owner [<task-id>]             # which session started a task, by its Reins name
+reins stop <task-id> -m "why"       # stop a task for good; its session is told not to rerun it
 reins doctor --agent codex --session <id>   # JSON readiness report + repair plan
 ```
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.3 — 2026-11-21
 
 - `reins owner <task-id>` tells you which session started a Reins task, by that session's name in the Reins
   address book, with how long the task has run and when its log last moved. With no task id it lists every task

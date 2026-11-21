@@ -1194,18 +1194,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-第二阶段reins-stop" class="md-nav__link">
+  <a href="#3-第二阶段reins-stop已实现" class="md-nav__link">
     <span class="md-ellipsis">
-      3. 第二阶段：reins stop
+      3. 第二阶段：reins stop（已实现）
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-待验证第二阶段" class="md-nav__link">
+  <a href="#4-验证2026-11-21" class="md-nav__link">
     <span class="md-ellipsis">
-      4. 待验证（第二阶段）
+      4. 验证（2026-11-21）
     </span>
   </a>
   
@@ -1236,7 +1236,7 @@
 
 
 <h1 id="任务的主人以及有意地停掉任务">任务的主人，以及有意地停掉任务<a class="headerlink" href="#任务的主人以及有意地停掉任务" title="Permanent link">&para;</a></h1>
-<p>状态：第 13 版（2026-11-20）。第一阶段（<code>reins owner</code>）已实现，第二阶段（<code>reins stop</code>）待实现。</p>
+<p>状态：第 14 版（2026-11-21）。<code>reins owner</code> 和 <code>reins stop</code> 都已实现。</p>
 <p>前 12 版一度扩展到按进程、端口查找（环境变量标记、cgroup、<code>/proc</code> 扫描、macOS 读取等），经多轮审查越改越复杂。维护者明确了需求：<strong>只管 Reins 发起的可回调任务</strong>，给每个任务一个能查询的字段，映射到通讯录里发起它的会话。进程和端口不碰。</p>
 <p>相关文档：会话的名字（通讯录）见 <a href="../link-protocol/">link-protocol.md</a>。</p>
 <h2 id="1-为什么要做">1. 为什么要做<a class="headerlink" href="#1-为什么要做" title="Permanent link">&para;</a></h2>
@@ -1252,25 +1252,64 @@
 <p>每个任务的 <code>task.json</code> 本来就记着发起它的会话（<code>origin.harness</code>、<code>origin.session</code>；没有时用回调目标 <code>target.session</code>）。<code>reins owner</code> 查询时用 <code>messages.name_of</code> 在通讯录里找这个会话的名字，所以会话后来改名也能显示当前的名字。没有名字时显示 <code>(no name)</code>。</p>
 <p>输出：任务名、命令、目录、运行时长、日志最后写入时间；发起的会话（名字、harness、短 ID）；下一步（有名字时 <code>reins send &lt;name&gt;</code>，以及 <code>reins tui &lt;id&gt;</code>）。</p>
 <p>不做：按进程或端口反查任务。需要时用户自己从 <code>nvidia-smi</code>、<code>ss -ltnp</code> 认出是哪个任务，再查任务 ID。</p>
-<h2 id="3-第二阶段reins-stop">3. 第二阶段：<code>reins stop</code><a class="headerlink" href="#3-第二阶段reins-stop" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>reins<span class="w"> </span>stop<span class="w"> </span>&lt;task-id&gt;<span class="w"> </span><span class="o">[</span>--message<span class="w"> </span><span class="s2">"不需要这个服务了"</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--quiet<span class="o">]</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span>
+<h2 id="3-第二阶段reins-stop已实现">3. 第二阶段：<code>reins stop</code>（已实现）<a class="headerlink" href="#3-第二阶段reins-stop已实现" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>reins<span class="w"> </span>stop<span class="w"> </span>&lt;task-id&gt;<span class="w"> </span><span class="o">[</span>-m<span class="w"> </span><span class="s2">"不需要这个服务了"</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span><span class="w"> </span><span class="o">[</span>--grace<span class="w"> </span><span class="m">10</span><span class="o">]</span>
 </code></pre></div>
-<p><strong>只支持用 systemd 运行的任务</strong>（Linux 的默认方式）：systemd 单元的 cgroup 把任务的所有进程，包括 <code>setsid</code>、<code>nohup</code> 出去的，都关在一起，停止时不按 PID 发信号。screen 方式的任务拒绝并说明。</p>
+<p><strong>怎么找到任务的进程。</strong> worker 启动命令前在环境里加 <code>REINS_TASK_ID=&lt;任务ID&gt;</code>，任务启动的每个进程都继承它，<code>setsid</code>、<code>nohup</code>、两次 fork 挂到 init 下的也一样。<code>reins stop</code> 扫 <code>/proc/&lt;pid&gt;/environ</code> 找带这个标记的进程。任务里再嵌套启动的 Reins 任务有自己的 <code>REINS_TASK_ID</code>，不会被一起停掉。加这个标记之前启动的任务，退回用 screen 的 <code>STY=&lt;pid&gt;.reins-&lt;任务ID&gt;</code> 或 systemd 单元的 <code>INVOCATION_ID</code>。发信号前再核对一次标记；Python 支持 pidfd 时通过 pidfd 发信号，PID 被复用也不会停错进程，不支持时（例如本机的 conda Python）核对后立刻发信号，PID 恰好在这几微秒里被复用的情况忽略不计。<code>reins stop</code> 不会停掉自己和自己的上级进程。</p>
+<p><strong>流程：</strong></p>
 <ol>
-<li><strong>确认。</strong> 终端里列出任务、命令、发起的会话，问 <code>Stop it? [y/N]</code>；<code>--yes</code> 跳过；没有终端又没有 <code>--yes</code> 时拒绝。任务已经结束：说明，什么都不做。</li>
-<li><strong>写 <code>tasks/&lt;id&gt;/stop.json</code></strong>：<code>requested_at</code>、发起者、<code>message</code>、<code>quiet</code>。临时文件加 <code>rename</code>，一次写完；再次运行直接覆盖。</li>
-<li><strong><code>systemctl --user stop &lt;unit&gt;</code></strong>：systemd 向单元里所有进程发 SIGTERM，超时后 SIGKILL，等单元结束才返回。</li>
-<li><strong>报告</strong>：单元已不在运行，退出码 0；否则退出码 2，可以再运行一次。</li>
+<li>显示任务、命令、发起它的会话，问 <code>Stop it? [y/N]</code>；<code>--yes</code> 跳过，没有终端又没有 <code>--yes</code> 时拒绝。</li>
+<li>任务还没结束：写 <code>tasks/&lt;id&gt;/stop.json</code>（时间、原因）。</li>
+<li>systemd 任务：<code>systemctl --user stop &lt;unit&gt;</code>，单元已经不在也算停了。</li>
+<li>所有任务：给带标记的进程发 SIGTERM，<code>--grace</code> 秒后还在的发 SIGKILL，再扫一遍。</li>
+<li>能拿到任务锁、且执行单元已不在时，当场把任务记为 <code>interrupted</code>（<code>stopped_by_user</code>）并排队回调；否则守护进程的恢复流程看到 <code>stop.json</code> 后记录。</li>
+<li>还有进程没停掉或单元没停掉：退出码 2，再运行一次即可。</li>
 </ol>
-<p><strong>取舍：被停掉的任务不记录退出码。</strong> worker 和工作负载在同一个单元里一起被结束，来不及写结果；守护进程的恢复流程发现单元已不在，按现有规则把任务标为 interrupted 并排队回调。</p>
-<p><strong>回调正文</strong>（<code>managed_task_prompt</code>）：有 <code>stop.json</code> 时写「用户在某时用 <code>reins stop</code> 有意停止了这个任务，原因：……。不要重新运行、重启或换个方式替代它；确实需要时先问用户」，去掉「重新创建任务」的建议。<code>--quiet</code> 时 c1 直接写进已有的 <code>canceled</code> 状态，不投递，也不写 ACK。worker 启动工作负载前看到 <code>stop.json</code>（任务还在排队时就被停止），就不启动。</p>
-<p>不另设新状态；出了问题再运行一次 <code>reins stop</code>。</p>
-<p><strong>SKILL.md 新增：</strong> 回调说任务是用户用 <code>reins stop</code> 停的，不要重新运行或替代它，确实需要先问用户；只有用户要求时才停别的会话发起的任务，想要它占着的资源先用 <code>reins owner</code> 找到发起的会话去问。</p>
-<h2 id="4-待验证第二阶段">4. 待验证（第二阶段）<a class="headerlink" href="#4-待验证第二阶段" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>任务状态</th>
+<th>systemd</th>
+<th>screen（包括 Docker）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>排队中、等待重试</td>
+<td>不再启动，回调说用户停的</td>
+<td>同左</td>
+</tr>
+<tr>
+<td>正在启动</td>
+<td>worker 看到 <code>stop.json</code> 不启动命令</td>
+<td>同左</td>
+</tr>
+<tr>
+<td>运行中</td>
+<td>停单元，再按标记清一遍</td>
+<td>按标记停掉所有进程，screen 随之结束</td>
+</tr>
+<tr>
+<td>已结束、留下了进程</td>
+<td>不会发生（<code>KillMode=control-group</code>）</td>
+<td>按标记停掉留下的进程，不写 <code>stop.json</code></td>
+</tr>
+<tr>
+<td>已结束、没有留下进程</td>
+<td>说明没有可停的</td>
+<td>同左</td>
+</tr>
+</tbody>
+</table>
+<p><strong>回调。</strong> 有 <code>stop.json</code> 的任务，不管结果是 interrupted 还是带退出码的 completed，回调短文都是「Stopped: the user stopped this task on purpose with <code>reins stop</code>. Do not rerun, restart or replace it; if you still need it, ask the user first.」，详情里写停止时间和原因，去掉「重新创建任务」的建议。</p>
+<p><strong>范围之外：</strong> 清空了环境的进程（<code>env -i</code>）、换了用户的进程（<code>sudo</code>）、任务用 <code>docker run</code> 拉起的别的容器、任务自己用 <code>systemd-run --user</code> 拉起的单元——这些在操作系统层面已经不属于这个任务。macOS（launchd）和 Windows 任务明确拒绝，等有机器验证再做。</p>
+<p><strong>SKILL.md：</strong> 回调说用户有意停止时不要重新运行或替代；只有用户要求时才用 <code>reins stop</code>，不停别的会话的任务，想要它占着的资源先问它的会话。</p>
+<h2 id="4-验证2026-11-21">4. 验证（2026-11-21）<a class="headerlink" href="#4-验证2026-11-21" title="Permanent link">&para;</a></h2>
 <ul>
-<li>systemd 任务里 <code>setsid nohup</code> 出去的孙进程被 <code>systemctl --user stop</code> 结束。</li>
-<li>停止后恢复流程排队的回调带着「用户有意停止」的正文；真实 Claude Code 会话收到后不重启服务。</li>
-<li>排队中的任务被停止后不会启动；screen 任务被拒绝且不受影响。</li>
+<li>单元测试：排队任务不启动、恢复流程记为 <code>stopped_by_user</code>、两种回调文字、worker 不启动已停任务并加上标记、<code>setsid</code>/两次 fork/忽略 SIGTERM 的进程都被停掉、命令的各种状态和退出码。</li>
+<li>主机实测（临时 <code>REINS_HOME</code>）：运行中的 systemd 任务和 screen 任务，含 <code>setsid nohup</code>、两次 fork、<code>nohup &amp;</code> 子进程，全部停掉；已结束的 screen 任务留下的进程被停掉；已结束的 systemd 任务确认没有残留。</li>
+<li>Docker 实测（<code>reins:ci-local</code>，screen 后端，不带 <code>--init</code>）：上面三种情况都通过；去掉 <code>REINS_TASK_ID</code> 后靠 <code>STY</code> 也能找到全部进程。</li>
+<li>一个临时 Claude Code 会话读到这条回调后表示不会重启服务，会先问用户。</li>
 </ul>
 
 

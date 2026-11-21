@@ -17,7 +17,7 @@ POLL_SECONDS = 0.5
 _BLOCK = 65536
 
 
-def _read_task(directory: Path) -> dict[str, object]:
+def read_task(directory: Path) -> dict[str, object]:
     try:
         task = json.loads((directory / "task.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -125,7 +125,7 @@ def log(args: argparse.Namespace) -> int:
     if directory is None:
         print(f"reins: error: {problem}", file=sys.stderr)
         return 2
-    task = _read_task(directory)
+    task = read_task(directory)
     path = Path(str(task.get("log_path") or directory / "attempt-1.log")).expanduser()
     out = _binary_stdout()
     # Following is for a person watching; a program reading the output (an agent's
@@ -142,7 +142,7 @@ def log(args: argparse.Namespace) -> int:
             if not follow or not running:
                 break
             time.sleep(POLL_SECONDS)
-            task = _read_task(directory) or task
+            task = read_task(directory) or task
     except KeyboardInterrupt:
         return 130
     if position is None:

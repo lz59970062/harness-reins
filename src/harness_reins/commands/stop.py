@@ -11,7 +11,7 @@ from ..owners import OwnerState
 from ..owners.linux import SystemdUserBackend, stop_marked_processes
 from ..store import layout
 from . import owner as owner_command
-from .logs import RUNNING_STATES, _read_task, find_task
+from .logs import RUNNING_STATES, find_task, read_task
 
 BACKENDS = ("systemd-user", "screen")
 Marked = Callable[[list[str]], bool]
@@ -54,7 +54,7 @@ def stop(args: argparse.Namespace) -> int:
     queue = layout.queue_dir(args)
     tasks_root = layout.managed_tasks_root(queue)
     directory, problem = find_task(tasks_root, args.task_id)
-    task = _read_task(directory) if directory is not None else {}
+    task = read_task(directory) if directory is not None else {}
     if not task:
         print(f"reins: {problem or f'task {args.task_id} has no readable record'}", file=sys.stderr)
         return 1
@@ -64,7 +64,7 @@ def stop(args: argparse.Namespace) -> int:
         print(f"reins: reins stop works for Linux tasks run by systemd or screen; task {task_id} uses {backend}",
               file=sys.stderr)
         return 1
-    print(owner_command.render(owner_command.describe(task, owner_command.address_book(queue)), time.time()))
+    print(owner_command.summary(owner_command.describe(task, owner_command.address_book(queue)), time.time()))
     print()
     if not _confirm(args):
         return 1

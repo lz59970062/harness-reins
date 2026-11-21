@@ -251,18 +251,37 @@ class CommandTests(StopCase):
         self.assertEqual(code, 0)
         self.assertIn("left nothing running", out)
 
-    def test_a_failed_unit_stop_or_a_survivor_asks_to_run_again(self):
+    def stop_running(self, unit_stopped: bool, left: list[int]):
         path, task_id = self.submit()
         task = self.launch(path)
         task.update(state="running", boot_id=host.current_boot_id(), started_at=time.time())
         managed_tasks.write_managed_task(self.root, task)
-        with mock.patch.object(SystemdUserBackend, "stop", return_value=False), \
+        with mock.patch.object(SystemdUserBackend, "stop", return_value=unit_stopped), \
                 mock.patch.object(SystemdUserBackend, "probe", return_value=OwnerState.ALIVE), \
-                mock.patch.object(stop_command, "stop_marked_processes", return_value=(1, [4242])):
-            code, _, err = self.run_stop(task_id)
+                mock.patch.object(stop_command, "stop_marked_processes", return_value=(1, left)):
+            code, out, err = self.run_stop(task_id)
+        return task_id, code, out, err
+
+    def test_a_unit_systemd_did_not_stop_asks_to_run_again(self):
+        task_id, code, out, err = self.stop_running(unit_stopped=False, left=[])
         self.assertEqual(code, 2)
-        self.assertIn("4242", err)
+        self.assertIn("is incomplete", out)
+        self.assertIn("systemd did not stop", err)
         self.assertIn(f"reins stop {task_id} again", err)
+
+    def test_a_surviving_process_asks_to_run_again(self):
+        task_id, code, out, err = self.stop_running(unit_stopped=True, left=[4242])
+        self.assertEqual(code, 2)
+        self.assertIn("is incomplete", out)
+        self.assertNotIn("systemd did not stop", err)
+        self.assertIn("still running: 4242", err)
+        self.assertIn(f"reins stop {task_id} again", err)
+
+    def test_the_confirmation_shows_the_task_without_owner_hints(self):
+        _, _, out, _ = self.stop_running(unit_stopped=True, left=[])
+        self.assertIn("Started by", out)
+        self.assertNotIn("reins send", out)
+        self.assertNotIn("reins tui", out)
 
     def test_an_ended_task_with_leftovers_or_nothing(self):
         path, task_id = self.submit()

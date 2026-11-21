@@ -37,7 +37,7 @@ reins agent --help
 | `reins log <task-id> --all` | Print the whole log from its first line; on a terminal, then follow it |
 | `reins owner` | List the tasks that have not ended and, for each, the Reins name of the session that started it; the longest-quiet log first |
 | `reins owner <task-id>` | Which session started a task (its Reins name, harness and session id), how long it has run and when its log was last written. Add `--json` for machine-readable output |
-| `reins stop <task-id> -m "why"` | Stop a task on purpose: every process it started ends, including ones it detached with `setsid` or `nohup`; a task that has not started never starts; the session that started it gets a callback saying you stopped it and not to run it again. On a task that already ended, it stops the processes it left behind. Add `--yes` without a terminal. Linux tasks run by systemd or screen, Docker included |
+| `reins stop <task-id> -m "why"` | Stop a task on purpose: the task's processes end, including ones it detached with `setsid` or `nohup`; a task that has not started never starts; the session that started it gets a callback saying you stopped it and not to run it again. On a task that already ended, it stops the processes it left behind. Add `--yes` without a terminal. Linux tasks run by systemd or screen, Docker included |
 
 Put submission options before `--`:
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -15,7 +16,7 @@ from typing import Optional
 
 from ..harness import get_agent
 from ..store import layout, link
-from .logs import RUNNING_STATES, _read_task, find_task
+from .logs import RUNNING_STATES, find_task, read_task
 
 SCHEMA = "reins.owner/1"
 COMMAND_CELLS = 160
@@ -63,7 +64,7 @@ def describe(task: dict[str, object], names: Names) -> dict[str, object]:
 
 def active(tasks_root: Path, names: Names) -> list[dict[str, object]]:
     """Tasks that have not ended, the one whose log has been quiet longest first."""
-    found = [describe(task, names) for task in (_read_task(path.parent) for path in sorted(tasks_root.glob("*/task.json")))
+    found = [describe(task, names) for task in (read_task(path.parent) for path in sorted(tasks_root.glob("*/task.json")))
              if task.get("state") in RUNNING_STATES]
     return sorted(found, key=lambda item: item["log_written_at"] or item["started_at"] or 0)
 
@@ -107,7 +108,8 @@ def _who(session: Optional[dict[str, object]]) -> str:
     return f"{_harness(session['harness'])} session {_short(str(session['id']))}  {name}"
 
 
-def render(task: dict[str, object], now: float) -> str:
+def summary(task: dict[str, object], now: float) -> str:
+    """What the task is and which session started it."""
     state = str(task.get("state") or "unknown")
     if state == "running":
         heading = f"running for {age(task.get('started_at'), now)}"
@@ -120,13 +122,19 @@ def render(task: dict[str, object], now: float) -> str:
              f"  Folder   {task.get('cwd')}"]
     if task.get("log_path"):
         written = task.get("log_written_at")
-        when = f"last written {age(written, now)} ago" if written else "not written yet"
-        lines.append(f"  Log      {when}   (reins log {task['id']})")
+        lines.append(f"  Log      {f'last written {age(written, now)} ago' if written else 'not written yet'}")
+    lines.append(f"Started by {_who(task.get('session'))}")
+    return "\n".join(lines)
+
+
+def render(task: dict[str, object], now: float, queue_dir: Optional[str] = None) -> str:
+    """The summary, then the commands that reach the task and its owner, on the same queue."""
+    queue = f" --queue-dir {shlex.quote(queue_dir)}" if queue_dir else ""
     session = task.get("session")
-    lines += [f"Started by {_who(session)}", ""]
+    lines = [summary(task, now), "", f"  Log:            reins log {task['id']}{queue}"]
     if isinstance(session, dict) and session.get("name"):
-        lines.append(f"  Ask it:   reins send {session['name']} -m \"...\"")
-    lines.append(f"  Open it:  reins tui {task['id']}")
+        lines.append(f"  Message owner:  reins send {session['name']}{queue} -m \"...\"")
+    lines.append(f"  Open it:        reins tui {task['id']}{queue}")
     return "\n".join(lines)
 
 
@@ -158,7 +166,7 @@ def owner(args: argparse.Namespace) -> int:
         print(json.dumps({"schema": SCHEMA, "tasks": tasks}, indent=2) if args.json else render_active(tasks, now))
         return 0
     directory, problem = find_task(tasks_root, args.task_id)
-    record = _read_task(directory) if directory is not None else {}
+    record = read_task(directory) if directory is not None else {}
     if not record:
         problem = problem or f"task {args.task_id} has no readable record"
         if args.json:
@@ -167,5 +175,5 @@ def owner(args: argparse.Namespace) -> int:
             print(f"reins: {problem}", file=sys.stderr)
         return 1
     task = describe(record, names)
-    print(json.dumps({"schema": SCHEMA, "tasks": [task]}, indent=2) if args.json else render(task, now))
+    print(json.dumps({"schema": SCHEMA, "tasks": [task]}, indent=2) if args.json else render(task, now, args.queue_dir))
     return 0

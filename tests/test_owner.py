@@ -103,6 +103,15 @@ class CommandTests(OwnerCase):
                      "reins log 29037999", "reins send gsmerge-claude", "reins tui 29037999"):
             self.assertIn(text, out)
 
+    def test_the_hints_keep_a_queue_given_on_the_command_line(self):
+        self.task("29037999")
+        _, out, _ = self.run_owner(task_id="29037999")
+        flag = f"--queue-dir {self.queue}"
+        for text in (f"reins log 29037999 {flag}", f"reins send gsmerge-claude {flag}", f"reins tui 29037999 {flag}"):
+            self.assertIn(text, out)
+        _, out, _ = self.run_owner(task_id="29037999", queue_dir=None)
+        self.assertNotIn("--queue-dir", out)
+
     def test_an_unnamed_owner_gets_no_send_hint(self):
         self.task("29037999")
         self.book.clear()

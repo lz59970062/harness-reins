@@ -1454,7 +1454,7 @@
 </tr>
 <tr>
 <td><code>reins stop &lt;任务ID&gt; -m "原因"</code></td>
-<td>有意停掉一个任务：它启动的所有进程都结束，包括 <code>setsid</code>、<code>nohup</code> 出去的；还没开始的任务不再启动；发起它的会话收到回调，说明是用户停的、不要重新运行。已经结束的任务会清掉它留下的进程。没有终端时加 <code>--yes</code>。支持 Linux 上 systemd 和 screen 运行的任务（包括 Docker）</td>
+<td>有意停掉一个任务：结束任务的进程，包括用 <code>setsid</code>、<code>nohup</code> 脱离出去的；还没开始的任务不再启动；发起它的会话收到回调，说明是用户停的、不要重新运行。已经结束的任务会清掉它留下的进程。没有终端时加 <code>--yes</code>。支持 Linux 上 systemd 和 screen 运行的任务（包括 Docker）</td>
 </tr>
 </tbody>
 </table>

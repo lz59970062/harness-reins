@@ -119,6 +119,7 @@ reins run --goal-id <goal-id> --cwd "$PWD" --task "step 1" -- ...
 - `reins done --cwd "$PWD" --task "..." --exit-code 0` — report work you are already supervising.
 - `reins status --state pending --state running` — inspect tasks and callbacks.
 - `reins owner <task-id>` — which session started a Reins task, by its Reins name; `reins owner` alone lists tasks that have not ended. Ask that session before touching its work.
+- `reins stop <task-id> --yes -m "why"` — only when the user asks. A callback that says `Stopped: the user stopped this task on purpose` means do not rerun, restart or replace it; ask the user if you still need it.
 
 ## Messages from other sessions
 

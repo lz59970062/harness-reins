@@ -620,6 +620,16 @@ def main() -> int:
     owner_parser.add_argument("--json", action="store_true", help="Print JSON (schema reins.owner/1)")
     owner_parser.add_argument("--queue-dir", help="Wakeup queue directory")
 
+    stop_parser = sub.add_parser(
+        "stop", help="Stop a Reins task on purpose: its processes end and the session that started it "
+                     "is told not to start it again")
+    stop_parser.add_argument("task_id", help="Task id, a unique prefix of one, or a callback id")
+    stop_parser.add_argument("--message", "-m", help="Why, for the session that started it")
+    stop_parser.add_argument("--yes", "-y", action="store_true", help="Do not ask; required without a terminal")
+    stop_parser.add_argument("--grace", type=float, default=10.0,
+                             help="Seconds between SIGTERM and SIGKILL for processes outside a systemd unit")
+    stop_parser.add_argument("--queue-dir", help="Wakeup queue directory")
+
     shell_hook_parser = sub.add_parser("install-shell-hook", help="Install an idempotent pending-status check in Bash startup")
     shell_hook_parser.add_argument("--rc-file", help="Bash rc file (default: ~/.bashrc)")
     shell_hook_parser.add_argument("--command", help="Executable path embedded in the hook")
@@ -745,6 +755,9 @@ def main() -> int:
     if args.mode == "log":
         from .commands import logs as log_commands
         return log_commands.log(args)
+    if args.mode == "stop":
+        from .commands import stop as stop_commands
+        return stop_commands.stop(args)
     if args.mode == "owner":
         from .commands import owner as owner_commands
         return owner_commands.owner(args)

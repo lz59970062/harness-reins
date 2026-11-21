@@ -6,6 +6,12 @@
   address book, with how long the task has run and when its log last moved. With no task id it lists every task
   that has not ended, the longest-quiet first, so you can see whose job holds a resource and ask them with
   `reins send`.
+- `reins stop <task-id> [-m "why"]` stops a Reins task on purpose. Every process the task started ends, found by
+  the `REINS_TASK_ID` each one inherits, so ones it detached with `setsid`, `nohup` or a double fork end too; a
+  systemd task's unit is stopped. A task still waiting to start never starts. The callback to the session that
+  started it says the user stopped it and not to rerun, restart or replace it, so a service you stop stays stopped.
+  On a task that already ended it stops what the task left running. Linux tasks run by systemd or screen,
+  including inside Docker.
 
 ## 0.14.2 — 2026-11-20
 

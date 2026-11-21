@@ -126,6 +126,7 @@ def run_managed_worker_locked(root: Path, task: dict[str, object]) -> int:
         managed_tasks.write_managed_task(root, task)
         managed_tasks.queue_managed_task_callback(root, task)
         return 125
+    environment[managed_tasks.TASK_ID_ENV] = str(task["id"])
     os.environ.update(environment)
     if os.name == "nt":
         environment["PYTHONIOENCODING"] = "utf-8"
@@ -135,6 +136,9 @@ def run_managed_worker_locked(root: Path, task: dict[str, object]) -> int:
     except FileNotFoundError:
         pass
     task.pop("token", None)
+    if managed_tasks.stop_request(root, str(task["id"])) is not None:
+        managed_tasks.mark_managed_task_interrupted(root, task, managed_tasks.STOPPED_BY_USER)
+        return 0  # stopped before it started: never run the command
     task["state"] = "running"
     task["outcome"] = "running"
     task["boot_id"] = host.current_boot_id()

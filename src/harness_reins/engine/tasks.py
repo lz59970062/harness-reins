@@ -16,7 +16,7 @@ from ..harness.base import DEFAULT_APPROVALS_REVIEWER, DEFAULT_APPROVAL_POLICY, 
 from ..runtime import worker_command
 from ..owners import LaunchError, OwnerState, ScreenBackend, SystemdUserBackend, LaunchdBackend
 from ..owners.windows import WindowsBackend
-from ..core import capabilities, ids, records, results, targets
+from ..core import capabilities, envelope, ids, records, results, targets
 from ..store import layout
 from ..system import files
 from ..owners import host
@@ -35,6 +35,10 @@ AGENT_PROMPT_FILE_NAME = "agent-prompt.txt"
 AGENT_RESULT_FILE_NAME = "agent-result.txt"
 STDIN_FILE_NAME = "stdin"
 STDIN_WAIT_SECONDS = 0.2
+# Every process a task starts inherits this, so `reins stop` finds the ones that left its session.
+TASK_ID_ENV = "REINS_TASK_ID"
+STOP_FILE_NAME = "stop.json"
+STOPPED_BY_USER = envelope.STOPPED_BY_USER
 
 
 def piped_input(stream=None, wait: float = STDIN_WAIT_SECONDS) -> bytes | None:
@@ -212,6 +216,57 @@ def managed_task_namespace(task: dict[str, object]) -> argparse.Namespace:
     )
 
 
+def stop_request_path(root: Path, task_id: str) -> Path:
+    return layout.managed_task_dir(root, task_id) / STOP_FILE_NAME
+
+
+def stop_request(root: Path, task_id: str) -> dict[str, object] | None:
+    """What `reins stop` recorded for this task, if the user stopped it."""
+    try:
+        request = json.loads(stop_request_path(root, task_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return request if isinstance(request, dict) else None
+
+
+def write_stop_request(root: Path, task_id: str, message: str | None) -> None:
+    queue_store.write_request(stop_request_path(root, task_id), {"requested_at": time.time(), "message": message})
+
+
+def stopped_task_details(request: dict[str, object]) -> list[str]:
+    at = request.get("requested_at")
+    when = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(at)) if isinstance(at, (int, float)) else "an unknown time"
+    lines = [f"The user stopped this task on purpose with `reins stop` at {when}."]
+    if request.get("message"):
+        lines.append(f"The user's reason: {request['message']}")
+    lines.append("Do not rerun, restart or replace it, and do not recreate it with `reins run`. "
+                 "If you still need what it did, ask the user first.")
+    return lines
+
+
+def settle_stopped_task(root: Path, task_id: str) -> str | None:
+    """Record a stopped task as interrupted now, when its owner is gone; otherwise the daemon does it.
+
+    Returns the task's state afterwards, or None when another process holds the task.
+    """
+    lock = queue_store.acquire_owner_lock(root, f"managed-task-{task_id}", blocking=False)
+    if lock is None:
+        return None
+    try:
+        task = load_managed_task(layout.managed_task_path(root, task_id))
+        state = str(task.get("state"))
+        if layout.managed_result_path(root, task_id).exists():
+            return state  # the worker saw the exit; recovery turns it into the callback
+        if state == "submitted" or (state in ("launching", "running")
+                                    and managed_owner_state(task) == OwnerState.ABSENT):
+            discard_managed_launch_credentials(task)
+            mark_managed_task_interrupted(root, task, STOPPED_BY_USER)
+            return "interrupted"
+        return state
+    finally:
+        queue_store.release_owner_lock(lock, remove=False)
+
+
 def managed_task_prompt(
     task: dict[str, object],
     *,
@@ -219,6 +274,7 @@ def managed_task_prompt(
     duration: float | None = None,
 ) -> str:
     args = managed_task_namespace(task)
+    stopped = stop_request(Path(str(task["queue_dir"])), str(task["id"])) if task.get("queue_dir") else None
     log_path = task.get("log_path")
     details = [
         f"Managed task id: {task['id']}",
@@ -260,7 +316,9 @@ def managed_task_prompt(
             str(task["agent_template_handoff"]),
             "Check the child exit status and result artifacts before following the handoff. Process completion alone does not establish a successful result.",
         ])
-    if outcome != "completed":
+    if stopped is not None:
+        details.extend(stopped_task_details(stopped))
+    elif outcome != "completed":
         reason = str(task.get("recovery_reason") or outcome)
         details.extend(
             [
@@ -305,6 +363,8 @@ def managed_callback_request(
         request["exit_code"] = task["exit_code"]
     if task.get("recovery_reason"):
         request["recovery_reason"] = task["recovery_reason"]
+    if stop_request(Path(str(task["queue_dir"])), str(task["id"])) is not None:
+        request["stopped_by_user"] = True
     if task.get("task_kind") == "agent":
         request["task_kind"] = "agent"
         request["agent_worker"] = task.get("agent_worker")
@@ -355,6 +415,8 @@ def mark_managed_task_interrupted(
     task: dict[str, object],
     reason: str,
 ) -> bool:
+    if stop_request(root, str(task["id"])) is not None:
+        reason = STOPPED_BY_USER
     task["state"] = "interrupted"
     task["outcome"] = "unknown"
     task["recovery_reason"] = reason
@@ -660,6 +722,11 @@ def recover_managed_tasks(root: Path) -> int:
                     if mark_managed_task_interrupted(root, task, "execution_launch_outcome_unknown"):
                         processed += 1
                 elif record_managed_launch_failure(root, task, "worker_start_handshake_failed"):
+                    processed += 1
+                continue
+            if stop_request(root, task_id) is not None:
+                discard_managed_launch_credentials(task)
+                if mark_managed_task_interrupted(root, task, STOPPED_BY_USER):
                     processed += 1
                 continue
             next_launch_at = task.get("next_launch_at")

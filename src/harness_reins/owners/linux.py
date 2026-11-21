@@ -21,6 +21,7 @@ import signal
 import socket
 import subprocess
 import sys
+import time
 
 from .base import LaunchError, OwnerState
 
@@ -135,6 +136,80 @@ def signal_if_identity_matches(pid: int, identity: dict[str, object], signum: in
         return False
     finally:
         os.close(descriptor)
+
+
+STOP_TIMEOUT_SECONDS = 120.0  # systemd waits up to 90 s before SIGKILL
+
+
+def _environment(pid: int) -> list[str]:
+    try:
+        return Path(f"/proc/{pid}/environ").read_bytes().decode("utf-8", "replace").split("\0")
+    except OSError:
+        return []  # gone, or another user's process
+
+
+def _ancestors() -> set[int]:
+    """This process and the ones above it, so `reins stop` run inside a task never stops itself."""
+    found, pid = set(), os.getpid()
+    while pid > 1 and pid not in found:
+        found.add(pid)
+        try:
+            pid = int(Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return found
+
+
+def marked_processes(marked) -> list[int]:
+    """Live processes whose environment ``marked(lines)`` accepts; zombies have none."""
+    skip = _ancestors()
+    pids = []
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdigit() and int(entry.name) not in skip and marked(_environment(int(entry.name))):
+            pids.append(int(entry.name))
+    return sorted(pids)
+
+
+def _signal_marked(pid: int, marked, signum: int) -> bool:
+    """Signal a process only if it still carries the mark; a pidfd keeps a reused PID out."""
+    descriptor = None
+    try:
+        if hasattr(os, "pidfd_open") and hasattr(signal, "pidfd_send_signal"):
+            descriptor = os.pidfd_open(pid)
+        if not marked(_environment(pid)):
+            return False
+        if descriptor is not None:
+            signal.pidfd_send_signal(descriptor, signum)
+        else:
+            os.kill(pid, signum)
+        return True
+    except OSError:
+        return False
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def _wait_gone(marked, seconds: float) -> list[int]:
+    deadline = time.monotonic() + seconds
+    while True:
+        left = marked_processes(marked)
+        if not left or time.monotonic() >= deadline:
+            return left
+        time.sleep(0.2)
+
+
+def stop_marked_processes(marked, grace: float = 10.0) -> tuple[int, list[int]]:
+    """SIGTERM every marked process, SIGKILL what is left after ``grace`` seconds.
+
+    Returns how many processes were signalled and the ones still alive.
+    """
+    signalled = {pid for pid in marked_processes(marked) if _signal_marked(pid, marked, signal.SIGTERM)}
+    left = _wait_gone(marked, grace) if signalled else marked_processes(marked)
+    if left:
+        signalled |= {pid for pid in left if _signal_marked(pid, marked, signal.SIGKILL)}
+        left = _wait_gone(marked, 3.0)
+    return len(signalled), left
 
 
 def _validate_owner(owner: str) -> None:
@@ -261,6 +336,20 @@ class SystemdUserBackend:
                 f"systemd-run exited with status {result.returncode}; reconcile worker state before retrying",
                 uncertain=True,
             )
+
+    def stop(self, owner: str) -> bool:
+        """Stop the unit; systemd ends every process in its control group and returns when they are gone."""
+        _validate_owner(owner)
+        executable = shutil.which("systemctl")
+        if executable is None:
+            return False
+        try:
+            result = subprocess.run([executable, "--user", "--no-pager", "stop", owner], stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False,
+                                    timeout=STOP_TIMEOUT_SECONDS, env=user_manager_environment())
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0
 
     def probe(self, owner: str) -> OwnerState:
         try:

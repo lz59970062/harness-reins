@@ -210,3 +210,5 @@ Useful commands: `reins status` (unacknowledged callbacks), `reins cancel --id <
 `tail -f <task log>` when the user asks to watch progress.
 
 Whose task is it: `reins owner <task-id>` names the session that started a Reins task (its Reins name, if any); `reins owner` alone lists tasks that have not ended, the longest-quiet log first. Ask that session (`reins send <name>`) before touching its work.
+
+A callback that says `Stopped: the user stopped this task on purpose` means exactly that: do not rerun, restart or replace the task; if you still need it, ask the user. Stop a task yourself (`reins stop <task-id> --yes -m "why"`) only when the user asks, and never another session's task otherwise; to get a resource it holds, ask its session.

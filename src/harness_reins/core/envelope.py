@@ -14,6 +14,9 @@ from . import messages
 
 FORMAT = "reins-compact/1"
 REMINDER = "Inspect results, ACK receipt, then continue the goal. Check existing work before relaunching. ACK is not goal completion."
+STOPPED_BY_USER = "stopped_by_user"
+STOPPED = ("Stopped: the user stopped this task on purpose with `reins stop`. Do not rerun, restart or replace it; "
+           "if you still need it, ask the user first.")
 
 
 def format_duration(seconds: object) -> str | None:
@@ -101,12 +104,14 @@ def render(request: Mapping[str, object], details_path: Path, ack_command: str) 
         lines.append(f"Files: {parent}/ ({', '.join(files)})")
     if result:
         lines.append(f"Agent result: {result}")
-    if request.get("recovery_reason"):
+    if request.get("stopped_by_user"):
+        lines.append(STOPPED)
+    elif request.get("recovery_reason"):
         lines.append(f"Recovery: {request['recovery_reason']}; not automatically restarted. Inspect before relaunching.")
     if request.get("agent_template") == "test" and request.get("agent_template_source", "builtin:test") == "builtin:test":
         lines.append("Test-author handoff, not a test result. Inspect report and changes before executing tests.")
     requires_details = bool(request.get("message") or request.get("agent_template_handoff")
-                            or request.get("goal_reminder") or request.get("recovery_reason")
+                            or request.get("goal_reminder") or request.get("recovery_reason") or request.get("stopped_by_user")
                             or request.get("details_required"))
     lines.append(f"Details: {details_path}" + (" (read before acting)" if requires_details else " (as needed)"))
     target = request.get("target")

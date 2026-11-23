@@ -409,9 +409,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#install-with-npm-linux-x64" class="md-nav__link">
+  <a href="#install-with-npm-linux-x64-macos-windows-x64" class="md-nav__link">
     <span class="md-ellipsis">
-      Install with npm (Linux x64)
+      Install with npm (Linux x64, macOS, Windows x64)
     </span>
   </a>
   
@@ -1260,9 +1260,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#install-with-npm-linux-x64" class="md-nav__link">
+  <a href="#install-with-npm-linux-x64-macos-windows-x64" class="md-nav__link">
     <span class="md-ellipsis">
-      Install with npm (Linux x64)
+      Install with npm (Linux x64, macOS, Windows x64)
     </span>
   </a>
   
@@ -1321,14 +1321,14 @@
 
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <p>Have an Agent CLI that you have signed into. Run Reins and the Agent under the same user account.</p>
-<h2 id="install-with-npm-linux-x64">Install with npm (Linux x64)<a class="headerlink" href="#install-with-npm-linux-x64" title="Permanent link">&para;</a></h2>
-<p>The prebuilt package needs no Python and includes the Zellij and the panel that <a href="../guides/tui/"><code>reins tui</code></a> uses:</p>
+<h2 id="install-with-npm-linux-x64-macos-windows-x64">Install with npm (Linux x64, macOS, Windows x64)<a class="headerlink" href="#install-with-npm-linux-x64-macos-windows-x64" title="Permanent link">&para;</a></h2>
+<p>The prebuilt packages need no Python. On Linux and macOS they include the Zellij and the panel that <a href="../guides/tui/"><code>reins tui</code></a> uses; <code>reins tui</code> does not run on Windows. macOS packages cover Apple silicon and Intel:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>npm<span class="w"> </span>install<span class="w"> </span>-g<span class="w"> </span>harness-reins
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>reins<span class="w"> </span>setup<span class="w"> </span>--enable<span class="w"> </span>--now
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>reins<span class="w"> </span>--version
 </code></pre></div>
 <h2 id="install-from-source">Install from source<a class="headerlink" href="#install-from-source" title="Permanent link">&para;</a></h2>
-<p>Other platforms (macOS, Windows, Linux arm64) install from source, with Python 3.9 or later and Git. Keep the virtual environment after installation: it holds Reins and its dependencies.</p>
+<p>Linux arm64, musl-based Linux such as Alpine, and machines without Node install from source, with Python 3.9 or later and Git. Keep the virtual environment after installation: it holds Reins and its dependencies.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Linux / macOS</label><label for="__tabbed_1_2">Windows PowerShell</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">

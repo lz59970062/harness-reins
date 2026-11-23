@@ -76,7 +76,8 @@ process.stdin.on("end", () => process.exit(0));  // Claude stays until its stdin
 JS
 node_bin=$(native "$(command -v node)")
 if [[ $platform == win32-* ]]; then
-  printf '@"%s" "%%~dp0fake-claude.js" %%*\r\n' "$node_bin" >"$fake/claude.cmd"
+  # A plain forwarding shim, which Reins resolves to its target; it refuses arbitrary batch files.
+  printf '@echo off\r\n"%s.exe" "%s" %%*\r\n' "${node_bin%.exe}" "$(native "$fake/fake-claude.js")" >"$fake/claude.cmd"
   claude_bin=$(native "$fake/claude.cmd")
 else
   printf '#!/bin/sh\nexec "%s" "%s" "$@"\n' "$node_bin" "$fake/fake-claude.js" >"$fake/claude"

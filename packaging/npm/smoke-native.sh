@@ -83,7 +83,7 @@ else
   chmod +x "$fake/claude"
   claude_bin=$fake/claude
 fi
-reins setup --skill-target claude --claude-bin "$claude_bin" --now
+reins setup --force --skill-target claude --claude-bin "$claude_bin" --now
 reins run --agent claude --session e2e-session --task npm-e2e --callback-mode cli \
   -- "$node_bin" -e "setTimeout(() => console.log('payload-from-task'), 2000)"
 

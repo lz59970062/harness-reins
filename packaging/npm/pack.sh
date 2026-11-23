@@ -13,7 +13,8 @@ native() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else printf '
 stage=$(mktemp -d)
 cp -r "$src/packaging/npm/reins" "$stage/reins"
 mkdir -p "$stage/$platform/dist"
-cp -a "$out/dist/reins" "$stage/$platform/dist/reins"
+# npm pack leaves symlinks out, and PyInstaller links the macOS Python framework: copy their targets.
+cp -RL "$out/dist/reins" "$stage/$platform/dist/reins"
 
 node - "$(native "$stage")" "$version" "$platform" <<'EOF'
 const fs = require("fs");

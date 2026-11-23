@@ -2,9 +2,9 @@
 
 准备一个已经完成登录的 Agent CLI。Reins 和 Agent 使用同一个用户账号运行。
 
-## 用 npm 安装（Linux x64）
+## 用 npm 安装（Linux x64、macOS、Windows x64）
 
-预编译包不需要 Python，并且带上了 [`reins tui`](guides/tui.md) 用的 Zellij 和面板：
+预编译包不需要 Python。Linux 和 macOS 的包带上了 [`reins tui`](guides/tui.md) 用的 Zellij 和面板；`reins tui` 不支持 Windows。macOS 包同时覆盖 Apple 芯片和 Intel：
 
 ```bash
 npm install -g harness-reins
@@ -14,7 +14,7 @@ reins --version
 
 ## 从源码安装
 
-其他平台（macOS、Windows、Linux arm64）从源码安装，需要 Python 3.9 或更新版本和 Git。虚拟环境用来保存 Reins 及其依赖，安装完成后保留这个目录。
+Linux arm64、Alpine 等基于 musl 的 Linux，以及没有 Node 的机器从源码安装，需要 Python 3.9 或更新版本和 Git。虚拟环境用来保存 Reins 及其依赖，安装完成后保留这个目录。
 
 ### Linux / macOS
 

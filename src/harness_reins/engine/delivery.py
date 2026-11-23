@@ -978,6 +978,7 @@ def delivery_worker_main() -> int:
         if process is not None:
             terminate_process_group(process)
         result = {"returncode": 127, "error": f"{type(exc).__name__}: {exc}"}
+        print(f"reins: callback delivery failed: {result['error']}", file=sys.stderr, flush=True)
     finally:
         if desktop_delivery is not None:
             desktop_delivery.close()

@@ -8,7 +8,7 @@
 <h3 align="center">Dispatch work to any agent and route the result back to the session that asked.</h3>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.4-2a78d6" alt="Release 0.14.4"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.5-2a78d6" alt="Release 0.14.5"></a>
   <a href="https://www.npmjs.com/package/harness-reins"><img src="https://img.shields.io/badge/npm-harness--reins-2a78d6" alt="npm harness-reins"></a>
   <img src="https://img.shields.io/badge/python-%E2%89%A53.9-2a78d6" alt="Python ≥ 3.9">
   <img src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-2a78d6" alt="Linux, macOS, Windows">

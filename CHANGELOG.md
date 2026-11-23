@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.5 — 2026-11-23
+
+- `npm install -g harness-reins` now works on macOS (Apple silicon and Intel) and Windows x64 as well as Linux x64,
+  with no Python needed. The macOS package includes Zellij and the panel for `reins tui`.
+- When a callback cannot be delivered because of an error inside Reins, `daemon.log` now says what the error was;
+  before, it showed only "exited with 127".
+
 ## 0.14.4 — 2026-11-23
 
 - macOS: `reins setup` reloads a running coordinator in place again. With a python.org or Homebrew Python it

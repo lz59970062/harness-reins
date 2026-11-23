@@ -27,6 +27,9 @@
     "node": ">=18"
   },
   "optionalDependencies": {
-    "@harness-reins/linux-x64": "0.0.0"
+    "@harness-reins/linux-x64": "0.0.0",
+    "@harness-reins/darwin-arm64": "0.0.0",
+    "@harness-reins/darwin-x64": "0.0.0",
+    "@harness-reins/win32-x64": "0.0.0"
   }
 }

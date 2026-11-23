@@ -1,0 +1,48 @@
+name: npm binaries for macOS and Windows
+
+# Builds the platform packages the Linux release machine cannot: each runner freezes reins
+# for its own platform, smoke-tests it, and uploads the packed .tgz. packaging/fetch-ci-packages.sh
+# downloads them next to the Linux build before publishing.
+# Every release tag builds; on branches, only changes to the packaging do (paths are ignored for tags).
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/binaries.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, platform: darwin-arm64 }
+          - { os: macos-15-intel, platform: darwin-x64 }
+          - { os: windows-latest, platform: win32-x64 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Freeze and pack
+        run: bash packaging/build-native.sh ${{ matrix.platform }}
+      - name: Smoke-test the packages
+        run: bash packaging/npm/smoke-native.sh ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.platform }}
+          path: packaging/out/npm/harness-reins-${{ matrix.platform }}-*.tgz
+          if-no-files-found: error

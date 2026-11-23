@@ -67,7 +67,9 @@ process.stdin.on("data", (chunk) => {
   const prompt = JSON.parse(input.slice(0, end)).message.content;
   fs.appendFileSync(log, "argv: " + args.join(" ") + "\n--- stdin ---\n" + prompt + "\n--- end ---\n");
   const ack = /^ACK after inspection: (.*)$/m.exec(prompt);
-  try { fs.appendFileSync(log, execSync(ack[1], { encoding: "utf8" })); }
+  // Windows callbacks write the ACK command for PowerShell.
+  const shell = process.platform === "win32" ? "powershell.exe" : "/bin/sh";
+  try { fs.appendFileSync(log, execSync(ack[1], { encoding: "utf8", shell })); }
   catch (error) { fs.appendFileSync(log, "ACK failed: " + error.message + "\n"); }
   console.log('{"type":"system","subtype":"init"}');
   console.log('{"type":"result","subtype":"success","result":"fake claude received the callback"}');

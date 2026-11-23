@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import os
+import shlex
 import tempfile
 import unittest
 from pathlib import Path
@@ -106,7 +107,7 @@ class CommandTests(OwnerCase):
     def test_the_hints_keep_a_queue_given_on_the_command_line(self):
         self.task("29037999")
         _, out, _ = self.run_owner(task_id="29037999")
-        flag = f"--queue-dir {self.queue}"
+        flag = f"--queue-dir {shlex.quote(str(self.queue))}"
         for text in (f"reins log 29037999 {flag}", f"reins send gsmerge-claude {flag}", f"reins tui 29037999 {flag}"):
             self.assertIn(text, out)
         _, out, _ = self.run_owner(task_id="29037999", queue_dir=None)

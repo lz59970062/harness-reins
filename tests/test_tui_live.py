@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -396,7 +397,7 @@ class CollaboratorTests(LiveCase):
         self.assertIn("reins send motion-plots", prompt)
         self.assertIn("Your first task: check the plots", prompt)
         # Not the default queue: the agents are told which one, or their `reins send` would not find the names.
-        self.assertIn(f"reins send motion-plots --queue-dir {self.root} -m", prompt)
+        self.assertIn(f"reins send motion-plots --queue-dir {shlex.quote(str(self.root))} -m", prompt)
         [partner, mate, notice] = self.reins_calls()
         self.assertEqual(partner[:3], ["session", "register", "motion-plots"])
         self.assertIn(SESSION, partner)
@@ -578,6 +579,7 @@ class AttachedHandleTests(unittest.TestCase):
                                                         ("claude", "abcdef12"): "terminal_6"})
 
 
+@unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
 class CacheTests(unittest.TestCase):
     """The Reins Zellij keeps its session index in a local directory; panes and Claude get the user's back."""
 
@@ -630,6 +632,7 @@ class CacheTests(unittest.TestCase):
                 live.ensure_zellij_cache_dir()
 
 
+@unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
 class LaunchTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -694,6 +697,7 @@ class LaunchTests(unittest.TestCase):
         environment = {"PATH": "/bin", **({"ZELLIJ_SESSION_NAME": launch.SESSION_NAME} if inside else {})}
         with mock.patch.dict(os.environ, environment, clear=True), \
                 mock.patch.object(launch, "inside_agent", return_value=None), \
+                mock.patch.object(launch.importlib.util, "find_spec", return_value=object()), \
                 mock.patch.object(launch, "zellij_executable", return_value="zellij"), \
                 mock.patch.object(launch, "ensure_zellij_cache_dir"), \
                 mock.patch.object(launch, "config_dir", return_value=self.root / "zellij"), \

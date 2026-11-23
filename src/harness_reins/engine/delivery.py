@@ -832,8 +832,7 @@ def delivery_worker_main() -> int:
     def interrupt(signum: int, _frame: object) -> None:
         raise WorkerInterrupted(signum)
 
-    signal.signal(signal.SIGTERM, interrupt)
-    signal.signal(signal.SIGINT, interrupt)
+    previous = {signum: signal.signal(signum, interrupt) for signum in (signal.SIGTERM, signal.SIGINT)}
     try:
         if Path(str(payload["ack_path"])).exists():
             result = {"returncode": 0, "skipped": "already_acknowledged"}
@@ -997,6 +996,8 @@ def delivery_worker_main() -> int:
         sys.stdout.flush()
     except BrokenPipeError:
         pass
+    for signum, handler in previous.items():  # A worker run in-process (tests) leaves no handler behind.
+        signal.signal(signum, handler)
     return 0
 
 

@@ -94,6 +94,7 @@ class CodexThreadTests(unittest.TestCase):
         self.assertNotEqual(threads.handle(THREAD), threads.handle(NEIGHBOUR))
         self.assertEqual(threads.handle(THREAD), "6a877e7d")
 
+    @unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
     def test_commands_go_through_the_daemon(self) -> None:
         environment = {"CODEX_HOME": "/c", "REINS_CODEX_BIN": "/bin/codex"}
         self.assertEqual(threads.resume_command(THREAD, environment),
@@ -146,6 +147,7 @@ def user(text):
     return {"type": "message", "id": "m", "message": {"role": "user", "content": [{"type": "text", "text": text}]}}
 
 
+@unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
 class PiSessionTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -445,6 +447,10 @@ class ReopenableTests(unittest.TestCase):
         self.assertFalse(launch.reopenable("vim attach notes"))
 
 
+# Absolute on every platform: Windows needs a drive.
+QUEUE, LINK = str(Path("/r/queue").absolute()), str(Path("/r/link").absolute())
+
+
 class HostedDaemon(FakeConnection):
     """The daemon as the callback worker sees it: resume reports the thread's sandbox, turn/start starts."""
 
@@ -467,7 +473,7 @@ class HostedDaemon(FakeConnection):
 class CodexRouteTests(unittest.TestCase):
     def payload(self, **request):
         base = {"id": "t1-c1", "agent": "codex", "callback_mode": "cli", "requires": [capabilities.CLI_RESUME],
-                "target": {"kind": "session", "session": THREAD}, "queue_dir": "/r/queue", "link_dir": "/r/link",
+                "target": {"kind": "session", "session": THREAD}, "queue_dir": QUEUE, "link_dir": LINK,
                 "approval_policy": "on-request", "sandbox_mode": "workspace-write"}
         return {"request": {**base, **request}, "timeout": 10, "prompt": "[reins] t1-c1", "cwd": "/elsewhere"}
 
@@ -506,7 +512,7 @@ class CodexRouteTests(unittest.TestCase):
         self.assertIsNotNone(started)
         params = dict(daemon.requests)["turn/start"]
         self.assertEqual(params["sandboxPolicy"], {"type": "workspaceWrite", "networkAccess": True,
-                                                   "writableRoots": ["/data", "/r/queue", "/r/link"]})
+                                                   "writableRoots": ["/data", QUEUE, LINK]})
         # Its cwd and approval settings stay the thread's own, for later turns too.
         self.assertNotIn("cwd", params)
         self.assertNotIn("approvalPolicy", params)

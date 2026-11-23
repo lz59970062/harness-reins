@@ -331,6 +331,7 @@ class SetupSkillRefreshTests(unittest.TestCase):
                 self.assertEqual(path.read_text(encoding="utf-8"), "an older version")
 
 
+@unittest.skipIf(os.name == "nt", "submits through screen")
 class GoalHintTests(LiveCase):
     HINT = "start one with `reins goal start`"
 

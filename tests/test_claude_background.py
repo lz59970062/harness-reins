@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -241,10 +242,14 @@ class WorkerTests(unittest.TestCase):
             }
             read_fd, lock_fd = os.pipe()
             output = io.StringIO()
+            handlers = {signum: signal.getsignal(signum) for signum in (signal.SIGTERM, signal.SIGINT)}
             process = mock.Mock(returncode=0)
             process.communicate.return_value = ("", "")
             try:
                 with mock.patch.dict(os.environ, {"CODEX_LONG_TASK_DELIVERY_LOCK_FDS": json.dumps([lock_fd])}), \
+                        mock.patch.object(delivery_engine.windows_process, "inherited_lock_fds",
+                                          return_value=[lock_fd]), \
+                        mock.patch.object(delivery_engine.windows_process, "enter_worker_job"), \
                         mock.patch.object(sys, "stdin", io.StringIO(json.dumps(payload))), \
                         mock.patch.object(sys, "stdout", output), \
                         mock.patch("sys.stderr", io.StringIO()), \
@@ -256,6 +261,8 @@ class WorkerTests(unittest.TestCase):
                     self.assertEqual(delivery_engine.delivery_worker_main(), 0)
             finally:
                 os.close(read_fd)
+            # Run in-process, the worker puts back the handlers it found; a stray signal would hit later tests.
+            self.assertEqual({signum: signal.getsignal(signum) for signum in handlers}, handlers)
             return json.loads(output.getvalue()), tried, popen
 
     def test_a_session_up_in_the_background_waits_for_its_hook(self) -> None:

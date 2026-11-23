@@ -207,7 +207,8 @@ class ProcessTests(unittest.TestCase):
 class CommandTests(StopCase):
     def test_a_queued_task_is_stopped_at_once(self):
         path, task_id = self.submit()
-        code, out, _ = self.run_stop(task_id[:4])
+        with mock.patch.object(stop_command, "stop_marked_processes", return_value=(0, [])):
+            code, out, _ = self.run_stop(task_id[:4])
         self.assertEqual(code, 0)
         self.assertIn(f"Stopped task {task_id}", out)
         self.assertIn("callback saying you stopped it on purpose", out)

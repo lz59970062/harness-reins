@@ -32,7 +32,7 @@ class RegistrationLockTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name) / "skills"
+        self.root = Path(self.tmp.name).resolve() / "skills"
         self.root.mkdir()
         patcher = mock.patch.dict(os.environ, {"REINS_TEMPLATE_DIR": str(Path(self.tmp.name) / "templates")})
         patcher.start()

@@ -12,6 +12,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+if os.name == "nt":
+    raise unittest.SkipTest("reins tui does not run on Windows")
+
 from harness_reins.commands.tui import launch, live
 from harness_reins.core import sessions
 from harness_reins.core.sessions import SessionView
@@ -579,7 +582,6 @@ class AttachedHandleTests(unittest.TestCase):
                                                         ("claude", "abcdef12"): "terminal_6"})
 
 
-@unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
 class CacheTests(unittest.TestCase):
     """The Reins Zellij keeps its session index in a local directory; panes and Claude get the user's back."""
 
@@ -632,7 +634,6 @@ class CacheTests(unittest.TestCase):
                 live.ensure_zellij_cache_dir()
 
 
-@unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
 class LaunchTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()

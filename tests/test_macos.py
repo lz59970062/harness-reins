@@ -244,6 +244,13 @@ class MacOSContracts(unittest.TestCase):
         self.assertEqual(calls, ["enable"])
         reload.assert_called_once()
 
+    def test_a_framework_python_showing_its_app_path_is_only_reloaded(self):
+        expected = launchd_service.program_arguments(self.arguments())
+        app = "/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python"
+        calls, reload, _ = self.install_with_running(" ".join([app, *expected[1:]]))
+        self.assertEqual(calls, ["enable"])
+        reload.assert_called_once()
+
     def test_a_coordinator_running_an_older_command_is_restarted(self):
         calls, reload, _ = self.install_with_running("/old/python /old/_entry.py daemon --resume-timeout 3600.0")
         self.assertEqual(calls, ["enable", "bootout", "bootstrap"])

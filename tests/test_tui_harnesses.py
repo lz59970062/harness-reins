@@ -9,6 +9,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+if os.name == "nt":
+    raise unittest.SkipTest("reins tui does not run on Windows")
+
 from harness_reins.commands.tui import launch, live
 from harness_reins.core import capabilities, sessions
 from harness_reins.core.sessions import SessionView
@@ -94,7 +97,6 @@ class CodexThreadTests(unittest.TestCase):
         self.assertNotEqual(threads.handle(THREAD), threads.handle(NEIGHBOUR))
         self.assertEqual(threads.handle(THREAD), "6a877e7d")
 
-    @unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
     def test_commands_go_through_the_daemon(self) -> None:
         environment = {"CODEX_HOME": "/c", "REINS_CODEX_BIN": "/bin/codex"}
         self.assertEqual(threads.resume_command(THREAD, environment),
@@ -147,7 +149,6 @@ def user(text):
     return {"type": "message", "id": "m", "message": {"role": "user", "content": [{"type": "text", "text": text}]}}
 
 
-@unittest.skipIf(os.name == "nt", "reins tui does not run on Windows")
 class PiSessionTests(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()

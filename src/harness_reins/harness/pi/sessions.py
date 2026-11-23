@@ -124,7 +124,9 @@ def session_files(environment: Mapping[str, str], limit: int = LIST_LIMIT) -> li
 
 
 def _alive(pid: int) -> bool:
-    # The panel runs where Zellij does, never on Windows.
+    # The panel runs where Zellij does, never on Windows, where os.kill(pid, 0) sends Ctrl+C to the console.
+    if os.name == "nt":
+        return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

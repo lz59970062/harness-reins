@@ -47,8 +47,17 @@ def running_command(pid: int) -> str | None:
 
 
 def runs_command(running: str, expected: list[str]) -> bool:
-    return running in (" ".join(expected), " ".join(os.path.realpath(part) if os.path.isabs(part) else part
-                                                    for part in expected))
+    """Whether the coordinator runs this command.
+
+    A framework Python (python.org, Homebrew) re-executes itself as its Python.app, so ps shows another
+    interpreter path; there the entry script, which names the installation, and the arguments decide.
+    """
+    for parts in (expected, [os.path.realpath(part) if os.path.isabs(part) else part for part in expected]):
+        if running == " ".join(parts):
+            return True
+        if len(parts) > 1 and parts[1].endswith("_entry.py") and running.endswith(" " + " ".join(parts[1:])):
+            return True
+    return False
 
 
 def service_text(args: argparse.Namespace) -> str:

@@ -145,7 +145,7 @@ class RealLaunchdTests(unittest.TestCase):
                     "--interval", "0.05", "--force", "--enable", "--now"]
             with mock.patch.dict(os.environ, env), mock.patch.object(
                 launchd_service, "agent_directory", return_value=directory / "LaunchAgents"
-            ), mock.patch.object(services, "report_claude_agent_readiness"), contextlib.redirect_stdout(io.StringIO()):
+            ), mock.patch.object(services, "report_claude_agent_readiness"), contextlib.redirect_stdout(io.StringIO()) as out:
                 try:
                     with mock.patch.object(sys, "argv", argv):
                         self.assertEqual(cli.main(), 0)
@@ -162,7 +162,9 @@ class RealLaunchdTests(unittest.TestCase):
                         return after is not None and after["started_at"] > before["started_at"]
 
                     self.wait_until(reloaded, "coordinator did not reload")
-                    self.assertEqual(tower.read_daemon_runtime()["pid"], before["pid"])
+                    self.assertEqual(tower.read_daemon_runtime()["pid"], before["pid"],
+                                     f"{out.getvalue()}\nnow runs: "
+                                     f"{launchd_service.running_command(tower.read_daemon_runtime()['pid'])}")
                     self.assertEqual(diagnostics.coordinator_issue(queue), None)
                 finally:
                     self.remove_job(name)

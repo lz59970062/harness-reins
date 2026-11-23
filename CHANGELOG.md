@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.4 — 2026-11-23
+
+- macOS: `reins setup` reloads a running coordinator in place again. With a python.org or Homebrew Python it
+  restarted the coordinator every time since 0.13.1, because `ps` shows such a Python under its app's path.
+- The full test suite passes again on Linux, macOS and Windows, with Python 3.9 and 3.12.
+
 ## 0.14.3 — 2026-11-21
 
 - `reins owner <task-id>` tells you which session started a Reins task, by that session's name in the Reins

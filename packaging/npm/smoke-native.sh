@@ -87,15 +87,25 @@ reins setup --force --skill-target claude --claude-bin "$claude_bin" --now
 reins run --agent claude --session e2e-session --task npm-e2e --callback-mode cli \
   -- "$node_bin" -e "setTimeout(() => console.log('payload-from-task'), 2000)"
 
+fail() {
+  echo "FAIL: $*"
+  reins status || true
+  echo "--- daemon log"; tail -n 80 "$HOME/.reins/daemon.log" || true
+  echo "--- callback records"; find "$HOME/.reins/queue" -name '*-c1*' -type f | while read -r f; do echo "# $f"; head -c 3000 "$f"; echo; done
+  echo "--- task logs"; tail -n 20 "$HOME"/.reins/tasks/*/attempt-1.log || true
+  [[ -s $fake/fake-claude.log ]] && { echo "--- fake claude log"; cat "$fake/fake-claude.log"; }
+  exit 1
+}
 for _ in $(seq 240); do [[ -s $fake/fake-claude.log && -z $(reins status --quiet-empty) ]] && break; sleep 0.5; done
-if [[ ! -s $fake/fake-claude.log ]]; then echo "FAIL: no callback reached the fake claude"; reins status || true; exit 1; fi
+[[ -s $fake/fake-claude.log ]] || fail "no callback reached the fake claude"
 echo "--- fake claude log"; cat "$fake/fake-claude.log"
-if [[ -n $(reins status --quiet-empty) ]]; then echo "FAIL: callback was not acknowledged"; reins status; exit 1; fi
+[[ -z $(reins status --quiet-empty) ]] || fail "callback was not acknowledged"
 deliveries=$(grep -c '^--- stdin ---' "$fake/fake-claude.log")
-if [[ $deliveries -ne 1 ]]; then echo "FAIL: callback delivered $deliveries times, expected once"; exit 1; fi
-grep -q 'payload-from-task' "$HOME"/.reins/tasks/*/attempt-1.log || { echo "FAIL: the task's output is not in its log"; exit 1; }
+[[ $deliveries -eq 1 ]] || fail "callback delivered $deliveries times, expected once"
+grep -q 'payload-from-task' "$HOME"/.reins/tasks/*/attempt-1.log || fail "the task's output is not in its log"
 echo "ok: task ran under the OS owner, callback delivered and acknowledged"
 
 step "reins status / doctor"
 reins status || true
-reins doctor --agent claude --session e2e-session | head -c 1500; echo
+# Informational: without a real, signed-in Claude, doctor reports needs_configuration.
+reins doctor --agent claude --session e2e-session | head -c 1500 || true; echo

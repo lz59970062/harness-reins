@@ -2,9 +2,9 @@
 
 Have an Agent CLI that you have signed into. Run Reins and the Agent under the same user account.
 
-## Install with npm (Linux x64)
+## Install with npm (Linux x64, macOS, Windows x64)
 
-The prebuilt package needs no Python and includes the Zellij and the panel that [`reins tui`](guides/tui.md) uses:
+The prebuilt packages need no Python. On Linux and macOS they include the Zellij and the panel that [`reins tui`](guides/tui.md) uses; `reins tui` does not run on Windows. macOS packages cover Apple silicon and Intel:
 
 ```bash
 npm install -g harness-reins
@@ -14,7 +14,7 @@ reins --version
 
 ## Install from source
 
-Other platforms (macOS, Windows, Linux arm64) install from source, with Python 3.9 or later and Git. Keep the virtual environment after installation: it holds Reins and its dependencies.
+Linux arm64, musl-based Linux such as Alpine, and machines without Node install from source, with Python 3.9 or later and Git. Keep the virtual environment after installation: it holds Reins and its dependencies.
 
 === "Linux / macOS"
 

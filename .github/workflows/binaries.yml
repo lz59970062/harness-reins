@@ -3,12 +3,14 @@ name: npm binaries for macOS and Windows
 # Builds the platform packages the Linux release machine cannot: each runner freezes reins
 # for its own platform, smoke-tests it, and uploads the packed .tgz. packaging/fetch-ci-packages.sh
 # downloads them next to the Linux build before publishing.
-# Every release tag builds; on branches, only changes to the packaging do (paths are ignored for tags).
+# Every release tag builds; on branches, changes to what goes into the binaries do (paths are ignored for tags).
 on:
   push:
     branches: ['**']
     tags: ['v*']
     paths:
+      - 'src/**'
+      - 'pyproject.toml'
       - 'packaging/**'
       - '.github/workflows/binaries.yml'
   workflow_dispatch:

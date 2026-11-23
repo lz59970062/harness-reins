@@ -95,7 +95,7 @@ interface.
   its partner and how to reach it.
 - **Safe to leave.** `Alt+d`, closing the terminal or a dropped SSH connection leaves every session
   running, `Alt+q` asks first with Detach preselected, and `reins tui` brings the same screen back.
-- **Ready on install.** The Linux npm package includes Zellij and the panel. Ctrl keys go straight
+- **Ready on install.** The npm package for Linux and macOS includes Zellij and the panel. Ctrl keys go straight
   to Claude Code.
 
 ```bash
@@ -184,7 +184,7 @@ Long Task Callback became Agent Traffic Control and then **Harness Reins**.
 ## Quick start
 
 ```bash
-# 1. Install (prebuilt for Linux x64; see below for other platforms)
+# 1. Install (prebuilt for Linux x64, macOS and Windows x64; see below for other platforms)
 npm install -g harness-reins
 
 # 2. Make it the installed Reins, add the skills for Codex + Claude Code, start the coordinator
@@ -197,8 +197,7 @@ reins --version
 reins doctor --agent codex --session <session-id>
 ```
 
-Without Node, or on macOS and Windows until their prebuilt packages ship, install from source and
-run the same `reins setup`:
+Without Node, or on Linux arm64, install from source and run the same `reins setup`:
 
 ```bash
 python3 -m pip install "git+https://github.com/lz59970062/harness-reins.git"
@@ -404,7 +403,7 @@ reins tui <id>           # open one session, by its id or a task it started
 
 Double-click a session to open it beside the panel; `n` starts a new one, a right click opens its
 menu. Claude Code and Codex sessions keep running when you close the pane or the screen. Not on
-Windows. The Linux npm package includes Zellij; with pip, install `harness-reins[tui]` and Zellij.
+Windows. The npm package for Linux and macOS includes Zellij; with pip, install `harness-reins[tui]` and Zellij.
 → [Terminal UI guide](docs/guides/tui.en.md)
 
 ### Session binding
@@ -490,7 +489,7 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 - [x] Fresh child agents in Codex, Claude Code and Pi; live callbacks into Claude Code and Pi
 - [x] Protocol v1: root-plus-suffix IDs, record schemas, delivery capabilities, results that keep child reports apart from observed facts (0.8)
 - [x] One canonical installation and npm distribution for Linux x64 (0.8)
-- [ ] Prebuilt npm packages for macOS and Windows
+- [x] Prebuilt npm packages for macOS and Windows (0.14.5)
 - [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11), and DeepSeek Harness (0.12)
 - [x] A terminal UI for every Claude Code, Codex and Pi session on the machine (0.14)
 - [ ] Messages between machines, over SSH and an authenticated port ([design](docs/design/link-protocol.md))

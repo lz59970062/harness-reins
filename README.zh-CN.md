@@ -55,7 +55,7 @@ ACK after inspection: reins ack <task-id>-c1
 - **按项目归类，名字由你定。** 会话按文件夹分组缩进，你给它起的 Reins 名字和 Harness 自动起的标题并排显示，标题相近的会话也分得清。打不开的会话会弹出闪烁的窗口说明原因，不会被忽略。
 - **一个菜单全搞定。** 右键会话（或按 `o`）：在下方或右侧打开、分叉、在它的目录开终端、发消息、置顶、复制 ID、停止、归档。同一个菜单还能启动协作会话：新开一个 Claude Code、Codex 或 Pi 会话，它一开始就知道搭档是谁、怎么联系。
 - **放心离开。** `Alt+d`、直接关掉终端或 SSH 断线，所有会话照常运行；`Alt+q` 会先询问，默认选中 Detach；再运行 `reins tui` 回到同一个屏幕。
-- **装好就能用。** Linux 的 npm 包自带 Zellij 和面板，Ctrl 快捷键原样交给 Claude Code。
+- **装好就能用。** Linux 和 macOS 的 npm 包自带 Zellij 和面板，Ctrl 快捷键原样交给 Claude Code。
 
 ```bash
 reins tui            # 打开面板
@@ -117,7 +117,7 @@ Codex、Claude Code、Pi 都是 harness，Reins 是握住它们的那副缰绳�
 ## 快速开始
 
 ```bash
-# 1. 安装（目前提供 Linux x64 预编译包；其他平台见下文）
+# 1. 安装（提供 Linux x64、macOS 和 Windows x64 预编译包；其他平台见下文）
 npm install -g harness-reins
 
 # 2. 设为本机唯一的 Reins，安装 Codex 和 Claude Code 的 skill，启动协调服务
@@ -129,7 +129,7 @@ reins --version
 reins doctor --agent codex --session <会话ID>
 ```
 
-没有 Node，或者在 macOS、Windows 的预编译包发布之前，可以从源码安装，再运行同样的 `reins setup`：
+没有 Node，或者在 Linux arm64 上，可以从源码安装，再运行同样的 `reins setup`：
 
 ```bash
 python3 -m pip install "git+https://github.com/lz59970062/harness-reins.git"

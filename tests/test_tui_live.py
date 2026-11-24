@@ -433,6 +433,8 @@ class CollaboratorTests(LiveCase):
         self.assertEqual(backend.free_name("lab", {"lab"}), "lab-2")
         self.assertNotIn("--queue-dir", backend.collaborator_prompt("m", "p", "claude", "/w", ""))
         self.assertIn("--queue-dir '/a b'", backend.collaborator_notice("m", "codex", "/w", "", "/a b"))
+        self.assertIn("Keep @p informed", backend.collaborator_prompt("m", "p", "claude", "/w", ""))
+        self.assertIn("reins reply", backend.collaborator_notice("m", "codex", "/w", ""))
 
     def test_a_refused_start_tells_nobody(self) -> None:
         self.assertIn("no directory", self.backend.start_collaborator(SESSION, "claude", str(self.home / "x")).message)

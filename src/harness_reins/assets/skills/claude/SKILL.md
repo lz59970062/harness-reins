@@ -1,6 +1,6 @@
 ---
 name: harness-reins
-description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this turn, and get the result back in this same Claude Code session when they finish. Use instead of sleeping, polling logs, or leaving a job owned by the Bash tool whenever a command may take about a minute or longer. For work of several steps (train then evaluate, a sweep of runs, build then test then publish) or work left running unattended, start a Reins goal before the first job; it reminds this session if everything goes quiet. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results.
+description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this turn, and get the result back in this same Claude Code session when they finish. Use instead of sleeping, polling logs, or leaving a job owned by the Bash tool whenever a command may take about a minute or longer. For work of several steps (train then evaluate, a sweep of runs, build then test then publish) or work left running unattended, start a Reins goal before the first job; it reminds this session if everything goes quiet. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results. Also for messaging other agent sessions on this machine, when the user names one as `@name`, asks you to tell, ask or hand work to another session, or you have a partner session, use `reins send`, and answer each `[reins-msg]` with `reins reply`.
 ---
 
 # Harness Reins for Claude Code
@@ -27,6 +27,9 @@ differs from this page about callback delivery, this page applies to Claude Code
 - Never start a long job, or a script that waits for one, with `nohup ... &`, `setsid`, `disown` or
   `screen` yourself. Nothing tracks such a process, so nothing wakes you when it ends, and its result
   goes unseen. Use `reins run` (`-- bash -c '...'` for a script) so the end comes back as a callback.
+- Another session is involved (the user writes `@name`, says to tell, ask or hand work to another
+  session, or you were started as a partner of one) → message it with `reins send`, see "Messages
+  from other sessions". Do not ask the user to pass the message on.
 
 ## The workflow
 
@@ -161,8 +164,16 @@ reins run --goal-id <goal-id> --cwd "$PWD" --task "step 1" -- ...
 
 ## Messages from other sessions
 
-Sessions on this machine can talk to each other, whatever harness they run on. Use this when the
-user asks you to coordinate with another session; use `reins agent` to start new work.
+Sessions on this machine can talk to each other, whatever harness they run on. Use this whenever another session is involved: the user names it as `@name` (its address in the
+Reins address book; `reins session list` shows them all), asks you to tell, ask or hand work to another
+session, or you work beside a partner. Use `reins agent` to start new work.
+
+**With a partner, keep it informed without being asked.** You have one when your first prompt says
+"You are @name, ... to work together with @partner", when a message says a new session was started to
+work with you, or when the user pairs you with one. Message it when you finish what it asked for, when
+you are blocked on it, and when you change something it relies on. A message that asks a question gets
+a `reins reply` with the answer, not only an ACK. Before you end a turn while a partner waits on you,
+send what you owe it.
 
 ```bash
 reins session register NAME          # once, to name this session; lowercase, digits, - and _

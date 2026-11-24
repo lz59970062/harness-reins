@@ -97,6 +97,8 @@ def collaborator_prompt(mate: str, partner: str, partner_agent: str, partner_cwd
         f"Reach it with `{send_command(partner, queue)}` (the harness-reins skill has the details); "
         "what it sends you arrives here.",
         f"Your first task: {task}" if task else f"You have no task yet: wait for @{partner} or the user to give you one.",
+        f"Keep @{partner} informed without being asked: message it when you finish a task, when you are stuck, and "
+        "when you need something from it, and answer its questions with `reins reply`.",
     ]
     return "\n".join(lines)
 
@@ -108,6 +110,8 @@ def collaborator_notice(mate: str, mate_agent: str, cwd: str, task: str, queue: 
         "screen to work with you.",
         f"Reach it with `{send_command(mate, queue)}`; what it sends you arrives here.",
         f"Its first task: {task}" if task else "It has no task yet: tell it what to do.",
+        f"It reports back here. Answer its questions with `reins reply`, and message @{mate} yourself when you "
+        "hand it work or change something it relies on.",
     ]
     return "\n".join(lines)
 

@@ -117,6 +117,20 @@ Desktop do not); copy the line from the window by hand:
 For copies that just work, use iTerm2 (Settings > General > Selection > "Applications in terminal may access
 clipboard") or Ghostty.
 
+## Selecting and copying
+
+- **Drag to select** in Claude Code, Codex, Pi and terminal panes. The text is copied when you let go of the mouse,
+  so just paste. **Do not press `Ctrl+C` afterwards**: it goes to the program in the pane, which Claude Code and
+  Codex read as cancel (twice as quit) and a shell as an interrupt.
+- **The panel's text does not select**: the panel uses the mouse to pick sessions. For a session's address or id, use
+  the Copy items in its right-click menu (above).
+- **The terminal's own selection** works everywhere, the panel included: hold `Shift` while you drag in Windows
+  Terminal and most Linux terminals, hold ⌥ in iTerm2, or press ⌘R first in macOS Terminal. Then copy as you
+  normally would; in Windows Terminal, `Ctrl+C` with a selection only copies. It ignores pane borders and picks up
+  the next pane's text too, so press `Alt+f` to fullscreen the pane first.
+- **If a paste comes out empty after letting go**, the terminal does not let programs write the clipboard (OSC 52),
+  as in macOS Terminal. Use the terminal's own selection instead.
+
 ## Pane keys
 
 Panes take a few `Alt` keys that act at once, with no modes to remember; every `Ctrl` key goes to Claude Code and

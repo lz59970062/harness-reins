@@ -326,11 +326,11 @@ reins link join CODE --peer hub                           # 在 B 上运行
 
 | 限制（`config.yaml` 里的键） | 默认值 | 超出时 |
 |---|---|---|
-| 连续回复层数（`hop`） | 8 | `limit_exceeded` |
-| 单个对话的消息数（`thread_messages`） | 100 | 同上 |
+| 连续回复层数（`hop`） | 30 | `limit_exceeded` |
+| 单个对话的消息数（`thread_messages`） | 300 | 同上 |
 | 单个对话每分钟消息数（`thread_per_minute`） | 20 | 同上 |
 | 同一发送方每分钟消息数（`sender_per_minute`） | 120 | 同上；多机时对应对端，回 `busy` |
-| 同一收发对每小时消息数（`pair_per_hour`） | 60 | 同上。防止 Agent 不回复、每次开新对话来绕过 `hop` |
+| 同一收发对每小时消息数（`pair_per_hour`） | 120 | 同上。防止 Agent 不回复、每次开新对话来绕过 `hop` |
 | 待投递消息总数（`pending_messages`） | 1000 | 同上；多机时回 `busy` |
 | 消息保留天数（`ttl_days`） | 7 | 未读的变成 `expired` |
 | 已结束消息的清理天数（`retention_days`） | 30 | 删除消息记录和正文 |
@@ -341,8 +341,8 @@ reins link join CODE --peer hub                           # 在 B 上运行
 
 ```yaml
 limits:
-  hop: 4
-  pair_per_hour: 30
+  hop: 60
+  pair_per_hour: 240
 ```
 
 ## 11. 远程启动 Agent（最后一阶段）

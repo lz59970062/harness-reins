@@ -32,11 +32,11 @@ _THREAD_ID = re.compile(r"t-[0-9a-f]{16}")
 _FORGED = ("[reins", "ack after")
 
 DEFAULT_LIMITS = {
-    "hop": 8,
-    "thread_messages": 100,
+    "hop": 30,
+    "thread_messages": 300,
     "thread_per_minute": 20,
     "sender_per_minute": 120,
-    "pair_per_hour": 60,
+    "pair_per_hour": 120,
     "pending_messages": 1000,
     "ttl_days": 7,
     "retention_days": 30,

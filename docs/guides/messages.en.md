@@ -82,11 +82,11 @@ Two agents replying to each other can go on indefinitely, so Reins sets limits f
 
 | Limit | Default |
 | --- | --- |
-| Replies in a row | 8 |
-| Messages in a thread | 100 |
+| Replies in a row | 30 |
+| Messages in a thread | 300 |
 | Messages in a thread per minute | 20 |
 | Messages from one sender per minute | 120 |
-| Messages between two sessions per hour | 60 |
+| Messages between two sessions per hour | 120 |
 | Messages waiting to be delivered | 1000 |
 
 At a limit the command refuses and tells the agent to stop and tell you. The alert is for people only and is not sent to any agent, so it cannot become the next turn. It shows in `reins status` and `reins doctor`, and you can read and clear it with:
@@ -100,8 +100,8 @@ To change the limits, write them in `~/.reins/link/config.yaml`:
 
 ```yaml
 limits:
-  hop: 4
-  pair_per_hour: 30
+  hop: 60
+  pair_per_hour: 240
 ```
 
 ## Security

@@ -634,6 +634,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#selecting-and-copying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Selecting and copying
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pane-keys" class="md-nav__link">
     <span class="md-ellipsis">
       Pane keys
@@ -1353,6 +1362,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#selecting-and-copying" class="md-nav__link">
+    <span class="md-ellipsis">
+      Selecting and copying
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pane-keys" class="md-nav__link">
     <span class="md-ellipsis">
       Pane keys
@@ -1599,6 +1617,20 @@ Desktop do not); copy the line from the window by hand:</p>
 </ul>
 <p>For copies that just work, use iTerm2 (Settings &gt; General &gt; Selection &gt; "Applications in terminal may access
 clipboard") or Ghostty.</p>
+<h2 id="selecting-and-copying">Selecting and copying<a class="headerlink" href="#selecting-and-copying" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Drag to select</strong> in Claude Code, Codex, Pi and terminal panes. The text is copied when you let go of the mouse,
+  so just paste. <strong>Do not press <code>Ctrl+C</code> afterwards</strong>: it goes to the program in the pane, which Claude Code and
+  Codex read as cancel (twice as quit) and a shell as an interrupt.</li>
+<li><strong>The panel's text does not select</strong>: the panel uses the mouse to pick sessions. For a session's address or id, use
+  the Copy items in its right-click menu (above).</li>
+<li><strong>The terminal's own selection</strong> works everywhere, the panel included: hold <code>Shift</code> while you drag in Windows
+  Terminal and most Linux terminals, hold ⌥ in iTerm2, or press ⌘R first in macOS Terminal. Then copy as you
+  normally would; in Windows Terminal, <code>Ctrl+C</code> with a selection only copies. It ignores pane borders and picks up
+  the next pane's text too, so press <code>Alt+f</code> to fullscreen the pane first.</li>
+<li><strong>If a paste comes out empty after letting go</strong>, the terminal does not let programs write the clipboard (OSC 52),
+  as in macOS Terminal. Use the terminal's own selection instead.</li>
+</ul>
 <h2 id="pane-keys">Pane keys<a class="headerlink" href="#pane-keys" title="Permanent link">&para;</a></h2>
 <p>Panes take a few <code>Alt</code> keys that act at once, with no modes to remember; every <code>Ctrl</code> key goes to Claude Code and
 the terminal. Clicking a pane and scrolling with the wheel work too.</p>

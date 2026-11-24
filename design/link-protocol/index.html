@@ -1953,12 +1953,12 @@
 <tbody>
 <tr>
 <td>连续回复层数（<code>hop</code>）</td>
-<td>8</td>
+<td>30</td>
 <td><code>limit_exceeded</code></td>
 </tr>
 <tr>
 <td>单个对话的消息数（<code>thread_messages</code>）</td>
-<td>100</td>
+<td>300</td>
 <td>同上</td>
 </tr>
 <tr>
@@ -1973,7 +1973,7 @@
 </tr>
 <tr>
 <td>同一收发对每小时消息数（<code>pair_per_hour</code>）</td>
-<td>60</td>
+<td>120</td>
 <td>同上。防止 Agent 不回复、每次开新对话来绕过 <code>hop</code></td>
 </tr>
 <tr>
@@ -1996,8 +1996,8 @@
 <p>拒绝时发送方的命令以退出码 3 结束，并让 Agent 停下告诉用户。告警出现在 <code>reins status</code>、<code>reins message alerts</code> 和 <code>reins doctor</code>，不会再发给任何 Agent，避免错误提示本身成为下一轮对话。<code>reins doctor</code> 之外的命令不会把它附到 Agent 的输出里。</p>
 <p>配置示例，写在 <code>~/.reins/link/config.yaml</code>：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">limits</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
 </code></pre></div>
 <h2 id="11-远程启动-agent最后一阶段">11. 远程启动 Agent（最后一阶段）<a class="headerlink" href="#11-远程启动-agent最后一阶段" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>reins<span class="w"> </span>agent<span class="w"> </span>--host<span class="w"> </span>gpu1<span class="w"> </span>expert<span class="w"> </span>reviewer<span class="w"> </span>--name<span class="w"> </span>r1<span class="w"> </span>--<span class="w"> </span><span class="s2">"审查这个分支"</span>

@@ -1473,11 +1473,11 @@
 <tbody>
 <tr>
 <td>连续回复层数</td>
-<td>8</td>
+<td>30</td>
 </tr>
 <tr>
 <td>单个对话的消息数</td>
-<td>100</td>
+<td>300</td>
 </tr>
 <tr>
 <td>单个对话每分钟消息数</td>
@@ -1489,7 +1489,7 @@
 </tr>
 <tr>
 <td>两个会话之间每小时消息数</td>
-<td>60</td>
+<td>120</td>
 </tr>
 <tr>
 <td>等待投递的消息总数</td>
@@ -1503,8 +1503,8 @@
 </code></pre></div>
 <p>需要调整时写在 <code>~/.reins/link/config.yaml</code>：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">limits</span><span class="p">:</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
 </code></pre></div>
 <h2 id="安全">安全<a class="headerlink" href="#安全" title="Permanent link">&para;</a></h2>
 <p><strong>消息正文不等于用户指令。</strong> 正文放在单独的文件里，并标明由其他 Agent 或脚本写成。主题和名字都经过校验，正文无法冒充 Reins 或伪造 ACK 命令。</p>

@@ -538,6 +538,9 @@ Alt+arrows  move between panes      Alt+x  close a pane      Alt+f  fullscreen
 Alt+d       leave (run `reins tui` to come back)     Alt+q  leave or end (asks)
 Alt+r       back to the panel (opens it again if it was closed)
 Ctrl+Q in the panel also leaves or ends it.
+Mouse: drag selects and copies when you let go; no Ctrl+C (it goes to the pane's program).
+Shift+drag (iTerm2: Option+drag) selects with the terminal itself, also in the panel; Alt+f first
+keeps it inside one pane.
 Mac: Alt is Option. macOS Terminal: Settings > Profiles > Keyboard > "Use Option as Meta key";
 iTerm2: Settings > Profiles > Keys > Left Option key: Esc+.
 Closing a pane or the screen never stops a Claude or Codex session (s in the panel stops

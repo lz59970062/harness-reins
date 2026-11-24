@@ -84,6 +84,13 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 
 想让复制直接生效，可以用 iTerm2（在 Settings → General → Selection 打开 “Applications in terminal may access clipboard”）或 Ghostty。
 
+## 选中和复制
+
+- **直接拖选**：Claude Code、Codex、Pi 和终端窗格里拖动鼠标就能选中，松开鼠标时已经复制好了，直接粘贴即可。**不要再按 `Ctrl+C`**：这时它会发给窗格里的程序，Claude Code 和 Codex 把它当作取消（连按两次是退出），终端里是中断命令。
+- **面板里的文字选不中**：面板自己用鼠标点选会话。要会话的地址或 ID，用右键菜单里的 Copy 项（见上）。
+- **用终端自己的选择**：Windows Terminal 和大多数 Linux 终端按住 `Shift` 拖选，iTerm2 按住 ⌥ 拖选，macOS 自带的“终端”先按 ⌘R 关掉鼠标报告。这样哪里都能选，包括面板，然后按终端平常的方式复制（Windows Terminal 里有选区时按 `Ctrl+C` 只复制，不会发给程序）。它不认窗格边界，会连旁边窗格的字一起选进去，所以先按 `Alt+f` 把窗格全屏。
+- **松开后粘贴出来是空的**：终端不允许程序写剪贴板（OSC 52），比如 macOS 自带的“终端”。改用上一条终端自己的选择。
+
 ## 窗格操作
 
 窗格只用几个 `Alt` 键，按一下就生效，没有要记的模式；`Ctrl` 键全部留给 Claude Code 和终端。鼠标点击切换窗格、滚轮翻看历史也可以。

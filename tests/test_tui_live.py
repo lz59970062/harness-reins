@@ -876,6 +876,8 @@ class LaunchTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             zellij.move_pane("left")
         self.assertIn("Use Option as Meta key", launch.HINT_TEXT)
+        self.assertIn("copies when you let go", launch.HINT_TEXT)
+        self.assertIn("Shift+drag", launch.HINT_TEXT)
 
     def test_a_screen_with_a_shell_asks_with_no_as_the_default(self) -> None:
         views = [{"id": 4, "title": "Claude Code", "is_plugin": False,

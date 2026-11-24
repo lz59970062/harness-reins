@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.6 — 2026-11-24
+
+- `reins tui` explains selecting and copying: a drag in a Claude Code, Codex, Pi or terminal pane is already copied
+  when you let go, and a `Ctrl+C` after it goes to the program in the pane. The panel's text does not select;
+  Shift+drag (Option in iTerm2) uses the terminal's own selection everywhere. In the hint pane and the TUI guide.
+- Agents remember they can message other sessions: the Reins skill's description now covers `@name`, "tell / ask
+  the other session" and partner sessions, so the skill comes up for them, and it asks a session with a partner to
+  report when it finishes, gets stuck or changes something the partner relies on. A collaborator started from
+  `reins tui` is told the same in its first prompt.
+- Message limits are higher, so a working conversation between two sessions no longer stops early: 30 replies in
+  a row (was 8), 300 messages in a thread (was 100) and 120 messages an hour between two sessions (was 60). The
+  per-minute limits that stop a runaway loop are unchanged; `~/.reins/link/config.yaml` still overrides any of them.
+
 ## 0.14.5 — 2026-11-23
 
 - `npm install -g harness-reins` now works on macOS (Apple silicon and Intel) and Windows x64 as well as Linux x64,

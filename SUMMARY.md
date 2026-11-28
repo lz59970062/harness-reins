@@ -28,6 +28,7 @@
 - [Claude Code](integrations/claude.md)
 - [Pi](integrations/pi.md)
 - [DeepSeek Harness](integrations/dsh.md)
+- [Antigravity](integrations/agy.md)
 - [Codex Desktop](integrations/desktop.md)
 
 ## 参考

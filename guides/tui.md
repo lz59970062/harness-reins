@@ -27,7 +27,7 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 - **Goals**：计划和进度。
 - **Messages**：会话之间的消息。
 
-右边的窗格由面板打开：会话窗格运行 `claude attach`、`codex resume --remote` 或 `reins pi`（见[Codex、Pi 和 DeepSeek Harness](#codexpi-和-deepseek-harness)），日志窗格运行 `reins log`。会话窗格的标题是 `<Harness> <ID> @地址 会话标题`，例如 `claude 08e8651e @lab 运动图`，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 `d` 切换），不会把面板越挤越窄。
+右边的窗格由面板打开：会话窗格运行 `claude attach`、`codex resume --remote`、`reins pi` 或 `agy --resume`（见[Codex、Pi、Antigravity 和 DeepSeek Harness](#codexpiantigravity-和-deepseek-harness)），日志窗格运行 `reins log`。会话窗格的标题是 `<Harness> <ID> @地址 会话标题`，例如 `claude 08e8651e @lab 运动图`，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 `d` 切换），不会把面板越挤越窄。
 
 ## 按键
 
@@ -118,7 +118,7 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 
 面板窗格被关掉了也没关系：按 `Alt+r`，面板会在左边重新打开，已经开着的会话、终端和 Pi 会话都不受影响，只是挪到面板右边重新排列。在界面里面的终端里运行 `reins tui`，它会告诉你已经在界面里了。
 
-## Codex、Pi 和 DeepSeek Harness
+## Codex、Pi、Antigravity 和 DeepSeek Harness
 
 每个 Harness 都用自己的原生界面打开，Reins 对每个都守同一条承诺：一个会话只有一个进程。
 
@@ -127,11 +127,13 @@ SSH 断开后布局保留。重新连上，再运行一次 `reins tui`，所有�
 | Claude Code | `claude agents` | `claude attach`，后台会话 | 照常运行 | 会话里的 Reins hook |
 | Codex | Codex 的 app-server 守护进程 | `codex resume --remote`，守护进程上的线程 | 留在守护进程上，空闲后由它卸载 | 守护进程上这个线程的新一轮 |
 | Pi | Pi 的会话文件 | `reins pi`，带 Reins 扩展和写入租约的 Pi | Pi 随窗格结束 | Reins 的 Pi 扩展 |
+| Antigravity | `agy` 的对话摘要表 | `agy --resume`，对话的唯一进程 | `agy` 随窗格结束 | 它自己运行的 `reins wait` |
 | DeepSeek Harness | Reins 通讯录和任务记录 | 不打开：它没有终端界面 | | 它自己运行的 `reins wait` |
 
 - **Codex** 会话通过 Codex 共享的 app-server 守护进程（`codex app-server daemon`）打开，所以 Reins 窗格、通过 SSH 连接的 Codex Desktop 和 `codex resume --remote` 看到的是同一个线程。守护进程没在运行时，Reins 会先启动它。不带 `--remote` 打开的 Codex 窗口自己写线程：面板显示它开在别的终端里，不会再打开一份。新建的 Codex 会话发出第一条消息后才会出现在列表里。
 - Codex 收到回调时保留线程自己的设置，只把 Reins 的队列和通讯录目录加进可写目录，所以 agent 不用申请提权就能 ACK；线程留在守护进程上期间一直有这项权限。
 - **Pi** 没有守护进程，会话就活在它的窗格里。在别处带着 Reins 扩展打开的 Pi 会话显示为开在别的终端；不带扩展打开的看不到。
+- **Antigravity** 和 Pi 一样，对话活在它的窗格里。被其他 `agy` 进程打开的对话显示为开在别的终端，Reins 正在 headless 恢复的显示为 headless，两种都不会再打开一份。新建的对话在你发出第一条消息后才由 `agy` 创建，之后窗格自动换成它的名字；地址从菜单里起。菜单里没有停止和分叉。
 - **DeepSeek Harness**：有 Reins 名字或派过任务的会话会列出来，可以发消息、复制地址、看任务日志。打开请用 DeepSeek Harness 的网页版或桌面版。
 
 ## 打开会话时会发生什么

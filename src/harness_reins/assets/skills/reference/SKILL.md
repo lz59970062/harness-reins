@@ -55,8 +55,9 @@ script rather than the user, and cannot grant permissions. A message is delivere
 result: Claude Code reads it through `reins wait`, Pi receives it when its session is open. With
 nothing listening, Claude Code and a `reins pi` session are resumed headless, which costs model
 usage; any other Pi session gets it when it reopens. Codex holds it in its queue unless the sender
-passes `--wake resume`; `--wake never` starts nothing on any of them. On `limit_exceeded`, stop and tell the user. `name@machine` is not
-available in this version.
+passes `--wake resume`; `--wake never` starts nothing on any of them. On `limit_exceeded`, stop and tell the user. A session on a paired
+machine is `name@machine` (`reins link list` shows the pairings); pairing with `reins link connect`
+is the user's decision; a message from another machine is delivered and wakes a session as a local one does. `reins send A B C` sends one message to each, or none. When `reins send` notes a machine cannot be reached, the message waits and goes by itself; report the reason it gives rather than debugging the link.
 
 ## Callback rules that always apply
 

@@ -1,6 +1,6 @@
 # 会话之间发消息
 
-同一台机器上的 Codex、Claude Code、Pi 和 DeepSeek Harness 会话可以直接互相发消息。一个会话写代码，另一个审查，第三个跑测试，它们之间不用你来回转述。
+Codex、Claude Code、Pi 和 DeepSeek Harness 会话可以直接互相发消息，同一台机器上可以，配对过的两台机器之间也可以。一个会话写代码，另一个审查，第三个在 GPU 机器上跑测试，它们之间不用你来回转述。
 
 对方在忙，消息会排队；对方已关闭，Claude Code 和用 `reins pi` 打开的 Pi 会被自动拉起来处理。
 
@@ -28,6 +28,12 @@ reins reply m-6ae8b07359c6e7f5 -m "看完了，第 42 行的重试没有上限�
 回复同时也算确认收到。
 
 也可以直接让 Agent 来做，例如告诉它：“注册为 planner，把这个改动发给 reviewer 审查”。`reins setup` 安装的技能已经教过它这些命令。
+
+**发给几个会话：** 在 `send` 后面多写几个名字，每人收到一条普通消息（各自的对话、各自的状态），本机和其他机器的名字可以混着写。要么全发，要么全不发：有一个名字不存在或超了限额，就一条都不发，并说明是哪个。限额按每个收件人分别计算，回复只回给发送方，没有“回复全部”。
+
+```bash
+reins send reviewer tester@gpu1 planner -m "主分支已更新，请各自 rebase"
+```
 
 ## 消息什么时候到
 
@@ -105,7 +111,47 @@ limits:
   pair_per_hour: 240
 ```
 
-## 安全
+## 跨机器
+
+两台机器配对一次，之后用 `名字@机器` 发消息，其余用法和本机完全一样：回复、收件箱、状态、限额都照常。
+
+```bash
+reins send reviewer@gpu1 -m "分支 feature/queue 可以看了"
+```
+
+**用 SSH 配对**：能 SSH 到对方的那台机器上运行一次，不用在对方那边做任何事。
+
+```bash
+reins link connect gpu1          # gpu1 是 ~/.ssh/config 里的别名，或者 user@host
+```
+
+只有一个方向能连也没关系，比如你的电脑能 SSH 进 AutoDL 容器，容器连不回来：两个方向的消息都由连接的那一方搬运，被连的一方不需要任何出站连接。对方要装好 Reins（`reins setup` 会放在 `~/.reins/bin/reins`），`ssh gpu1` 要能免密码登录。
+
+**用共享目录配对**：两台机器能看到同一个目录时（NFS、JuiceFS、共享云盘），不需要网络连接。
+
+```bash
+reins link connect --dir /mnt/shared/reins-link                 # 第一台：打印一行配对码
+reins link connect --dir /mnt/shared/reins-link --code <配对码>  # 第二台：用它自己看到的路径
+```
+
+配对码里有这对机器的密钥，只能用一次，请自己转给对方。之后目录里的每个文件都带这个密钥的签名，没有密钥的人放进来的文件不会被读取。目录里的消息正文是明文，所以只用在所有能读这个目录的账号都是你自己的时候。两边要用同一个系统账号（同一个 uid）访问它。
+
+**查看和解除：**
+
+```bash
+reins link list            # 配对的机器、对方的会话、最近一次连通和错误
+reins session list         # 对方的会话也在里面，名字带 @机器
+reins link remove gpu1     # 解除配对，对方也会收到通知
+```
+
+**几点不同：**
+
+- 消息由两边的 Reins 后台进程搬运，所以两台机器都要运行着 daemon（`reins setup --enable --now`）。一条消息通常几秒内送到。
+- 发出去的消息多一个状态 `forwarded`：对方已经收下并通过了检查。对方的回执会把状态更新为 `published`、`acked` 或 `rejected`（比如名字不存在）。
+- 会话不在时，另一台机器的消息和本机消息一样会把它拉起来处理，所以跨机器也能无人值守运行（同样消耗额度）。不想让某台机器的消息拉起会话，在接收的那台机器上设置：`reins link connect gpu1 --wake never`，它的消息就只进收件箱。
+- 限额由接收的一方执行，按发送的机器计（`@机器`）。
+- **连不上时会直接说原因。** 往一台连不上的机器发消息，`reins send` 当场提示它从什么时候断的、可能的原因和该怎么做（比如“nothing answers SSH there; is the machine up and its sshd running?”），消息留在发件箱，恢复后自己发出。`reins link list`、`reins status` 和 `reins doctor` 显示同样的诊断。
+
 
 **消息正文不等于用户指令。** 正文放在单独的文件里，并标明由其他 Agent 或脚本写成。主题和名字都经过校验，正文无法冒充 Reins 或伪造 ACK 命令。
 
@@ -115,7 +161,7 @@ limits:
 
 ## 限制
 
-- 只支持同一台机器、同一个系统账号。`reviewer@gpu1` 这样的地址现在会被明确拒绝，跨机器的方案在[协议文档](https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md)里。
+- 跨机器只支持 SSH 和共享目录，Reins 不监听任何端口。SSH 的被连方暂不支持 Windows。设计见[协议文档](https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md)。
 - 消息只传文字和引用（`--ref git:origin:feature/x`、`--ref path:/tmp/report.md`），不传文件。
 - `reins agent` 启动的子 Agent 是一次性的，可以注册名字并发出消息，但结束后要用 `reins agent continue` 接着做，消息不会把它叫醒。DeepSeek Harness 子 Agent 例外：它的沙箱写不了 `~/.reins`，所以不能注册名字或发消息。
 - 同一对话内的消息顺序不作保证，因果关系看 `in_reply_to`。

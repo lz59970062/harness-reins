@@ -503,8 +503,10 @@ def main() -> int:
         message_parser.add_argument("--session", help=argparse.SUPPRESS)
         message_parser.add_argument("--queue-dir", help="Wakeup queue directory")
 
-    send_parser = sub.add_parser("send", help="Send a message to a named session on this machine")
-    send_parser.add_argument("name", help="The session's name; see reins session list")
+    send_parser = sub.add_parser("send", help="Send a message to named sessions, here or on a paired machine")
+    send_parser.add_argument("name", nargs="+",
+                             help="One or more session names, NAME@MACHINE on a paired machine; see reins session list. "
+                                  "Several names get one message each, or none if any cannot be sent")
     add_message_flags(send_parser)
     reply_parser = sub.add_parser("reply", help="Reply to a message; this also acknowledges it")
     reply_parser.add_argument("id", help="The message ID")
@@ -527,6 +529,9 @@ def main() -> int:
     message_alerts = message_actions.add_parser("alerts", help="Threads stopped at a limit")
     message_alerts.add_argument("--clear", action="store_true", help="Remove the alerts")
     message_alerts.add_argument("--queue-dir", help="Wakeup queue directory")
+
+    from .commands import link as link_commands
+    link_commands.add_parsers(sub)
 
     ack_parser = sub.add_parser("ack", help="Mark a daemon callback as successfully received")
     ack_parser.add_argument("--queue-dir", help="Wakeup queue directory")
@@ -652,6 +657,9 @@ def main() -> int:
         forwarded = canonical.forward(sys.argv[1:])
         if forwarded is not None:
             return forwarded
+    if args.mode in ("link", "_link-box", "_link-sync"):
+        from .commands import link as link_commands
+        return link_commands.dispatch(args)
     if args.mode in ("session", "send", "reply", "inbox", "message"):
         from .commands import messages as message_commands
         if args.mode == "session":

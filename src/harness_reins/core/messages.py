@@ -81,10 +81,9 @@ def validate_name(name: object) -> str:
 
 
 def validate_address(address: str) -> str:
-    """A name on this node. Other nodes are refused by name, never approximated."""
+    """A name on this node; ``name@machine`` goes through the paired-machine path instead."""
     if "@" in address:
-        raise Refused("unknown_peer", f"{address} names another machine, and this version only reaches sessions "
-                                      "on this one. Nothing was sent.")
+        raise Refused("unknown_peer", f"{address} names another machine. Nothing was sent.")
     return validate_name(address)
 
 
@@ -178,9 +177,12 @@ def sender_text(message: Mapping[str, object]) -> str:
     sender = message.get("from")
     name = sender.get("name") if isinstance(sender, Mapping) else None
     harness = sender.get("harness") if isinstance(sender, Mapping) else None
+    local = message.get("local")
+    peer = local.get("peer") if isinstance(local, Mapping) else None
+    where = f"@{peer}" if isinstance(peer, str) else ""  # sent from a paired machine
     if not isinstance(name, str):
-        return f"{SHELL_SENDER} (no session; cannot be replied to)"
-    return f"{name} ({harness})" if isinstance(harness, str) else name
+        return f"{SHELL_SENDER}{where} (no session; cannot be replied to)"
+    return f"{name}{where} ({harness})" if isinstance(harness, str) else f"{name}{where}"
 
 
 def body_text(message: Mapping[str, object]) -> str:

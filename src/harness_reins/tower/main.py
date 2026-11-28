@@ -21,6 +21,7 @@ from ..engine import delivery as delivery_engine
 from ..engine import resume_environment
 from ..engine import goals
 from ..engine import messages
+from ..engine import link_sync
 from ..engine import recovery
 from ..engine import tasks as managed_tasks
 from . import environment as tower_environment
@@ -149,6 +150,10 @@ def daemon(args: argparse.Namespace) -> int:
             managed_work = managed_tasks.recover_managed_tasks(root)
             recovery.recover_active(root)
             messages.maintain(root)
+            messages.import_inbound(root)
+            messages.report(root)
+            if not (args.once or args.max_items is not None):
+                link_sync.supervise(root)  # a bounded run must not leave carriers behind
             claude_moves.follow(root)
             if managed_work:
                 processed += managed_work

@@ -6,8 +6,9 @@ what happened to it is read from its callback, so there is one source of truth.
 """
 from __future__ import annotations
 
-import json
 import hashlib
+import json
+import re
 from pathlib import Path
 from typing import Iterator, Optional
 
@@ -202,3 +203,142 @@ def clear_alerts(queue: Path) -> int:
     for path in paths:
         _remove(path)
     return len(paths)
+
+
+# Paired machines ------------------------------------------------------------------
+# Every file below is written by the process the protocol names (docs/design/link-protocol.md, section 8).
+
+def peer_path(queue: Path, alias: str) -> Path:
+    return _directory(queue, "peers") / f"{messages.validate_name(alias)}.json"
+
+
+def load_peer(queue: Path, alias: str) -> Optional[dict[str, object]]:
+    record = load_record(peer_path(queue, alias))
+    return record if record is not None and record.get("schema") == "reins.peer/1" else None
+
+
+def save_peer(queue: Path, record: dict[str, object]) -> None:
+    _save(peer_path(queue, str(record["alias"])), record)
+
+
+def remove_peer(queue: Path, alias: str) -> None:
+    _remove(peer_path(queue, alias))
+    _remove(names_path(queue, alias))
+    _remove(status_path(queue, alias))
+
+
+def peers(queue: Path) -> list[dict[str, object]]:
+    return [record for record in _records(_directory(queue, "peers")) if record.get("schema") == "reins.peer/1"]
+
+
+def peer_by_node(queue: Path, node: str) -> Optional[dict[str, object]]:
+    return next((record for record in peers(queue) if record.get("node") == node), None)
+
+
+def names_path(queue: Path, alias: str) -> Path:
+    return _directory(queue, "names") / f"{messages.validate_name(alias)}.json"
+
+
+def load_names(queue: Path, alias: str) -> list[dict[str, object]]:
+    record = load_record(names_path(queue, alias)) or {}
+    names = record.get("names")
+    return [item for item in names if isinstance(item, dict)] if isinstance(names, list) else []
+
+
+def save_names(queue: Path, alias: str, record: dict[str, object]) -> None:
+    _save(names_path(queue, alias), record)
+
+
+def status_path(queue: Path, alias: str) -> Path:
+    return _directory(queue, "status") / f"{messages.validate_name(alias)}.json"
+
+
+def load_status(queue: Path, alias: str) -> dict[str, object]:
+    return load_record(status_path(queue, alias)) or {}
+
+
+def save_status(queue: Path, alias: str, record: dict[str, object]) -> None:
+    _save(status_path(queue, alias), record)
+
+
+def sent_path(queue: Path, message_id: str) -> Path:
+    if not messages.is_message_id(message_id):
+        raise messages.Refused("invalid_record", f"{message_id!r} is not a message id")
+    return _directory(queue, "sent") / f"{message_id}.json"
+
+
+def load_sent(queue: Path, message_id: str) -> Optional[dict[str, object]]:
+    record = load_record(sent_path(queue, message_id))
+    return record if record is not None and isinstance(record.get("sent"), dict) else None
+
+
+def save_sent(queue: Path, record: dict[str, object]) -> None:
+    _save(sent_path(queue, str(record["id"])), record)
+
+
+def remove_sent(queue: Path, message_id: str) -> None:
+    _remove(sent_path(queue, message_id))
+
+
+def all_sent(queue: Path) -> list[dict[str, object]]:
+    return [record for record in _records(_directory(queue, "sent")) if isinstance(record.get("sent"), dict)]
+
+
+def _spool(queue: Path, kind: str, alias: str) -> Path:
+    return _directory(queue, kind) / messages.validate_name(alias)
+
+
+def outbox(queue: Path, alias: str) -> Path:
+    return _spool(queue, "outbox", alias)
+
+
+def inbound(queue: Path, alias: str) -> Path:
+    return _spool(queue, "inbound", alias)
+
+
+def quarantine(queue: Path, alias: str) -> Path:
+    return _spool(queue, "quarantine", alias)
+
+
+def spool_write(directory: Path, name: str, data: bytes) -> None:
+    """One file into an outbox, inbound or quarantine directory, written atomically."""
+    queue_store.private_directory(directory.parent)
+    queue_store.private_directory(directory)
+    # Inbound and outbox files are checked JSON; a quarantined one may be anything, and must not fail to save.
+    queue_store.write_private_text(directory / name, data.decode("utf-8", "replace"))
+
+
+def spool_files(directory: Path, limit: Optional[int] = None) -> list[Path]:
+    try:
+        found = sorted(path for path in directory.iterdir() if path.suffix == ".json" and not path.name.startswith("."))
+    except OSError:
+        return []
+    return found[:limit] if limit is not None else found
+
+
+def spool_remove(path: Path) -> None:
+    _remove(path)
+
+
+def mailbox_root(queue: Path, pair: str) -> Path:
+    """Where this node keeps the mailbox of a pair it hosts over SSH."""
+    if not re.fullmatch(r"p-[0-9a-f]{16}", pair):
+        raise messages.Refused("invalid_record", f"{pair!r} is not a pair id")
+    return _directory(queue, "mailboxes") / pair
+
+
+def reported_path(queue: Path, local_id: str) -> Path:
+    return _directory(queue, "reported") / f"{local_id}.json"
+
+
+def load_reported(queue: Path, local_id: str) -> Optional[str]:
+    record = load_record(reported_path(queue, local_id)) or {}
+    return record.get("state") if isinstance(record.get("state"), str) else None
+
+
+def save_reported(queue: Path, local_id: str, state: str) -> None:
+    _save(reported_path(queue, local_id), {"state": state})
+
+
+def remove_reported(queue: Path, local_id: str) -> None:
+    _remove(reported_path(queue, local_id))

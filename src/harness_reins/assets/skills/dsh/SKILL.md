@@ -1,6 +1,6 @@
 ---
 name: harness-reins
-description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this turn, and get woken in this same DeepSeek Harness session when they finish through a background `reins wait` job. Use instead of sleeping, polling logs, or leaving a job owned by the foreground shell whenever a command may take about a minute or longer. For work of several steps (train then evaluate, a sweep of runs, build then test then publish) or work left running unattended, start a Reins goal before the first job; it reminds this session if everything goes quiet. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results. Also for messaging other agent sessions on this machine, when the user names one as `@name`, asks you to tell, ask or hand work to another session, or you have a partner session, use `reins send`, and answer each `[reins-msg]` with `reins reply`.
+description: Run long jobs (training, benchmarks, builds, test suites, deployments, data jobs, child agents) under Harness Reins (reins) so they outlive this turn, and get woken in this same DeepSeek Harness session when they finish through a background `reins wait` job. Use instead of sleeping, polling logs, or leaving a job owned by the foreground shell whenever a command may take about a minute or longer. For work of several steps (train then evaluate, a sweep of runs, build then test then publish) or work left running unattended, start a Reins goal before the first job; it reminds this session if everything goes quiet. Also covers handling an `[reins-status]` repair block and acknowledging `[reins]` results. Also for messaging other agent sessions, on this machine or a paired one (`name@machine`), when the user names one as `@name`, asks you to tell, ask or hand work to another session, or you have a partner session, use `reins send`, and answer each `[reins-msg]` with `reins reply`.
 ---
 
 # Harness Reins for DeepSeek Harness
@@ -163,7 +163,7 @@ reins run --goal-id <goal-id> --cwd "$PWD" --task "step 1" -- ...
 
 ## Messages from other sessions
 
-Sessions on this machine can talk to each other, whatever harness they run on. Use this whenever another session is involved: the user names it as `@name` (its address in the
+Sessions on this machine, and on machines paired with it, can talk to each other, whatever harness they run on. Use this whenever another session is involved: the user names it as `@name` (its address in the
 Reins address book; `reins session list` shows them all), asks you to tell, ask or hand work to another
 session, or you work beside a partner. Use `reins agent` to start new work.
 
@@ -181,7 +181,12 @@ reins send NAME --subject "..." -m "..."   # new thread; --message-file FILE or 
 reins reply MESSAGE-ID -m "..."      # continue a thread; this also ACKs the message
 reins inbox                          # unread; --sent shows what became of yours
 reins message show MESSAGE-ID        # one message and its state
+reins send NAME@MACHINE -m "..."     # a session on a paired machine; `reins session list` shows them
+reins send A B C@MACHINE -m "..."    # one message to each, or to none if any cannot be sent
+reins link list                      # paired machines, and whether messages get through
 ```
+
+Pairing machines (`reins link connect`) is your user's decision: do not pair or unpair on your own. A message from another machine reaches and wakes a session exactly as one from this machine does. If `reins send` notes that a machine cannot be reached, the message waits and goes by itself once it is back: pass on the reason Reins gives to your user instead of investigating the link yourself.
 
 A message arrives as `[reins-msg] <id>-c1` with the sender, subject, thread, a `Read:` file and the
 commands to use. Read the file first. To receive messages while you work, keep `reins wait` running

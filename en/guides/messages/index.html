@@ -743,9 +743,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#security" class="md-nav__link">
+  <a href="#between-machines" class="md-nav__link">
     <span class="md-ellipsis">
-      Security
+      Between machines
     </span>
   </a>
   
@@ -830,6 +830,8 @@
   
     
     
+      
+        
       
         
       
@@ -984,6 +986,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1314,9 +1339,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#security" class="md-nav__link">
+  <a href="#between-machines" class="md-nav__link">
     <span class="md-ellipsis">
-      Security
+      Between machines
     </span>
   </a>
   
@@ -1356,7 +1381,7 @@
 
 
 <h1 id="messages-between-sessions">Messages between sessions<a class="headerlink" href="#messages-between-sessions" title="Permanent link">&para;</a></h1>
-<p>Codex, Claude Code, Pi and DeepSeek Harness sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.</p>
+<p>Codex, Claude Code, Pi and DeepSeek Harness sessions can message each other directly, on one machine or between two paired machines. One session writes code, another reviews it, a third runs the tests on a GPU box, and you no longer have to carry messages between them.</p>
 <p>A busy session gets the message when it can take it. A closed Claude Code session, or a Pi session opened with <code>reins pi</code>, is started to handle it.</p>
 <h2 id="get-started-in-three-steps">Get started in three steps<a class="headerlink" href="#get-started-in-three-steps" title="Permanent link">&para;</a></h2>
 <p>Name the session that should receive messages:</p>
@@ -1371,6 +1396,9 @@
 </code></pre></div>
 <p>A reply also acknowledges the message.</p>
 <p>You can leave this to the agents, for example: "Register as planner and send this change to reviewer for review." The skill installed by <code>reins setup</code> teaches them these commands.</p>
+<p><strong>To several sessions:</strong> name them all after <code>send</code>. Each gets an ordinary message of its own (its own thread and state), and names here and on other machines can be mixed. It is all or nothing: if a name does not exist or a limit would be passed, nothing is sent and the reason names the recipient. Limits count each recipient; a reply goes back to the sender only, and there is no "reply all".</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>tester@gpu1<span class="w"> </span>planner<span class="w"> </span>-m<span class="w"> </span><span class="s2">"main moved; please rebase"</span>
+</code></pre></div>
 <h2 id="when-a-message-arrives">When a message arrives<a class="headerlink" href="#when-a-message-arrives" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1412,15 +1440,15 @@
 <p><strong>DeepSeek Harness needs one too.</strong> <code>reins wait</code> runs as a DSH background job. DSH cannot be resumed headless, so <code>--wake resume</code> starts nothing there and the message says so.</p>
 <p><strong>Codex sandbox.</strong> If the sandbox blocks <code>~/.reins</code>, approve the command or add that directory to the writable roots.</p>
 <p>Codex only gets the queue by default, because Reins cannot tell an open Codex from a closed one. To resume a closed Codex, ask for it with <code>--wake resume</code>. When a session should not be started at all, use <code>--wake never</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>planner<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI is broken and needs attention now."</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>never<span class="w"> </span>-m<span class="w"> </span><span class="s2">"When you have time."</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>send<span class="w"> </span>planner<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI is broken and needs attention now."</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>never<span class="w"> </span>-m<span class="w"> </span><span class="s2">"When you have time."</span>
 </code></pre></div>
 <h2 id="see-messages-and-their-state">See messages and their state<a class="headerlink" href="#see-messages-and-their-state" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">        </span><span class="c1"># who is here, and how a message reaches them now</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>reins<span class="w"> </span>inbox<span class="w">               </span><span class="c1"># unread messages for this session</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--sent<span class="w">        </span><span class="c1"># what you sent and what became of it</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--thread<span class="w"> </span>&lt;ID&gt;<span class="w"> </span><span class="c1"># a whole thread</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>reins<span class="w"> </span>message<span class="w"> </span>show<span class="w"> </span>&lt;ID&gt;<span class="w">   </span><span class="c1"># read one message</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">        </span><span class="c1"># who is here, and how a message reaches them now</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>reins<span class="w"> </span>inbox<span class="w">               </span><span class="c1"># unread messages for this session</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--sent<span class="w">        </span><span class="c1"># what you sent and what became of it</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--thread<span class="w"> </span>&lt;ID&gt;<span class="w"> </span><span class="c1"># a whole thread</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>reins<span class="w"> </span>message<span class="w"> </span>show<span class="w"> </span>&lt;ID&gt;<span class="w">   </span><span class="c1"># read one message</span>
 </code></pre></div>
 <p>A state says only what is known:</p>
 <table>
@@ -1498,21 +1526,46 @@
 </tbody>
 </table>
 <p>At a limit the command refuses and tells the agent to stop and tell you. The alert is for people only and is not sent to any agent, so it cannot become the next turn. It shows in <code>reins status</code> and <code>reins doctor</code>, and you can read and clear it with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts<span class="w"> </span>--clear
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts<span class="w"> </span>--clear
 </code></pre></div>
 <p>To change the limits, write them in <code>~/.reins/link/config.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">limits</span><span class="p">:</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
 </code></pre></div>
-<h2 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h2>
+<h2 id="between-machines">Between machines<a class="headerlink" href="#between-machines" title="Permanent link">&para;</a></h2>
+<p>Pair two machines once, then send to <code>name@machine</code>. Everything else works as on one machine: replies, the inbox, states and limits.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer@gpu1<span class="w"> </span>-m<span class="w"> </span><span class="s2">"feature/queue is ready for review"</span>
+</code></pre></div>
+<p><strong>Pair over SSH</strong> by running one command on the machine that can SSH to the other. Nothing needs doing on the other side.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>gpu1<span class="w">          </span><span class="c1"># an alias from ~/.ssh/config, or user@host</span>
+</code></pre></div>
+<p>One direction is enough. If your laptop can SSH into an AutoDL container but the container cannot reach back, the side that connects carries messages both ways and the other side never connects out. Reins must be installed there (<code>reins setup</code> puts it at <code>~/.reins/bin/reins</code>), and <code>ssh gpu1</code> must log in without a password prompt.</p>
+<p><strong>Pair through a shared directory</strong> when both machines see the same directory (NFS, JuiceFS, a shared cloud disk). No network connection is needed.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>--dir<span class="w"> </span>/mnt/shared/reins-link<span class="w">                </span><span class="c1"># first machine: prints a pairing code</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>--dir<span class="w"> </span>/mnt/shared/reins-link<span class="w"> </span>--code<span class="w"> </span>&lt;code&gt;<span class="w">  </span><span class="c1"># second machine, with its own path to it</span>
+</code></pre></div>
+<p>The pairing code holds the pair's key and works once; pass it on yourself. From then on every file in the directory is signed with that key, and a file anyone else puts there is never read. Message text in the directory is not encrypted, so use it only when every account that can read the directory is yours. Both machines must use the same OS account (the same uid) for it.</p>
+<p><strong>See and undo:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>reins<span class="w"> </span>link<span class="w"> </span>list<span class="w">            </span><span class="c1"># paired machines, their sessions, last contact and errors</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">         </span><span class="c1"># their sessions are listed too, as name@machine</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>reins<span class="w"> </span>link<span class="w"> </span>remove<span class="w"> </span>gpu1<span class="w">     </span><span class="c1"># unpair; the other machine is told</span>
+</code></pre></div>
+<p><strong>What is different:</strong></p>
+<ul>
+<li>The Reins daemons on both machines carry the messages, so both must run one (<code>reins setup --enable --now</code>). A message usually arrives within a few seconds.</li>
+<li>A sent message has one more state, <code>forwarded</code>: the other machine took it and it passed the checks there. Receipts from the other side then move it to <code>published</code>, <code>acked</code> or <code>rejected</code> (for example, no such name).</li>
+<li>A message from another machine starts a closed session just as a message on this machine does, so work across machines runs unattended too (and spends model usage the same way). To keep one machine's messages from starting sessions, run this on the receiving machine: <code>reins link connect gpu1 --wake never</code>; they then wait in the inbox.</li>
+<li>The receiving machine enforces the limits and counts the sending machine (<code>@machine</code>).</li>
+<li><strong>A broken link says why.</strong> Sending to a machine that cannot be reached, <code>reins send</code> says at once since when, the likely cause and what to do (for example "nothing answers SSH there; is the machine up and its sshd running?"). The message waits in the outbox and goes by itself once the machine is back. <code>reins link list</code>, <code>reins status</code> and <code>reins doctor</code> show the same diagnosis.</li>
+</ul>
 <p><strong>Message text is not a user instruction.</strong> It is kept in a separate file and marked as written by another agent or a script. Subjects and names are validated, and the text cannot pose as Reins or forge an ACK command.</p>
 <p>Marking lowers the risk, but it cannot guarantee a model will not comply. If a session runs without approvals and also takes messages from other agents, weigh that risk yourself.</p>
 <p>Every process under one OS account can read and write <code>~/.reins</code>, so this is not a security boundary inside an account. File permissions only keep other users out.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
-<li>One machine and one OS account. An address like <code>reviewer@gpu1</code> is refused with a clear error for now; the plan for multiple machines is in the <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md">protocol document</a>.</li>
+<li>Between machines, only SSH and a shared directory; Reins listens on no port. A Windows machine cannot be the side SSH connects to yet. The design is in the <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md">protocol document</a>.</li>
 <li>Messages carry text and references (<code>--ref git:origin:feature/x</code>, <code>--ref path:/tmp/report.md</code>), not files.</li>
 <li>A child started with <code>reins agent</code> runs once. It can register a name and send messages, but it continues through <code>reins agent continue</code>; a message does not wake it. A DeepSeek Harness child is the exception: its sandbox cannot write <code>~/.reins</code>, so it cannot register or send.</li>
 <li>Order within a thread is not guaranteed; use <code>in_reply_to</code> for cause and effect.</li>

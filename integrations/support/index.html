@@ -747,6 +747,8 @@
       
         
       
+        
+      
     
     
     
@@ -975,6 +977,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1382,6 +1407,12 @@
 <td>真实会话的提交、作业通知和 ACK 已在 macOS 桌面端和 Linux（<code>dsh</code> 0.2.1-rc.5，ACP 和 Web 界面）验证；Windows 尚未对接真实 DSH 验证</td>
 </tr>
 <tr>
+<td>Antigravity CLI（<code>agy</code>）</td>
+<td>暂不支持</td>
+<td>窗口开着时后台 <code>reins wait</code> 唤醒同一对话；没有进程打开对话时，守护进程用 <code>agy --resume -p</code> 恢复</td>
+<td>Linux、<code>agy</code> 1.5.18 实测交互窗口空闲唤醒、<code>-p</code> 会话和 headless 恢复；macOS 待验证；Windows 只通过 <code>reins wait</code> 投递</td>
+</tr>
+<tr>
 <td>Codex Desktop</td>
 <td>子任务使用 Codex CLI</td>
 <td>普通启动即可，<code>auto</code> 选择原生 <code>codex queue</code></td>
@@ -1389,7 +1420,7 @@
 </tr>
 </tbody>
 </table>
-<p>子 Agent 与接收方可以组合。例如在 Codex 中执行 <code>reins agent claude</code>，Claude 执行任务，结果回到 Codex。操作步骤见 <a href="../codex/">Codex</a>、<a href="../claude/">Claude</a>、<a href="../pi/">Pi</a>和 <a href="../desktop/">Desktop</a>。</p>
+<p>子 Agent 与接收方可以组合。例如在 Codex 中执行 <code>reins agent claude</code>，Claude 执行任务，结果回到 Codex。操作步骤见 <a href="../codex/">Codex</a>、<a href="../claude/">Claude</a>、<a href="../pi/">Pi</a>、<a href="../agy/">Antigravity</a>和 <a href="../desktop/">Desktop</a>。</p>
 <p>Claude 还提供 <code>reins claude</code> channel 研究预览入口，已记录 Linux 上 Claude Code 2.1.296 的实时接收与 ACK。配置步骤见 <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/claude-code.md#reins-channel-research-preview">channel 说明</a>。</p>
 <h2 id="其他-harness-和编排框架">其他 Harness 和编排框架<a class="headerlink" href="#其他-harness-和编排框架" title="Permanent link">&para;</a></h2>
 <table>
@@ -1413,7 +1444,7 @@
 </tr>
 </tbody>
 </table>
-<p>这些框架目前处于通用命令接入层，仓库原生适配器注册表包含 <code>codex</code>、<code>claude</code>、<code>pi</code>、<code>dsh</code>。开始接入时，先让脚本打印一行结果并正常退出，再检查日志、回调和 ACK；随后接入实际工作流。脚本示例见<a href="../../guides/use-cases/#运行自定义-agent-工作流">典型使用场景</a>。</p>
+<p>这些框架目前处于通用命令接入层，仓库原生适配器注册表包含 <code>codex</code>、<code>claude</code>、<code>pi</code>、<code>dsh</code>、<code>agy</code>。开始接入时，先让脚本打印一行结果并正常退出，再检查日志、回调和 ACK；随后接入实际工作流。脚本示例见<a href="../../guides/use-cases/#运行自定义-agent-工作流">典型使用场景</a>。</p>
 <h2 id="执行环境">执行环境<a class="headerlink" href="#执行环境" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

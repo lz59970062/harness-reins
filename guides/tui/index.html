@@ -652,9 +652,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#codexpi-和-deepseek-harness" class="md-nav__link">
+  <a href="#codexpiantigravity-和-deepseek-harness" class="md-nav__link">
     <span class="md-ellipsis">
-      Codex、Pi 和 DeepSeek Harness
+      Codex、Pi、Antigravity 和 DeepSeek Harness
     </span>
   </a>
   
@@ -885,6 +885,8 @@
       
         
       
+        
+      
     
     
     
@@ -1026,6 +1028,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1380,9 +1405,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#codexpi-和-deepseek-harness" class="md-nav__link">
+  <a href="#codexpiantigravity-和-deepseek-harness" class="md-nav__link">
     <span class="md-ellipsis">
-      Codex、Pi 和 DeepSeek Harness
+      Codex、Pi、Antigravity 和 DeepSeek Harness
     </span>
   </a>
   
@@ -1460,7 +1485,7 @@
 <li><strong>Goals</strong>：计划和进度。</li>
 <li><strong>Messages</strong>：会话之间的消息。</li>
 </ul>
-<p>右边的窗格由面板打开：会话窗格运行 <code>claude attach</code>、<code>codex resume --remote</code> 或 <code>reins pi</code>（见<a href="#codexpi-和-deepseek-harness">Codex、Pi 和 DeepSeek Harness</a>），日志窗格运行 <code>reins log</code>。会话窗格的标题是 <code>&lt;Harness&gt; &lt;ID&gt; @地址 会话标题</code>，例如 <code>claude 08e8651e @lab 运动图</code>，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 <code>d</code> 切换），不会把面板越挤越窄。</p>
+<p>右边的窗格由面板打开：会话窗格运行 <code>claude attach</code>、<code>codex resume --remote</code>、<code>reins pi</code> 或 <code>agy --resume</code>（见<a href="#codexpiantigravity-和-deepseek-harness">Codex、Pi、Antigravity 和 DeepSeek Harness</a>），日志窗格运行 <code>reins log</code>。会话窗格的标题是 <code>&lt;Harness&gt; &lt;ID&gt; @地址 会话标题</code>，例如 <code>claude 08e8651e @lab 运动图</code>，和面板里的名字对得上；Harness 自己设置的终端标题不会盖掉它。你手动改的窗格名会在 3 秒内被改回来，因为面板靠这个名字找到会话所在的窗格。面板宽度固定；第一个窗格占据右边的提示区，之后的会话、日志和终端开在右边最新那个窗格的下方或右边（按 <code>d</code> 切换），不会把面板越挤越窄。</p>
 <h2 id="按键">按键<a class="headerlink" href="#按键" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1648,7 +1673,7 @@
 <p>没改之前，用面板里的 <code>Ctrl+Q</code> 离开或结束。</p>
 <p>要停止某个会话，在面板里选中它按 <code>s</code>：进程停止，对话保留。</p>
 <p>面板窗格被关掉了也没关系：按 <code>Alt+r</code>，面板会在左边重新打开，已经开着的会话、终端和 Pi 会话都不受影响，只是挪到面板右边重新排列。在界面里面的终端里运行 <code>reins tui</code>，它会告诉你已经在界面里了。</p>
-<h2 id="codexpi-和-deepseek-harness">Codex、Pi 和 DeepSeek Harness<a class="headerlink" href="#codexpi-和-deepseek-harness" title="Permanent link">&para;</a></h2>
+<h2 id="codexpiantigravity-和-deepseek-harness">Codex、Pi、Antigravity 和 DeepSeek Harness<a class="headerlink" href="#codexpiantigravity-和-deepseek-harness" title="Permanent link">&para;</a></h2>
 <p>每个 Harness 都用自己的原生界面打开，Reins 对每个都守同一条承诺：一个会话只有一个进程。</p>
 <table>
 <thead>
@@ -1683,6 +1708,13 @@
 <td>Reins 的 Pi 扩展</td>
 </tr>
 <tr>
+<td>Antigravity</td>
+<td><code>agy</code> 的对话摘要表</td>
+<td><code>agy --resume</code>，对话的唯一进程</td>
+<td><code>agy</code> 随窗格结束</td>
+<td>它自己运行的 <code>reins wait</code></td>
+</tr>
+<tr>
 <td>DeepSeek Harness</td>
 <td>Reins 通讯录和任务记录</td>
 <td>不打开：它没有终端界面</td>
@@ -1695,6 +1727,7 @@
 <li><strong>Codex</strong> 会话通过 Codex 共享的 app-server 守护进程（<code>codex app-server daemon</code>）打开，所以 Reins 窗格、通过 SSH 连接的 Codex Desktop 和 <code>codex resume --remote</code> 看到的是同一个线程。守护进程没在运行时，Reins 会先启动它。不带 <code>--remote</code> 打开的 Codex 窗口自己写线程：面板显示它开在别的终端里，不会再打开一份。新建的 Codex 会话发出第一条消息后才会出现在列表里。</li>
 <li>Codex 收到回调时保留线程自己的设置，只把 Reins 的队列和通讯录目录加进可写目录，所以 agent 不用申请提权就能 ACK；线程留在守护进程上期间一直有这项权限。</li>
 <li><strong>Pi</strong> 没有守护进程，会话就活在它的窗格里。在别处带着 Reins 扩展打开的 Pi 会话显示为开在别的终端；不带扩展打开的看不到。</li>
+<li><strong>Antigravity</strong> 和 Pi 一样，对话活在它的窗格里。被其他 <code>agy</code> 进程打开的对话显示为开在别的终端，Reins 正在 headless 恢复的显示为 headless，两种都不会再打开一份。新建的对话在你发出第一条消息后才由 <code>agy</code> 创建，之后窗格自动换成它的名字；地址从菜单里起。菜单里没有停止和分叉。</li>
 <li><strong>DeepSeek Harness</strong>：有 Reins 名字或派过任务的会话会列出来，可以发消息、复制地址、看任务日志。打开请用 DeepSeek Harness 的网页版或桌面版。</li>
 </ul>
 <h2 id="打开会话时会发生什么">打开会话时会发生什么<a class="headerlink" href="#打开会话时会发生什么" title="Permanent link">&para;</a></h2>

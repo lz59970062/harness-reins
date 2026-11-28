@@ -747,6 +747,8 @@
       
         
       
+        
+      
     
     
     
@@ -975,6 +977,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1382,6 +1407,12 @@
 <td>Real sessions verified for submit, job notification and ACK on macOS desktop and Linux (<code>dsh</code> 0.2.1-rc.5, ACP and web UI); Windows not yet verified with a real DSH</td>
 </tr>
 <tr>
+<td>Antigravity CLI (<code>agy</code>)</td>
+<td>Not yet</td>
+<td>With a window open, a background <code>reins wait</code> wakes the same conversation; when nothing has it open, the daemon resumes it with <code>agy --resume -p</code></td>
+<td>Verified on Linux with <code>agy</code> 1.5.18: idle wake in an interactive window, an <code>-p</code> conversation and a headless resume; macOS not yet tried; Windows delivers through <code>reins wait</code> only</td>
+</tr>
+<tr>
 <td>Codex Desktop</td>
 <td>Child tasks use Codex CLI</td>
 <td>Start Desktop normally; <code>auto</code> selects the native <code>codex queue</code></td>
@@ -1389,7 +1420,7 @@
 </tr>
 </tbody>
 </table>
-<p>You can combine child and receiving Agents. For example, <code>reins agent claude</code> in Codex runs the task with Claude and returns the result to Codex. Follow the <a href="../codex/">Codex</a>, <a href="../claude/">Claude</a>, <a href="../pi/">Pi</a>, or <a href="../desktop/">Desktop</a> guide.</p>
+<p>You can combine child and receiving Agents. For example, <code>reins agent claude</code> in Codex runs the task with Claude and returns the result to Codex. Follow the <a href="../codex/">Codex</a>, <a href="../claude/">Claude</a>, <a href="../pi/">Pi</a>, <a href="../agy/">Antigravity</a> or <a href="../desktop/">Desktop</a> guide.</p>
 <p>Claude also has a <code>reins claude</code> channel research preview. The repository records live receipt and ACK on Linux with Claude Code 2.1.296. See the <a href="https://github.com/lz59970062/harness-reins/blob/main/docs/claude-code.md#reins-channel-research-preview">channel setup</a>.</p>
 <h2 id="other-harnesses-and-orchestration-frameworks">Other harnesses and orchestration frameworks<a class="headerlink" href="#other-harnesses-and-orchestration-frameworks" title="Permanent link">&para;</a></h2>
 <table>
@@ -1413,7 +1444,7 @@
 </tr>
 </tbody>
 </table>
-<p>These frameworks currently use the generic command interface. The native adapter registry contains <code>codex</code>, <code>claude</code>, <code>pi</code>, and <code>dsh</code>. Begin with a script that prints a result and exits, check the log, callback, and ACK, then connect the actual workflow. See the <a href="../../guides/use-cases/#run-a-custom-agent-workflow">custom workflow example</a>.</p>
+<p>These frameworks currently use the generic command interface. The native adapter registry contains <code>codex</code>, <code>claude</code>, <code>pi</code>, <code>dsh</code> and <code>agy</code>. Begin with a script that prints a result and exits, check the log, callback, and ACK, then connect the actual workflow. See the <a href="../../guides/use-cases/#run-a-custom-agent-workflow">custom workflow example</a>.</p>
 <h2 id="execution-environments">Execution environments<a class="headerlink" href="#execution-environments" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

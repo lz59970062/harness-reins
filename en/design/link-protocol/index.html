@@ -741,6 +741,8 @@
       
         
       
+        
+      
     
     
     
@@ -882,6 +884,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1186,9 +1211,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#11-多机方向已定" class="md-nav__link">
+  <a href="#11-多机方向已定第-3-版" class="md-nav__link">
     <span class="md-ellipsis">
-      1.1 多机方向（已定）
+      1.1 多机方向（已定，第 3 版）
     </span>
   </a>
   
@@ -1329,55 +1354,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#9-link-帧协议-reinslink1" class="md-nav__link">
+  <a href="#9-配对邮箱-reinslink1" class="md-nav__link">
     <span class="md-ellipsis">
-      9. Link 帧协议 reins.link/1
+      9. 配对邮箱 reins.link/1
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="9. Link 帧协议 reins.link/1">
+    <nav class="md-nav" aria-label="9. 配对邮箱 reins.link/1">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#91-传输" class="md-nav__link">
+  <a href="#91-邮箱" class="md-nav__link">
     <span class="md-ellipsis">
-      9.1 传输
+      9.1 邮箱
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#92-帧" class="md-nav__link">
+  <a href="#92-邮箱里的文件" class="md-nav__link">
     <span class="md-ellipsis">
-      9.2 帧
+      9.2 邮箱里的文件
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#93-握手与版本" class="md-nav__link">
+  <a href="#93-握手reins-link-connect" class="md-nav__link">
     <span class="md-ellipsis">
-      9.3 握手与版本
+      9.3 握手：reins link connect
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#94-发送流程" class="md-nav__link">
+  <a href="#94-搬运与导入" class="md-nav__link">
     <span class="md-ellipsis">
-      9.4 发送流程
+      9.4 搬运与导入
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#95-配对tls" class="md-nav__link">
+  <a href="#95-安全" class="md-nav__link">
     <span class="md-ellipsis">
-      9.5 配对（TLS）
+      9.5 安全
     </span>
   </a>
   
@@ -1473,7 +1498,7 @@
 
 
 <h1 id="reins-link-协议">Reins Link 协议<a class="headerlink" href="#reins-link-协议" title="Permanent link">&para;</a></h1>
-<p>状态：第 2 版，2026-11-02。单机部分（第 12 节的 PR 0、1、2a、2b、2c）已在 0.11.0 发布，多机部分按第 1.1 节的方向实现。第 13 节的决定已定。</p>
+<p>状态：第 3 版，2026-11-28。单机部分（第 12 节的 PR 0、1、2a、2b、2c）已在 0.11.0 发布。多机部分在第 3 版改为配对邮箱（第 1.1、9 节），取代原来的 Link 长连接服务和 TLS 端口。第 13 节的决定已定。</p>
 <p>安全边界见 <a href="../link-threat-model/">link-threat-model.md</a>。记录格式、ID 和能力清单的通用规则沿用 <a href="../protocol-v1/">protocol-v1.md</a>，本文只写新增和不同的部分。</p>
 <h2 id="1-目标">1. 目标<a class="headerlink" href="#1-目标" title="Permanent link">&para;</a></h2>
 <p>让运行中的 Codex、Claude Code、Pi 会话互相发消息，不论它们在同一台机器还是不同机器。</p>
@@ -1481,7 +1506,7 @@
 <ul>
 <li>用名字寻址任意已注册的会话</li>
 <li>持久化的消息，不因断线、重启或会话关闭而丢失</li>
-<li>跨机器传输，同一个服务支持本机 socket、SSH 和带鉴权的 TLS 端口</li>
+<li>跨机器传输：共享目录和 SSH，两者是同一个邮箱抽象的两种实现</li>
 <li>防止 Agent 之间无限对话</li>
 </ul>
 <p><strong>不包含：</strong></p>
@@ -1491,23 +1516,24 @@
 <li>多用户组织、中心账号系统</li>
 <li>跨机器的共享任务调度。<code>--host</code> 只负责在指定机器上启动（第 11 节）</li>
 </ul>
-<h3 id="11-多机方向已定">1.1 多机方向（已定）<a class="headerlink" href="#11-多机方向已定" title="Permanent link">&para;</a></h3>
+<h3 id="11-多机方向已定第-3-版">1.1 多机方向（已定，第 3 版）<a class="headerlink" href="#11-多机方向已定第-3-版" title="Permanent link">&para;</a></h3>
 <p>这几条是多机工作的基调。要改其中任何一条，先改本文。</p>
 <ol>
-<li><strong>长期形态是带鉴权的服务端口。</strong> 每台机器一个 Link 服务，监听 mTLS 端口，用固定证书指纹识别对端。多台机器之间实时互通靠它。</li>
-<li><strong>SSH 不是另一套方案，是同一协议的另一条传输。</strong> 帧、去重、状态完全相同。SSH 不用开新端口，认证也现成，所以先落地，用来打通协议和测试；已有 SSH 的小规模场景也可以一直用它。</li>
-<li><strong>实现顺序：</strong> Link 服务和本机 socket（PR 3）→ SSH（PR 4）→ TLS 和配对（PR 5）→ 远程启动（PR 6）。前一步的 N 组验收没过，不合并下一步。</li>
-<li><strong>塔台不碰网络。</strong> 网络进来的消息落到 <code>inbound/</code>，塔台调用的准入逻辑和 <code>reins send</code> 是同一份，限额也是同一份。投递引擎不知道消息从哪来。</li>
-<li><strong>限额和权限由接收方执行。</strong> 发送方的声明一律不作为依据。</li>
-<li><strong>默认最小权限。</strong> Link 服务默认关闭，不监听任何地址；新对端只有 <code>message</code> 权限；<code>spawn</code> 默认没有；跨机器的 <code>wake</code> 默认 <code>never</code>；不提供明文 TCP，也不提供关闭证书校验的开关。</li>
-<li><strong>多机之前绝不猜。</strong> <code>reviewer@gpu1</code> 现在就是 <code>unknown_peer</code> 错误，不会退回到本机同名会话。</li>
+<li><strong>存储转发，不建长连接服务。</strong> 两个节点配对后共用一个邮箱，消息和回执都是邮箱里的文件。没有常驻的 Link 服务，没有帧协议、重连和 TLS 端口。</li>
+<li><strong>一个邮箱抽象，两种实现。</strong> 共享目录（NFS、JuiceFS、共享云盘）和 SSH 实现同一组操作（第 9.1 节），握手、签名、去重、回执、重试只写一份。</li>
+<li><strong>谁能连，谁搬运。</strong> SSH 时邮箱放在被连的那台机器上，被连方只读写本地文件，连接方负责两个方向的搬运。只要有一个方向能连通，消息就双向可达。</li>
+<li><strong>配对靠握手商定，不手写配置。</strong> 对端的节点 ID、别名、协议版本、能力和配对密钥由 <code>reins link connect</code> 的握手决定，Reins 自己保存结果。</li>
+<li><strong>塔台不碰网络。</strong> 搬运由每个对端一个的 <code>_link-sync</code> 子进程完成，它只把文件搬进本地 <code>inbound/</code>。塔台调用的准入逻辑和 <code>reins send</code> 是同一份，限额也是同一份。投递引擎不知道消息从哪来。</li>
+<li><strong>限额和权限由接收方执行。</strong> 发送方的声明一律不作为依据。跨机器的 <code>wake</code> 和本机一样（第 6.2 节），会话不在就按它的 Harness 规则拉起，这样才能无人值守；接收方可以对某个对端关掉（<code>--wake never</code>）。</li>
+<li><strong>绝不猜。</strong> <code>reviewer@gpu1</code> 里的 <code>gpu1</code> 没配对就是 <code>unknown_peer</code>，不会退回到本机同名会话。</li>
 </ol>
+<p>TLS 端口、配对码之外的证书体系和远程启动（第 11 节）等到真有需要再做。</p>
 <h2 id="2-五条不变量">2. 五条不变量<a class="headerlink" href="#2-五条不变量" title="Permanent link">&para;</a></h2>
 <p>所有实现和评审都以这五条为准。任何 PR 违反其中一条，都要先改本文，不能在代码里破例。</p>
 <ol>
-<li><strong>传输与消息分离。</strong> 帧协议不知道消息怎么投递，投递引擎不知道消息来自 socket、SSH 还是 TLS。</li>
-<li><strong>写入者明确。</strong> 每类文件的写入者和锁见第 8 节。Link 服务不写 <code>queue/**</code>。</li>
-<li><strong>身份来自传输，不来自内容。</strong> 对端是谁由 socket 凭证、受限 SSH 密钥或 TLS 证书决定。<code>hello</code> 和消息里自称的身份不能作为依据。</li>
+<li><strong>传输与消息分离。</strong> 邮箱和搬运不知道消息怎么投递，投递引擎不知道消息来自共享目录还是 SSH。</li>
+<li><strong>写入者明确。</strong> 每类文件的写入者和锁见第 8 节。<code>_link-sync</code> 不写 <code>queue/**</code>。邮箱里每个文件只有一个写入者。</li>
+<li><strong>身份来自配对，不来自内容。</strong> 对端是谁由配对时商定的密钥决定：邮箱里每个文件都带这个密钥的 HMAC，验不过的文件不导入。文件里自称的节点 ID 不能作为依据。</li>
 <li><strong>绝不猜测目标。</strong> 名字解析失败就拒绝，不退回“最近的会话”。沿用 protocol-v1 的显式指定原则。</li>
 <li><strong>未确认的结果不等于成功。</strong> 每个状态只表示它定义的事实（第 7 节），不能把“已发出”说成“已读”。</li>
 </ol>
@@ -1526,7 +1552,7 @@
 </tr>
 <tr>
 <td>对端（peer）</td>
-<td>本节点配置过的另一个节点</td>
+<td>和本节点配对过的另一个节点，用别名称呼，例如 <code>gpu1</code></td>
 </tr>
 <tr>
 <td>会话名（session name）</td>
@@ -1541,36 +1567,39 @@
 <td>一串有回复关系的消息</td>
 </tr>
 <tr>
-<td>Link 服务</td>
-<td>负责跨节点收发帧的独立进程，默认关闭</td>
+<td>邮箱（mailbox）</td>
+<td>一对节点共用的目录，放在共享盘上或 SSH 被连方的磁盘上（第 9 节）</td>
+</tr>
+<tr>
+<td>搬运进程</td>
+<td><code>_link-sync</code>：塔台为每个对端启动一个，负责本地发件箱、收件箱和邮箱之间的搬运</td>
 </tr>
 </tbody>
 </table>
 <h2 id="4-寻址与注册">4. 寻址与注册<a class="headerlink" href="#4-寻址与注册" title="Permanent link">&para;</a></h2>
 <h3 id="41-节点身份">4.1 节点身份<a class="headerlink" href="#41-节点身份" title="Permanent link">&para;</a></h3>
-<p>节点首次启用 Link 时生成 <code>node_id</code>，格式 <code>n-</code> + 16 位十六进制，此后不变。人记的是对端别名，例如 <code>gpu1</code>。别名只在本节点有效，不通过网络传播。</p>
+<p>节点第一次注册会话或配对时生成 <code>node_id</code>，格式 <code>n-</code> + 16 位十六进制，此后不变。人记的是对端别名，例如 <code>gpu1</code>。别名只在本节点有效，不通过网络传播。</p>
 <h3 id="42-地址">4.2 地址<a class="headerlink" href="#42-地址" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>reviewer           本节点的 reviewer
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>reviewer@gpu1      对端 gpu1 上的 reviewer
 </code></pre></div>
-<p>名字符合 <code>[a-z0-9][a-z0-9_-]{0,31}</code>。</p>
+<p>名字和别名都符合 <code>[a-z0-9][a-z0-9_-]{0,31}</code>。</p>
 <p>发送方不需要知道对方的 Harness、会话 ID 或工作目录。这些只保存在目标节点上。</p>
 <p>记录里的 target 使用 protocol-v1 预留的 <code>session</code>（不同于 origin）语义，并新增两种写法：</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"session_name"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"reviewer"</span><span class="p">}</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="p">{</span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"session_name"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"reviewer"</span><span class="p">,</span><span class="w"> </span><span class="nt">"node"</span><span class="p">:</span><span class="w"> </span><span class="s2">"n-3f9a1c0d7b2e4a65"</span><span class="p">}</span>
 </code></pre></div>
 <h3 id="43-注册">4.3 注册<a class="headerlink" href="#43-注册" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>reins<span class="w"> </span>session<span class="w"> </span>register<span class="w"> </span>reviewer<span class="w">          </span><span class="c1"># 绑定当前会话，只有本节点可见</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>reins<span class="w"> </span>session<span class="w"> </span>register<span class="w"> </span>reviewer<span class="w"> </span>--share<span class="w">  </span><span class="c1"># 同时对已配置的对端可见（多机后）</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w"> </span><span class="o">[</span>--peer<span class="w"> </span>gpu1<span class="o">]</span><span class="w">         </span><span class="c1"># --peer 在多机后提供</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>reins<span class="w"> </span>session<span class="w"> </span>unregister<span class="w"> </span>reviewer
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>reins<span class="w"> </span>session<span class="w"> </span>register<span class="w"> </span>reviewer<span class="w">          </span><span class="c1"># 绑定当前会话</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">                       </span><span class="c1"># 本节点的会话，以及已配对节点上的会话（名字带 @别名）</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>reins<span class="w"> </span>session<span class="w"> </span>unregister<span class="w"> </span>reviewer
 </code></pre></div>
 <ul>
 <li>绑定沿用现有的环境变量（<code>CODEX_THREAD_ID</code>、<code>CLAUDE_CODE_SESSION_ID</code>、<code>PI_SESSION_FILE</code>），识别不到就拒绝。</li>
 <li>名字已被其他会话占用时拒绝，除非显式加 <code>--replace</code>。一个会话只有一个名字，<code>--replace</code> 也用于改名。</li>
 <li><code>shell</code> 是保留字：不在任何会话里发出的消息，寄件方显示为 <code>shell</code>，不能回复。在会话里发消息必须先注册，否则对方没法回。</li>
 <li>注册时冻结投递所需的路由和环境（Codex 可执行文件和 profile、Pi 频道目录），因为这些只有接收方自己的环境才知道。</li>
-<li>对端能看到的只有：名字、Harness 类型、是否在线，不包括工作目录、会话 ID、环境。</li>
+<li>配对就是信任：对端能看到本节点所有已注册的名字和 Harness 类型，不包括工作目录、会话 ID、环境。没有 <code>--share</code> 这种逐个公开的开关。</li>
 <li>“在线”只是提示，不能作为投递依据。</li>
 </ul>
 <h2 id="5-消息记录-reinsmessage1">5. 消息记录 <code>reins.message/1</code><a class="headerlink" href="#5-消息记录-reinsmessage1" title="Permanent link">&para;</a></h2>
@@ -1595,8 +1624,8 @@
 <li><strong>ID：</strong> <code>m-</code> 加 16 位十六进制，前 12 位是发送时间（毫秒），后 4 位随机，这样同一接收方的待投递消息按发送顺序处理。<code>id</code> 由发送方生成，只有 <code>(from.node, id)</code> 才唯一。</li>
 <li><strong>本地根：</strong> 本节点发出的消息直接用 <code>id</code> 作根。对端发来的消息不能这样，不同对端可能用同一个 <code>id</code>，甚至故意撞车，所以本地根是 <code>m-</code> + <code>sha256(from.node + ":" + id)</code> 的前 16 位十六进制。回调 ID 沿用根 + 后缀规则，例如 <code>m-4be17a90c2d3f615-c1</code>，ACK 命令是 <code>reins ack m-4be17a90c2d3f615-c1</code>。</li>
 <li><strong><code>local</code>：</strong> 落盘的记录还有一个 <code>local</code> 字段，保存接收会话、路由和回调 ID。它只属于本节点，绝不发到网络上。</li>
-<li><strong><code>from.node</code>：</strong> 接收节点用连接的已验证身份覆盖这个字段。不一致时拒绝，错误码 <code>identity_mismatch</code>。</li>
-<li><strong><code>hop</code>：</strong> 新对话为 0，回复时由 Reins 设为父消息的 <code>hop + 1</code>，调用方不能指定。</li>
+<li><strong><code>from.node</code>：</strong> 接收节点用配对记录里的节点 ID 核对这个字段。不一致时拒绝，错误码 <code>identity_mismatch</code>。</li>
+<li><strong><code>hop</code>：</strong> 新对话为 0，回复时由 Reins 设为父消息的 <code>hop + 1</code>，调用方不能指定。跨机器的回复，<code>in_reply_to</code> 必须是接收节点自己发给这个对端的消息，<code>hop</code> 必须等于它的 <code>hop + 1</code>，否则拒绝（<code>invalid_record</code>）。所以对端改不小 <code>hop</code>。</li>
 <li><strong><code>expires_at</code>：</strong> 默认 7 天。依赖发送方时钟，只用于清理和提示，不用于安全判断。</li>
 <li><strong>未知字段：</strong> 原样保留，必需字段缺失则拒绝。<code>requires</code> 有不认识的能力时拒绝并报告，不会投递一半。</li>
 <li><strong>大小限制：</strong> <code>subject</code> 最多 200 字符且不能含换行、控制字符或 <code>[reins</code>、<code>ACK after</code> 这类信封标记；<code>body</code> 最多 64 KiB；<code>refs</code> 最多 20 项。没给 <code>subject</code> 时取正文第一行，那一行不合格就用 <code>Message from &lt;名字&gt;</code>。</li>
@@ -1606,7 +1635,7 @@
 <p>准入时写入一条 <code>reins.callback/1</code>，<code>root</code> 是消息 ID。重试、目标锁、ACK、回调提醒都复用现有逻辑，不写第二套。回调的 <code>requires</code> 由实际路由决定，例如 <code>deliver.codex-queue</code>。</p>
 <p>准入只有一个函数：本机 <code>reins send</code> 在命令进程里调用它，多机后塔台对 <code>inbound/</code> 调用同一个函数。这样 <code>reins send</code> 能当场给出 <code>unknown_name</code>、<code>limit_exceeded</code>，塔台没运行时消息也不丢。</p>
 <h3 id="62-wake是否唤醒已关闭的会话">6.2 <code>wake</code>：是否唤醒已关闭的会话<a class="headerlink" href="#62-wake是否唤醒已关闭的会话" title="Permanent link">&para;</a></h3>
-<p>本机消息和任务结果走同一条路，Claude Code 和 <code>reins pi</code> 打开的 Pi 默认 <code>resume</code>：没有进程接收时就是要拉起来处理，消息才算可用。Codex 默认 <code>never</code>，因为只有队列能进入开着的 Codex，而 Reins 分不清它开着还是已关闭；DSH 和普通 Pi 不能安全地无头恢复，也是 <code>never</code>，指定 <code>resume</code> 时降级并在正文前注明。跨机器消息默认 <code>never</code>，第 5 号 PR 之后由对端权限决定。</p>
+<p>本机消息和任务结果走同一条路，Claude Code 和 <code>reins pi</code> 打开的 Pi 默认 <code>resume</code>：没有进程接收时就是要拉起来处理，消息才算可用。Codex 默认 <code>never</code>，因为只有队列能进入开着的 Codex，而 Reins 分不清它开着还是已关闭；DSH 和普通 Pi 不能安全地无头恢复，也是 <code>never</code>，指定 <code>resume</code> 时降级并在正文前注明。跨机器消息的规则相同（维护者决定：无人值守时，另一台机器的消息也要能拉起会话）。接收方可以对某个对端用 <code>reins link connect 别名 --wake never</code> 关掉，这个对端的消息就只进收件箱。</p>
 <table>
 <thead>
 <tr>
@@ -1693,7 +1722,7 @@
 </tbody>
 </table>
 <h2 id="7-消息状态">7. 消息状态<a class="headerlink" href="#7-消息状态" title="Permanent link">&para;</a></h2>
-<p>发送方看到的状态由回调的状态推导，不另存一份，所以不会出现两边不一致。终止状态标 ●。</p>
+<p>本节点内的消息，发送方看到的状态由回调的状态推导，不另存一份，所以不会出现两边不一致。发往对端的消息，状态来自对端的回执，存在 <code>sent/</code> 里，只往前走（第 9.4 节）。终止状态标 ●。</p>
 <table>
 <thead>
 <tr>
@@ -1710,8 +1739,8 @@
 </tr>
 <tr>
 <td><code>forwarded</code></td>
-<td>目标节点已落盘并回了 <code>accepted</code>。本节点内的消息跳过这一步</td>
-<td>对端 Link</td>
+<td>目标节点已导入并通过准入，回了 <code>forwarded</code> 回执。本节点内的消息跳过这一步</td>
+<td>对端塔台</td>
 </tr>
 <tr>
 <td><code>published</code></td>
@@ -1726,7 +1755,7 @@
 <tr>
 <td><code>rejected</code> ●</td>
 <td>对端明确拒绝，错误码见第 9.4 节</td>
-<td>对端</td>
+<td>对端塔台</td>
 </tr>
 <tr>
 <td><code>expired</code> ●</td>
@@ -1762,17 +1791,17 @@
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  node.json                    节点 ID（0.11.0）
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  config.yaml                  限额（0.11.0，可选）
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  sessions/&lt;名字&gt;.json, .env   会话名和冻结的路由、环境（0.11.0）
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  messages/&lt;本地根&gt;.json       消息记录，写入后不再改（0.11.0）
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  messages/&lt;本地根&gt;.json       本节点收到的消息，写入后不再改（0.11.0）
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  threads/&lt;对话&gt;.json          对话计数（0.11.0）
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>  rates.json                   发送方和收发对的计数（0.11.0）
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>  alerts/&lt;摘要&gt;.json           给人看的限额告警（0.11.0）
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>  identity/                    节点私钥（多机）
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>  peers.yaml                   对端、权限、证书指纹（多机）
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>  link.sock                    本机接入点（多机）
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>  outbox/&lt;消息ID&gt;.json         等待发往对端（多机）
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>  sent/&lt;消息ID&gt;.json           对端的回执（多机）
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>  inbound/&lt;节点ID&gt;/&lt;消息ID&gt;.json  对端发来且已落盘的消息（多机）
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>  seen/&lt;节点ID&gt;/&lt;消息ID&gt;       去重标记（多机）
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>  alerts/&lt;摘要&gt;.json           给人看的限额和链路告警（0.11.0）
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>  peers/&lt;别名&gt;.json            配对记录：对端节点、传输、角色、配对密钥（握手产物，不手写）
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>  peers/&lt;别名&gt;.names.json      对端公开的会话名
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>  sent/&lt;消息ID&gt;.json           发往对端的消息和回执带来的状态
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>  outbox/&lt;别名&gt;/&lt;文件&gt;          等待搬进邮箱的消息和回执
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>  inbound/&lt;别名&gt;/&lt;文件&gt;         已从邮箱取回、等待塔台导入的文件
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>  mailboxes/&lt;配对ID&gt;/          本节点是 SSH 被连方时，这一对的邮箱
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>  quarantine/&lt;别名&gt;/&lt;文件&gt;      验签或格式不过的文件，附告警
 </code></pre></div>
 <table>
 <thead>
@@ -1784,7 +1813,7 @@
 <tbody>
 <tr>
 <td><code>sessions/</code>、<code>messages/</code>、<code>threads/</code>、<code>rates.json</code>、<code>alerts/</code></td>
-<td>做准入或注册的进程，持 <code>link</code> 锁：<code>reins session</code>、<code>reins send</code>，以及多机后的塔台</td>
+<td>做准入或注册的进程，持 <code>link</code> 锁：<code>reins session</code>、<code>reins send</code>，以及导入对端消息的塔台</td>
 </tr>
 <tr>
 <td><code>queue/pending/&lt;回调ID&gt;.json</code></td>
@@ -1795,151 +1824,182 @@
 <td>塔台和 <code>reins ack</code> 等已有写入者（不变）</td>
 </tr>
 <tr>
-<td><code>outbox/</code></td>
-<td>塔台（多机）</td>
+<td><code>peers/</code></td>
+<td><code>reins link connect</code>、<code>reins link remove</code>、被连方的 <code>_link-box</code>（握手），持 <code>link</code> 锁</td>
 </tr>
 <tr>
-<td><code>sent/</code>、<code>inbound/</code>、<code>seen/</code></td>
-<td>Link 服务（多机）</td>
+<td><code>sent/</code>、<code>outbox/</code></td>
+<td><code>reins send</code>（消息）和塔台（回执、状态），持 <code>link</code> 锁</td>
+</tr>
+<tr>
+<td><code>inbound/</code>、<code>quarantine/</code></td>
+<td><code>_link-sync</code>，每个对端一个，持这个对端的 <code>link-sync-&lt;别名&gt;</code> 锁</td>
+</tr>
+<tr>
+<td><code>mailboxes/</code></td>
+<td>被连方的 <code>_link-box</code> 和被连方自己的 <code>_link-sync</code>，遵守第 9.1 节的单写入者规则</td>
 </tr>
 </tbody>
 </table>
 <p>准入先写消息记录，再写回调。进程在两步之间崩溃时，塔台发现消息没有回调，会按记录补上，回调 ID 是固定的，不会重复。</p>
-<p>Link 服务不读写 <code>queue/**</code>，只读 <code>messages/</code> 来发送状态帧，不导入 <code>engine</code> 或 <code>tower</code>。塔台离线时，Link 仍可接收并落盘，塔台恢复后再处理。全部写入使用 <code>system/files.py</code> 的原子写入。</p>
-<p><strong>分层：</strong> 新增 <code>harness_reins/link/</code>，依赖限于 <code>core</code>、<code>system</code>、<code>store</code>。<code>tests/test_architecture.py</code> 的 <code>ALLOWED</code> 要同步加上，不能进入 <code>KNOWN_VIOLATIONS</code>。</p>
-<h2 id="9-link-帧协议-reinslink1">9. Link 帧协议 <code>reins.link/1</code><a class="headerlink" href="#9-link-帧协议-reinslink1" title="Permanent link">&para;</a></h2>
-<h3 id="91-传输">9.1 传输<a class="headerlink" href="#91-传输" title="Permanent link">&para;</a></h3>
-<p>帧协议只要求一条可靠的双向字节流：</p>
+<p><code>_link-sync</code> 不读写 <code>queue/**</code>，不导入 <code>tower</code>。塔台离线时，<code>_link-sync</code> 仍可接收并落盘到 <code>inbound/</code>，塔台恢复后再处理。全部写入使用 <code>system/files.py</code> 的原子写入。</p>
+<p><strong>分层：</strong> 不新增包。记录、签名和地址在 <code>core/linkwire.py</code>，文件在 <code>store/link.py</code>，邮箱、握手、搬运和导入在 <code>engine/</code>，命令在 <code>commands/link.py</code>。</p>
+<h2 id="9-配对邮箱-reinslink1">9. 配对邮箱 <code>reins.link/1</code><a class="headerlink" href="#9-配对邮箱-reinslink1" title="Permanent link">&para;</a></h2>
+<h3 id="91-邮箱">9.1 邮箱<a class="headerlink" href="#91-邮箱" title="Permanent link">&para;</a></h3>
+<p>每一对节点共用一个邮箱：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>&lt;邮箱根&gt;/
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  hello/            握手文件（只用于共享目录配对）
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  to-&lt;A节点&gt;/        发给 A 的文件，B 写，A 取走后删除
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  to-&lt;B节点&gt;/        发给 B 的文件
+</code></pre></div>
+<p>邮箱根放在双方都能到达的地方：</p>
 <table>
 <thead>
 <tr>
-<th>接入方式</th>
-<th>身份来源</th>
-<th>平台</th>
+<th>传输</th>
+<th>邮箱根</th>
+<th>本节点怎么访问</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>本机 socket：<code>link.sock</code></td>
-<td>操作系统提供的对端 uid，必须等于本账号</td>
-<td>Linux、macOS</td>
+<td>共享目录</td>
+<td><code>&lt;共享目录&gt;/&lt;配对ID&gt;/</code></td>
+<td>双方都直接读写本地路径（<code>DirMailbox</code>）</td>
 </tr>
 <tr>
-<td>SSH：<code>ssh host reins _link-stdio</code>，由它桥接到 <code>link.sock</code></td>
-<td>受限密钥（推荐）：<code>restrict,command="reins _link-stdio --peer NAME"</code> 把身份固定在服务端。未受限的密钥已有完整 shell，等同本账号，可声明 <code>peers.yaml</code> 里的任一对端</td>
-<td>Linux、macOS</td>
+<td>SSH，本节点是连接方</td>
+<td>被连方的 <code>~/.reins/link/mailboxes/&lt;配对ID&gt;/</code></td>
+<td>通过 <code>ssh 主机 reins _link-box</code>（<code>SshMailbox</code>）</td>
 </tr>
 <tr>
-<td>TLS：<code>reins link serve --listen ADDR</code></td>
-<td>mTLS 客户端证书，匹配 <code>peers.yaml</code> 里固定的指纹</td>
-<td>Linux、macOS；Windows 待定</td>
+<td>SSH，本节点是被连方</td>
+<td>自己的 <code>~/.reins/link/mailboxes/&lt;配对ID&gt;/</code></td>
+<td>直接读写本地路径（<code>DirMailbox</code>）</td>
 </tr>
 </tbody>
 </table>
-<p>Windows 没有稳定可用的 Python Unix socket，本机接入点单独设计（第 13 节）。</p>
-<h3 id="92-帧">9.2 帧<a class="headerlink" href="#92-帧" title="Permanent link">&para;</a></h3>
-<p>每帧是 4 字节大端长度加 UTF-8 JSON，单帧上限 1 MiB。超限或解析失败时返回错误并关闭连接。</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span><span class="nt">"schema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"reins.link/1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"send"</span><span class="p">,</span><span class="w"> </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">"body"</span><span class="p">:</span><span class="w"> </span><span class="p">{}}</span>
-</code></pre></div>
+<p>两种实现提供同一组操作，<code>batch</code> 让 SSH 一次往返完成整轮：</p>
 <table>
 <thead>
 <tr>
-<th><code>type</code></th>
-<th>方向</th>
+<th>操作</th>
 <th>作用</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>hello</code></td>
-<td>双向</td>
-<td>版本范围、能力清单、Reins 版本</td>
+<td><code>put(格子, 名字, 内容)</code></td>
+<td>原子写入：先写 <code>.tmp-</code> 开头的临时名，再改名；同名同内容视为已存在</td>
 </tr>
 <tr>
-<td><code>send</code></td>
-<td>发送方 → 接收方</td>
-<td>携带一条 <code>reins.message/1</code></td>
+<td><code>list(格子)</code></td>
+<td>列出文件，忽略 <code>.tmp-</code> 开头的</td>
 </tr>
 <tr>
-<td><code>accepted</code></td>
-<td>接收方 → 发送方</td>
-<td>消息已落盘，或此前已收到（重复）</td>
+<td><code>get(格子, 名字)</code></td>
+<td>读一个文件</td>
 </tr>
 <tr>
-<td><code>rejected</code></td>
-<td>接收方 → 发送方</td>
-<td>明确拒绝，发送方不再重试</td>
+<td><code>remove(格子, 名字列表)</code></td>
+<td>删除已取走的文件；不存在不算错</td>
 </tr>
 <tr>
-<td><code>busy</code></td>
-<td>接收方 → 发送方</td>
-<td>暂时不收，带 <code>retry_after_seconds</code></td>
+<td><code>wait(格子, 超时)</code></td>
+<td>格子里有文件就返回，最多等到超时；在邮箱所在的机器上轮询</td>
 </tr>
 <tr>
-<td><code>status</code></td>
-<td>接收方 → 发送方</td>
-<td><code>published</code>、<code>acked</code>、<code>failed</code>、<code>unknown</code> 等状态变化</td>
-</tr>
-<tr>
-<td><code>directory</code></td>
-<td>双向</td>
-<td>请求或返回 <code>--share</code> 的会话列表</td>
-</tr>
-<tr>
-<td><code>ping</code>/<code>pong</code></td>
-<td>双向</td>
-<td>保活</td>
-</tr>
-<tr>
-<td><code>spawn</code></td>
-<td>发送方 → 接收方</td>
-<td>仅第 11 节，默认不可用</td>
+<td><code>batch(操作列表)</code></td>
+<td>按顺序执行多步，一次返回全部结果</td>
 </tr>
 </tbody>
 </table>
-<p><code>seq</code> 只用于匹配请求和回复，不表示消息顺序。</p>
-<h3 id="93-握手与版本">9.3 握手与版本<a class="headerlink" href="#93-握手与版本" title="Permanent link">&para;</a></h3>
-<ol>
-<li>传输层先完成身份验证。验证失败的连接读不到任何帧。</li>
-<li>双方发送 <code>hello</code>：<code>{"versions": [1], "capabilities": ["message"], "reins_version": "0.11.0"}</code>。</li>
-<li>取共同的最高版本。没有共同版本时返回 <code>unsupported_version</code> 并关闭，消息留在发件箱，<code>reins link status</code> 显示原因和两边的版本。</li>
-</ol>
-<p>能力清单是双方都支持、且这个连接被授权使用的交集。<code>hello</code> 不能扩大已配置的权限。</p>
-<h3 id="94-发送流程">9.4 发送流程<a class="headerlink" href="#94-发送流程" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>A CLI        A 塔台        A Link        B Link        B 塔台       B 会话
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  │ submit/ ───▶│             │             │             │            │
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>  │             │ outbox/ ───▶│── send ────▶│             │            │
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  │             │             │             │ seen+inbound│            │
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  │             │◀── sent/ ───│◀─ accepted ─│────────────▶│            │
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  │             │             │             │             │ callback ─▶│
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>  │             │◀── sent/ ───│◀─ status ───│◀────────────│◀─── ack ───│
+<p>共享目录上的规则，都是 JuiceFS 上吃过的亏：</p>
+<ul>
+<li>只依赖“同一目录内的改名是原子的”。不用跨机器的锁，不用 SQLite。</li>
+<li>不用 inotify（看不到别的机器写入），在邮箱所在的机器上轮询。</li>
+<li>不用文件的 mtime 判断任何事。过期从接收方看到文件时算起。</li>
+<li>每个文件只有一个写入者：写入方只新建，读取方只删除。</li>
+</ul>
+<h3 id="92-邮箱里的文件">9.2 邮箱里的文件<a class="headerlink" href="#92-邮箱里的文件" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">"schema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"reins.link/1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"message"</span><span class="p">,</span><span class="w"> </span><span class="nt">"pair"</span><span class="p">:</span><span class="w"> </span><span class="s2">"p-…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"from"</span><span class="p">:</span><span class="w"> </span><span class="s2">"n-…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"to"</span><span class="p">:</span><span class="w"> </span><span class="s2">"n-…"</span><span class="p">,</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w"> </span><span class="nt">"body"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span><span class="w"> </span><span class="nt">"mac"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…"</span><span class="p">}</span>
 </code></pre></div>
-<p>接收方的步骤必须按这个顺序：</p>
+<table>
+<thead>
+<tr>
+<th><code>kind</code></th>
+<th>文件名</th>
+<th><code>body</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message</code></td>
+<td><code>m-&lt;消息ID&gt;.json</code></td>
+<td>一条 <code>reins.message/1</code>，不含 <code>local</code></td>
+</tr>
+<tr>
+<td><code>receipt</code></td>
+<td><code>r-&lt;消息ID&gt;-&lt;状态&gt;.json</code></td>
+<td><code>{"id", "state", "code", "reason"}</code>：<code>forwarded</code>、<code>rejected</code>、<code>published</code>、<code>acked</code>、<code>failed</code>、<code>unknown</code>、<code>expired</code>、<code>canceled</code></td>
+</tr>
+<tr>
+<td><code>names</code></td>
+<td><code>n-&lt;序号&gt;.json</code></td>
+<td>公开的会话名和 Harness 类型；新的取代旧的</td>
+</tr>
+<tr>
+<td><code>bye</code></td>
+<td><code>b-&lt;序号&gt;.json</code></td>
+<td>解除配对</td>
+</tr>
+</tbody>
+</table>
+<p><code>mac</code> 是配对密钥对其余字段的规范 JSON（键排序、无空白）的 HMAC-SHA256。<code>pair</code>、<code>from</code>、<code>to</code> 和配对记录不符，或者验签失败，文件移到 <code>quarantine/</code> 并告警，不导入。单个文件上限 1 MiB。</p>
+<h3 id="93-握手reins-link-connect">9.3 握手：<code>reins link connect</code><a class="headerlink" href="#93-握手reins-link-connect" title="Permanent link">&para;</a></h3>
+<p><strong>SSH：</strong> <code>reins link connect hub</code>（<code>hub</code> 是 <code>~/.ssh/config</code> 里的别名或 <code>user@host</code>）。</p>
 <ol>
-<li>校验身份、权限、限额、记录格式。</li>
-<li>按 <code>(节点, ID)</code> 串行处理。查 <code>seen/&lt;节点&gt;/&lt;ID&gt;</code>：已存在且摘要相同就回 <code>accepted</code>，摘要不同就回 <code>rejected: id_conflict</code>。</li>
-<li>原子写入 <code>inbound/&lt;节点&gt;/&lt;ID&gt;.json</code>。</li>
-<li>原子写入 <code>seen/&lt;节点&gt;/&lt;ID&gt;</code>，内容是消息摘要。</li>
-<li>回 <code>accepted</code>。</li>
+<li>连接方运行 <code>ssh hub sh -c '&lt;找到 reins&gt; _link-box --hello'</code>，在 stdin 送 <code>hello</code>：协议版本、节点 ID、建议的别名（主机名）、能力清单。远端优先用 <code>~/.reins/bin/reins</code>，没有再用 <code>PATH</code> 上的 <code>reins</code>。</li>
+<li>被连方生成配对 ID 和 32 字节配对密钥，建好 <code>mailboxes/&lt;配对ID&gt;/</code>，保存配对记录，回 <code>welcome</code>：自己的节点 ID、建议的别名、商定的版本和能力、配对密钥。SSH 本身已经证明连接方有这个账号，所以不另要配对码。</li>
+<li>连接方保存配对记录，角色为搬运方。</li>
 </ol>
-<p>第 3、4 步之间崩溃时，<code>seen</code> 还不存在，发送方重发后会再写一次 <code>inbound/</code>。塔台读到 <code>messages/&lt;本地根&gt;.json</code> 已存在时直接丢弃，所以最终只有一条回调。</p>
-<p>发送方的重试：指数退避，初始 2 秒、上限 5 分钟，直到 <code>accepted</code>、<code>rejected</code> 或过期。</p>
-<p><code>status</code> 帧也可能丢失或重复。接收节点在重连后重发尚未确认的状态变化，发送方只接受能让状态前进的更新。</p>
-<p><code>seen</code> 标记至少保留到消息过期后 7 天。</p>
-<p><strong>错误码：</strong> <code>identity_mismatch</code>、<code>permission_denied</code>、<code>unknown_name</code>、<code>id_conflict</code>、<code>invalid_record</code>、<code>unsupported_version</code>、<code>unsupported_capability</code>、<code>limit_exceeded</code>、<code>quota_exceeded</code>、<code>expired</code>。</p>
-<h3 id="95-配对tls">9.5 配对（TLS）<a class="headerlink" href="#95-配对tls" title="Permanent link">&para;</a></h3>
-<p>配对码只用一次，由人通过可信渠道传递，例如已有的 SSH 或密码管理器。</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>reins<span class="w"> </span>link<span class="w"> </span>invite<span class="w"> </span>--peer<span class="w"> </span>gpu1<span class="w"> </span>--address<span class="w"> </span><span class="m">100</span>.64.0.2:7443<span class="w">   </span><span class="c1"># 在 A 上运行，打印配对码</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>reins<span class="w"> </span>link<span class="w"> </span>join<span class="w"> </span>CODE<span class="w"> </span>--peer<span class="w"> </span>hub<span class="w">                           </span><span class="c1"># 在 B 上运行</span>
+<p><strong>共享目录：</strong> 任何能写这个目录的人都能放文件，所以要一次性配对码证明双方身份。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>--dir<span class="w"> </span>/mnt/shared/reins-link<span class="w">              </span><span class="c1"># A：打印配对码，进入等待</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>--dir<span class="w"> </span>/mnt/shared/reins-link<span class="w"> </span>--code<span class="w"> </span>&lt;码&gt;<span class="w">  </span><span class="c1"># B</span>
 </code></pre></div>
 <ol>
-<li>配对码包含 A 的地址、A 的证书指纹和一个至少 128 位的随机秘密。</li>
-<li>B 连接 A，并验证 A 的证书指纹与配对码一致。</li>
-<li>B 发送 <code>HMAC(秘密, B 的证书指纹)</code> 和 B 的证书指纹。</li>
-<li>A 校验后固定 B 的指纹，默认只授予 <code>message</code> 权限，配对码立即作废。</li>
+<li>A 生成配对 ID 和配对密钥，在 <code>&lt;目录&gt;/&lt;配对ID&gt;/hello/offer.json</code> 写下签名的 <code>hello</code>，打印配对码（配对 ID 加密钥）。配对码由人通过可信渠道传给 B。</li>
+<li>B 用配对码里的密钥验 <code>offer.json</code>，写签名的 <code>hello/accept.json</code>，保存配对记录。</li>
+<li>A 的 <code>_link-sync</code> 验过 <code>accept.json</code> 后把配对记录从等待改为可用，删掉 <code>hello/</code>。</li>
 </ol>
-<p>证书自签，靠固定指纹识别，不需要 CA。吊销就是从 <code>peers.yaml</code> 删除指纹。</p>
-<p>其他管理命令：<code>reins link serve</code>、<code>reins link status</code>、<code>reins link peer list|remove</code>、<code>reins link rotate-identity</code>。</p>
+<p><strong>商定的内容：</strong> 双方节点 ID、各自给对方的别名（默认取对方主机名，<code>--name</code> 可改）、共同的最高协议版本、能力的交集（第 3 版只有 <code>message</code>、<code>receipt</code>、<code>names</code>）、配对密钥。<code>wake</code> 不商定，它只是接收方自己的设置。</p>
+<p><strong>重新握手：</strong> 已经配对的机器不能直接再 <code>connect</code>，要先 <code>reins link remove</code>，再 <code>connect</code>，换新密钥。对方那边如果还留着旧配对（比如解除时没能通知到它），新的握手会替换它，规则和解除配对一样：在路上的消息不投递，没送出的标成 <code>failed</code>。协议版本不兼容时，<code>_link-sync</code> 停止搬运，<code>reins link list</code> 显示两边的版本，消息留在发件箱。</p>
+<p><strong>解除配对：</strong> <code>reins link remove hub</code> 先删本地配对记录（之后本节点不再发任何文件，发件箱里没送出的消息记为 <code>failed</code>），再通知对方。共享目录和 SSH 搬运方往邮箱放一个签名的 <code>bye</code>，对方收到后也删除它的配对记录。SSH 被连方直接删掉邮箱：搬运方下次连上时得到 <code>unknown_peer</code>，就把自己这边的配对标成 <code>gone</code> 并留下告警，所以没有会丢的 <code>bye</code>。不管哪种，塔台都先把已经取回的文件导入完，再删除配对记录。已收到的消息都不受影响；解除配对那一刻还在路上的消息不投递，发送方那边记为 <code>failed</code>。</p>
+<p>SSH 加固（可选）：在被连方的 <code>authorized_keys</code> 里写 <code>restrict,command="~/.reins/bin/reins _link-box --pair p-…"</code>，这把钥匙就只能操作这一个邮箱，也不能重新握手。不受限的钥匙等于完整 shell。</p>
+<h3 id="94-搬运与导入">9.4 搬运与导入<a class="headerlink" href="#94-搬运与导入" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>A reins send ─▶ sent/ + outbox/hub/ ─▶ A _link-sync ─▶ 邮箱 to-&lt;B&gt;/ ─▶ B _link-sync ─▶ B inbound/a/
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>                                                                                       │ B 塔台：准入
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>A sent/ 状态 ◀── A 塔台 ◀── A inbound/hub/ ◀── 邮箱 to-&lt;A&gt;/ ◀── B outbox/a/ ◀── 回执 ──┘
+</code></pre></div>
+<ul>
+<li><strong><code>_link-sync</code>：</strong> 塔台在每轮循环里确认每个对端都有一个 <code>_link-sync</code> 在跑，由 <code>link-sync-&lt;别名&gt;</code> 锁保证只有一个。它做两件事：</li>
+<li>发：发件箱有文件就 <code>put</code> 进对方的格子，成功后删本地文件。每秒看一次本地发件箱。</li>
+<li>收：对自己的格子 <code>wait</code>（最多 50 秒），有文件就 <code>get</code>，验签后写进 <code>inbound/&lt;别名&gt;/</code>，下一轮再从邮箱 <code>remove</code>。先落盘再删，崩溃只会导致重复，不会丢。</li>
+<li>失败时指数退避，初始 2 秒，上限 5 分钟。错误写进配对记录的 <code>last_error</code>，<code>reins link list</code> 能看到。</li>
+<li><strong>导入：</strong> 塔台对 <code>inbound/</code> 里的消息调用和 <code>reins send</code> 同一个准入函数，限额按 <code>名字@别名</code> 计。通过就写消息记录和回调，回一个 <code>forwarded</code> 回执；不通过回 <code>rejected</code> 并附错误码。处理完删掉 <code>inbound/</code> 里的文件。</li>
+<li><strong>去重：</strong> 本地根是 <code>m-</code> + <code>sha256(from.node + ":" + id)</code> 的前 16 位。本地根已存在就是重复：再回一次 <code>forwarded</code>，不产生第二条回调。</li>
+<li><strong>回执：</strong> 塔台发现对端消息的状态变了（<code>published</code>、<code>acked</code>、<code>failed</code>……），就往发件箱放一个回执。发送方只接受让状态前进的回执：<code>queued &lt; forwarded &lt; published &lt; acked</code>，终止状态之后不再变。</li>
+<li><strong>过期：</strong> 发送方的消息过期时还在发件箱里，就删掉它并标成 <code>expired</code>。</li>
+</ul>
+<p><strong>错误码：</strong> <code>identity_mismatch</code>、<code>unknown_peer</code>、<code>unknown_name</code>、<code>id_conflict</code>、<code>invalid_record</code>、<code>unsupported_version</code>、<code>limit_exceeded</code>、<code>expired</code>。</p>
+<h3 id="95-安全">9.5 安全<a class="headerlink" href="#95-安全" title="Permanent link">&para;</a></h3>
+<ul>
+<li>配对之后，没有配对密钥的人写进邮箱的文件验签失败，不会被导入。共享目录的弱点（同一个 uid 的所有进程都能写）只剩下拒绝服务：可以塞垃圾文件，但伪造不了消息。</li>
+<li>配对密钥存在 <code>peers/&lt;别名&gt;.json</code>，权限 0600。它等于这条链路的身份，泄露了就重新配对。</li>
+<li>配对码只用一次：A 收到 <code>accept.json</code> 后删掉 <code>hello/</code>。</li>
+<li>跨机器的消息和本机消息一样可能拉起会话、消耗额度；<code>hop</code> 和频率上限照样止损，接收方也可以对某个对端设 <code>--wake never</code>。</li>
+</ul>
 <h2 id="10-防止无限对话">10. 防止无限对话<a class="headerlink" href="#10-防止无限对话" title="Permanent link">&para;</a></h2>
 <p>限额由接收节点执行，因为发送方可能被攻破或者有 bug。</p>
 <table>
@@ -1995,16 +2055,16 @@
 </table>
 <p>拒绝时发送方的命令以退出码 3 结束，并让 Agent 停下告诉用户。告警出现在 <code>reins status</code>、<code>reins message alerts</code> 和 <code>reins doctor</code>，不会再发给任何 Agent，避免错误提示本身成为下一轮对话。<code>reins doctor</code> 之外的命令不会把它附到 Agent 的输出里。</p>
 <p>配置示例，写在 <code>~/.reins/link/config.yaml</code>：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">limits</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
 </code></pre></div>
 <h2 id="11-远程启动-agent最后一阶段">11. 远程启动 Agent（最后一阶段）<a class="headerlink" href="#11-远程启动-agent最后一阶段" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>reins<span class="w"> </span>agent<span class="w"> </span>--host<span class="w"> </span>gpu1<span class="w"> </span>expert<span class="w"> </span>reviewer<span class="w"> </span>--name<span class="w"> </span>r1<span class="w"> </span>--<span class="w"> </span><span class="s2">"审查这个分支"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>reins<span class="w"> </span>agent<span class="w"> </span>--host<span class="w"> </span>gpu1<span class="w"> </span>expert<span class="w"> </span>reviewer<span class="w"> </span>--name<span class="w"> </span>r1<span class="w"> </span>--<span class="w"> </span><span class="s2">"审查这个分支"</span>
 </code></pre></div>
 <ul>
 <li>需要对端权限 <code>spawn</code>，默认没有。</li>
-<li>只允许启动接收节点 <code>peers.yaml</code> 里为这个对端列出的专家，不接受任意命令行。</li>
+<li>只允许启动接收节点 配对记录里为这个对端列出的专家，不接受任意命令行。</li>
 <li>沙箱和权限模式由接收节点决定，请求最多只能收紧，不能放宽。</li>
 <li>不转发环境变量、凭证和本机路径。</li>
 <li>结果沿现有回调回到发起会话，<code>target</code> 的地址写法同第 4.2 节。</li>
@@ -2041,26 +2101,20 @@
 </tr>
 <tr>
 <td>3</td>
-<td><code>link/</code> 服务、帧协议、本机 socket、发件箱、去重</td>
+<td>邮箱抽象、共享目录传输、握手、<code>_link-sync</code>、导入、回执、<code>reins link connect/list/remove</code>、<code>name@别名</code></td>
 <td>1</td>
-<td>N 组，用两个隔离的 <code>REINS_HOME</code></td>
+<td>N 组，用两个隔离的 <code>REINS_HOME</code> 和一个共享目录</td>
 </tr>
 <tr>
 <td>4</td>
-<td>SSH 接入和断线重连</td>
+<td>SSH 传输（<code>_link-box</code>、<code>SshMailbox</code>）</td>
 <td>3</td>
-<td>N 组，跑在真实 sshd 上</td>
+<td>N 组，跑在真实 sshd 上，包括只有单向能连</td>
 </tr>
 <tr>
 <td>5</td>
-<td>TLS、mTLS、配对、吊销</td>
-<td>3，且需要专门的安全评审</td>
-<td>S 组</td>
-</tr>
-<tr>
-<td>6</td>
 <td><code>--host</code> 远程启动</td>
-<td>2、4 或 5，且需要专门的安全评审</td>
+<td>4，且需要专门的安全评审</td>
 <td>S 组和第 11 节的每一条</td>
 </tr>
 </tbody>
@@ -2145,18 +2199,18 @@
 </tr>
 <tr>
 <td>N2</td>
-<td>在 <code>send</code> 前、<code>accepted</code> 前、<code>accepted</code> 后分别断线</td>
+<td>搬运在 <code>put</code> 前、<code>put</code> 后删发件箱前、取回后 <code>remove</code> 前分别中断</td>
 <td>最终恰好一条回调</td>
 </tr>
 <tr>
 <td>N3</td>
-<td>Link 在写 <code>inbound</code> 和写 <code>seen</code> 之间崩溃</td>
-<td>重发后最终恰好一条回调</td>
+<td>塔台在导入时崩溃</td>
+<td>重启后恰好一条回调</td>
 </tr>
 <tr>
 <td>N4</td>
-<td>重放旧帧</td>
-<td>回 <code>accepted</code>，不产生第二条回调</td>
+<td>重放旧文件</td>
+<td>回 <code>forwarded</code>，不产生第二条回调</td>
 </tr>
 <tr>
 <td>N5</td>
@@ -2176,12 +2230,22 @@
 <tr>
 <td>N8</td>
 <td>塔台离线时收到消息</td>
-<td>Link 落盘，塔台恢复后处理</td>
+<td><code>_link-sync</code> 落盘，塔台恢复后处理</td>
 </tr>
 <tr>
 <td>N9</td>
-<td>自称别的 <code>from.node</code></td>
-<td><code>identity_mismatch</code></td>
+<td>自称别的 <code>from.node</code>，或没有配对密钥的文件</td>
+<td>进 <code>quarantine/</code>，有告警，不导入</td>
+</tr>
+<tr>
+<td>N11</td>
+<td>SSH 只有单向能连</td>
+<td>两个方向都送达</td>
+</tr>
+<tr>
+<td>N12</td>
+<td>回复的 <code>hop</code> 被改小</td>
+<td><code>invalid_record</code></td>
 </tr>
 <tr>
 <td>N10</td>
@@ -2255,8 +2319,8 @@
 <tr>
 <td>1</td>
 <td><code>wake</code> 默认值</td>
-<td>本机 Claude Code 和托管 Pi 用 <code>resume</code>，其余 <code>never</code></td>
-<td>维护者决定：本机消息优先可用，和任务结果一致。跨机器仍需对端授权</td>
+<td>Claude Code 和托管 Pi 用 <code>resume</code>，其余 <code>never</code>，本机和跨机器相同</td>
+<td>维护者决定：消息优先可用，和任务结果一致；跨机器也要能无人值守。接收方可对某个对端关掉</td>
 </tr>
 <tr>
 <td>2</td>
@@ -2266,15 +2330,15 @@
 </tr>
 <tr>
 <td>3</td>
-<td>证书生成</td>
-<td>用 <code>cryptography</code> 库，打包进二进制</td>
-<td>现有运行依赖只有 PyYAML，这会增大包体积；<code>openssl</code> 命令行在 Windows 上通常没有。第 5 号 PR 再引入</td>
+<td>链路身份</td>
+<td>配对密钥加 HMAC，标准库就够</td>
+<td>第 3 版取消 TLS 证书，不需要 <code>cryptography</code></td>
 </tr>
 <tr>
 <td>4</td>
 <td>Windows 的多机支持</td>
-<td>第 5 号 PR 之后单独立项</td>
-<td>需要决定本机接入方式（命名管道或回环 TCP 加令牌）。单机消息在 Windows 上可用</td>
+<td>共享目录可用；SSH 需要 Windows 上的 OpenSSH 客户端，被连方暂不支持</td>
+<td>不再需要本机 socket</td>
 </tr>
 <tr>
 <td>5</td>

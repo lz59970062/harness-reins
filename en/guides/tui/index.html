@@ -652,9 +652,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#codex-pi-and-deepseek-harness" class="md-nav__link">
+  <a href="#codex-pi-antigravity-and-deepseek-harness" class="md-nav__link">
     <span class="md-ellipsis">
-      Codex, Pi and DeepSeek Harness
+      Codex, Pi, Antigravity and DeepSeek Harness
     </span>
   </a>
   
@@ -885,6 +885,8 @@
       
         
       
+        
+      
     
     
     
@@ -1026,6 +1028,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1380,9 +1405,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#codex-pi-and-deepseek-harness" class="md-nav__link">
+  <a href="#codex-pi-antigravity-and-deepseek-harness" class="md-nav__link">
     <span class="md-ellipsis">
-      Codex, Pi and DeepSeek Harness
+      Codex, Pi, Antigravity and DeepSeek Harness
     </span>
   </a>
   
@@ -1466,8 +1491,8 @@ ever has one process, so nothing forks.</p>
 <li><strong>Goals</strong>: plans and progress.</li>
 <li><strong>Messages</strong>: messages between sessions.</li>
 </ul>
-<p>The panel opens the panes on the right: a session pane runs <code>claude attach</code>, <code>codex resume --remote</code> or <code>reins pi</code>
-(see <a href="#codex-pi-and-deepseek-harness">Codex, Pi and DeepSeek Harness</a>), a log pane runs <code>reins log</code>. A session
+<p>The panel opens the panes on the right: a session pane runs <code>claude attach</code>, <code>codex resume --remote</code>, <code>reins pi</code> or
+<code>agy --resume</code> (see <a href="#codex-pi-antigravity-and-deepseek-harness">Codex, Pi, Antigravity and DeepSeek Harness</a>), a log pane runs <code>reins log</code>. A session
 pane's title reads <code>&lt;harness&gt; &lt;id&gt; @address title</code>, such as <code>claude 08e8651e @lab motion plots</code>, the same names as
 the panel; the harness's own terminal title does not replace it, and a pane you rename gets its name back within 3
 seconds, since the panel finds a session's pane by that name. The panel
@@ -1692,7 +1717,7 @@ key works:</p>
 sessions already open keep running and are rearranged to its right. Run inside the screen, <code>reins tui</code> says that you
 are already there.</p>
 <p>To stop a session, select it in the panel and press <code>s</code>: its process stops and the conversation stays.</p>
-<h2 id="codex-pi-and-deepseek-harness">Codex, Pi and DeepSeek Harness<a class="headerlink" href="#codex-pi-and-deepseek-harness" title="Permanent link">&para;</a></h2>
+<h2 id="codex-pi-antigravity-and-deepseek-harness">Codex, Pi, Antigravity and DeepSeek Harness<a class="headerlink" href="#codex-pi-antigravity-and-deepseek-harness" title="Permanent link">&para;</a></h2>
 <p>Every harness opens in its own interface, and Reins keeps the same promise for each: one process per session.</p>
 <table>
 <thead>
@@ -1727,6 +1752,13 @@ are already there.</p>
 <td>The Reins Pi extension</td>
 </tr>
 <tr>
+<td>Antigravity</td>
+<td>agy's conversation summaries</td>
+<td><code>agy --resume</code>, the conversation's one process</td>
+<td>agy ends with its pane</td>
+<td>Its live <code>reins wait</code></td>
+</tr>
+<tr>
 <td>DeepSeek Harness</td>
 <td>The Reins address book and tasks</td>
 <td>Nothing: it has no terminal interface</td>
@@ -1744,6 +1776,10 @@ are already there.</p>
   folders, so the agent can ACK without asking; the thread keeps that access while it is loaded.</li>
 <li><strong>Pi</strong> has no daemon: its session lives in its pane. Pi sessions opened elsewhere with the Reins extension show as
   open in a terminal; one opened without it cannot be seen.</li>
+<li><strong>Antigravity</strong>, like Pi, lives in its pane. A conversation another agy process has open shows as open in a
+  terminal, and one Reins is resuming headless shows as headless; neither is opened again. agy creates a new
+  conversation on its first prompt, and the pane then takes its name; name its address from the menu. Its menu has
+  no Stop and no Fork.</li>
 <li><strong>DeepSeek Harness</strong> sessions that have a Reins name or started tasks are listed so you can message them, copy
   their address and follow their tasks. Open them in DeepSeek Harness's web or desktop app.</li>
 </ul>

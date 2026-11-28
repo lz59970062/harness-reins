@@ -743,9 +743,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#安全" class="md-nav__link">
+  <a href="#跨机器" class="md-nav__link">
     <span class="md-ellipsis">
-      安全
+      跨机器
     </span>
   </a>
   
@@ -830,6 +830,8 @@
   
     
     
+      
+        
       
         
       
@@ -984,6 +986,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1314,9 +1339,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#安全" class="md-nav__link">
+  <a href="#跨机器" class="md-nav__link">
     <span class="md-ellipsis">
-      安全
+      跨机器
     </span>
   </a>
   
@@ -1356,7 +1381,7 @@
 
 
 <h1 id="会话之间发消息">会话之间发消息<a class="headerlink" href="#会话之间发消息" title="Permanent link">&para;</a></h1>
-<p>同一台机器上的 Codex、Claude Code、Pi 和 DeepSeek Harness 会话可以直接互相发消息。一个会话写代码，另一个审查，第三个跑测试，它们之间不用你来回转述。</p>
+<p>Codex、Claude Code、Pi 和 DeepSeek Harness 会话可以直接互相发消息，同一台机器上可以，配对过的两台机器之间也可以。一个会话写代码，另一个审查，第三个在 GPU 机器上跑测试，它们之间不用你来回转述。</p>
 <p>对方在忙，消息会排队；对方已关闭，Claude Code 和用 <code>reins pi</code> 打开的 Pi 会被自动拉起来处理。</p>
 <h2 id="三步开始">三步开始<a class="headerlink" href="#三步开始" title="Permanent link">&para;</a></h2>
 <p>在要接收消息的会话里起个名字：</p>
@@ -1371,6 +1396,9 @@
 </code></pre></div>
 <p>回复同时也算确认收到。</p>
 <p>也可以直接让 Agent 来做，例如告诉它：“注册为 planner，把这个改动发给 reviewer 审查”。<code>reins setup</code> 安装的技能已经教过它这些命令。</p>
+<p><strong>发给几个会话：</strong> 在 <code>send</code> 后面多写几个名字，每人收到一条普通消息（各自的对话、各自的状态），本机和其他机器的名字可以混着写。要么全发，要么全不发：有一个名字不存在或超了限额，就一条都不发，并说明是哪个。限额按每个收件人分别计算，回复只回给发送方，没有“回复全部”。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>tester@gpu1<span class="w"> </span>planner<span class="w"> </span>-m<span class="w"> </span><span class="s2">"主分支已更新，请各自 rebase"</span>
+</code></pre></div>
 <h2 id="消息什么时候到">消息什么时候到<a class="headerlink" href="#消息什么时候到" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1412,15 +1440,15 @@
 <p><strong>DeepSeek Harness 也需要。</strong> <code>reins wait</code> 作为 DSH 后台作业运行。DSH 不能 headless 恢复，所以 <code>--wake resume</code> 在这里不会启动任何进程，消息里会说明这一点。</p>
 <p><strong>Codex 沙箱。</strong> 如果沙箱挡住了 <code>~/.reins</code>，批准这条命令，或者把这个目录加进可写目录。</p>
 <p>Codex 默认只进队列，因为 Reins 分不清它是开着还是已关闭。要恢复已关闭的 Codex，明确加上 <code>--wake resume</code>。任何会话都不想被拉起时，用 <code>--wake never</code>：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>reins<span class="w"> </span>send<span class="w"> </span>planner<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI 挂了，需要现在处理。"</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>never<span class="w"> </span>-m<span class="w"> </span><span class="s2">"有空再看。"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>send<span class="w"> </span>planner<span class="w"> </span>--wake<span class="w"> </span>resume<span class="w"> </span>-m<span class="w"> </span><span class="s2">"CI 挂了，需要现在处理。"</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer<span class="w"> </span>--wake<span class="w"> </span>never<span class="w"> </span>-m<span class="w"> </span><span class="s2">"有空再看。"</span>
 </code></pre></div>
 <h2 id="查看消息和状态">查看消息和状态<a class="headerlink" href="#查看消息和状态" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">        </span><span class="c1"># 有哪些会话，消息现在怎么到达</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>reins<span class="w"> </span>inbox<span class="w">               </span><span class="c1"># 这个会话的未读消息</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--sent<span class="w">        </span><span class="c1"># 自己发的消息和它们的状态</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--thread<span class="w"> </span>&lt;ID&gt;<span class="w"> </span><span class="c1"># 整个对话</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>reins<span class="w"> </span>message<span class="w"> </span>show<span class="w"> </span>&lt;ID&gt;<span class="w">   </span><span class="c1"># 读一条消息</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">        </span><span class="c1"># 有哪些会话，消息现在怎么到达</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>reins<span class="w"> </span>inbox<span class="w">               </span><span class="c1"># 这个会话的未读消息</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--sent<span class="w">        </span><span class="c1"># 自己发的消息和它们的状态</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>reins<span class="w"> </span>inbox<span class="w"> </span>--thread<span class="w"> </span>&lt;ID&gt;<span class="w"> </span><span class="c1"># 整个对话</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>reins<span class="w"> </span>message<span class="w"> </span>show<span class="w"> </span>&lt;ID&gt;<span class="w">   </span><span class="c1"># 读一条消息</span>
 </code></pre></div>
 <p>状态只说明已知的事实：</p>
 <table>
@@ -1498,21 +1526,46 @@
 </tbody>
 </table>
 <p>达到上限后，命令拒绝发送并让 Agent 停下来告诉你。这个提醒只给人看，不会再发给任何 Agent，所以不会变成下一轮对话。在 <code>reins status</code> 或 <code>reins doctor</code> 里能看到，用这条命令查看和清除：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts<span class="w"> </span>--clear
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>reins<span class="w"> </span>message<span class="w"> </span>alerts<span class="w"> </span>--clear
 </code></pre></div>
 <p>需要调整时写在 <code>~/.reins/link/config.yaml</code>：</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">limits</span><span class="p">:</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">hop</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">pair_per_hour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">240</span>
 </code></pre></div>
-<h2 id="安全">安全<a class="headerlink" href="#安全" title="Permanent link">&para;</a></h2>
+<h2 id="跨机器">跨机器<a class="headerlink" href="#跨机器" title="Permanent link">&para;</a></h2>
+<p>两台机器配对一次，之后用 <code>名字@机器</code> 发消息，其余用法和本机完全一样：回复、收件箱、状态、限额都照常。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>reins<span class="w"> </span>send<span class="w"> </span>reviewer@gpu1<span class="w"> </span>-m<span class="w"> </span><span class="s2">"分支 feature/queue 可以看了"</span>
+</code></pre></div>
+<p><strong>用 SSH 配对</strong>：能 SSH 到对方的那台机器上运行一次，不用在对方那边做任何事。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>gpu1<span class="w">          </span><span class="c1"># gpu1 是 ~/.ssh/config 里的别名，或者 user@host</span>
+</code></pre></div>
+<p>只有一个方向能连也没关系，比如你的电脑能 SSH 进 AutoDL 容器，容器连不回来：两个方向的消息都由连接的那一方搬运，被连的一方不需要任何出站连接。对方要装好 Reins（<code>reins setup</code> 会放在 <code>~/.reins/bin/reins</code>），<code>ssh gpu1</code> 要能免密码登录。</p>
+<p><strong>用共享目录配对</strong>：两台机器能看到同一个目录时（NFS、JuiceFS、共享云盘），不需要网络连接。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>--dir<span class="w"> </span>/mnt/shared/reins-link<span class="w">                 </span><span class="c1"># 第一台：打印一行配对码</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>reins<span class="w"> </span>link<span class="w"> </span>connect<span class="w"> </span>--dir<span class="w"> </span>/mnt/shared/reins-link<span class="w"> </span>--code<span class="w"> </span>&lt;配对码&gt;<span class="w">  </span><span class="c1"># 第二台：用它自己看到的路径</span>
+</code></pre></div>
+<p>配对码里有这对机器的密钥，只能用一次，请自己转给对方。之后目录里的每个文件都带这个密钥的签名，没有密钥的人放进来的文件不会被读取。目录里的消息正文是明文，所以只用在所有能读这个目录的账号都是你自己的时候。两边要用同一个系统账号（同一个 uid）访问它。</p>
+<p><strong>查看和解除：</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>reins<span class="w"> </span>link<span class="w"> </span>list<span class="w">            </span><span class="c1"># 配对的机器、对方的会话、最近一次连通和错误</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>reins<span class="w"> </span>session<span class="w"> </span>list<span class="w">         </span><span class="c1"># 对方的会话也在里面，名字带 @机器</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>reins<span class="w"> </span>link<span class="w"> </span>remove<span class="w"> </span>gpu1<span class="w">     </span><span class="c1"># 解除配对，对方也会收到通知</span>
+</code></pre></div>
+<p><strong>几点不同：</strong></p>
+<ul>
+<li>消息由两边的 Reins 后台进程搬运，所以两台机器都要运行着 daemon（<code>reins setup --enable --now</code>）。一条消息通常几秒内送到。</li>
+<li>发出去的消息多一个状态 <code>forwarded</code>：对方已经收下并通过了检查。对方的回执会把状态更新为 <code>published</code>、<code>acked</code> 或 <code>rejected</code>（比如名字不存在）。</li>
+<li>会话不在时，另一台机器的消息和本机消息一样会把它拉起来处理，所以跨机器也能无人值守运行（同样消耗额度）。不想让某台机器的消息拉起会话，在接收的那台机器上设置：<code>reins link connect gpu1 --wake never</code>，它的消息就只进收件箱。</li>
+<li>限额由接收的一方执行，按发送的机器计（<code>@机器</code>）。</li>
+<li><strong>连不上时会直接说原因。</strong> 往一台连不上的机器发消息，<code>reins send</code> 当场提示它从什么时候断的、可能的原因和该怎么做（比如“nothing answers SSH there; is the machine up and its sshd running?”），消息留在发件箱，恢复后自己发出。<code>reins link list</code>、<code>reins status</code> 和 <code>reins doctor</code> 显示同样的诊断。</li>
+</ul>
 <p><strong>消息正文不等于用户指令。</strong> 正文放在单独的文件里，并标明由其他 Agent 或脚本写成。主题和名字都经过校验，正文无法冒充 Reins 或伪造 ACK 命令。</p>
 <p>标注能降低风险，但不能保证模型一定不照做。如果一个会话开着免审批模式，又要接收其他 Agent 的消息，就要自己评估这个风险。</p>
 <p>同一个系统账号下的所有进程都能读写 <code>~/.reins</code>，所以这不是账号内部的安全边界，文件权限只防其他用户。</p>
 <h2 id="限制">限制<a class="headerlink" href="#限制" title="Permanent link">&para;</a></h2>
 <ul>
-<li>只支持同一台机器、同一个系统账号。<code>reviewer@gpu1</code> 这样的地址现在会被明确拒绝，跨机器的方案在<a href="https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md">协议文档</a>里。</li>
+<li>跨机器只支持 SSH 和共享目录，Reins 不监听任何端口。SSH 的被连方暂不支持 Windows。设计见<a href="https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md">协议文档</a>。</li>
 <li>消息只传文字和引用（<code>--ref git:origin:feature/x</code>、<code>--ref path:/tmp/report.md</code>），不传文件。</li>
 <li><code>reins agent</code> 启动的子 Agent 是一次性的，可以注册名字并发出消息，但结束后要用 <code>reins agent continue</code> 接着做，消息不会把它叫醒。DeepSeek Harness 子 Agent 例外：它的沙箱写不了 <code>~/.reins</code>，所以不能注册名字或发消息。</li>
 <li>同一对话内的消息顺序不作保证，因果关系看 <code>in_reply_to</code>。</li>

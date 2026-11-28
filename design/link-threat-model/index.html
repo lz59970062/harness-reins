@@ -741,6 +741,8 @@
       
         
       
+        
+      
     
     
     
@@ -882,6 +884,29 @@
   
   <span class="md-ellipsis">
     DeepSeek Harness
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integrations/agy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Antigravity
     
   </span>
   
@@ -1281,12 +1306,12 @@
 
 
 <h1 id="reins-link-威胁模型">Reins Link 威胁模型<a class="headerlink" href="#reins-link-威胁模型" title="Permanent link">&para;</a></h1>
-<p>状态：第 2 版，2026-11-02。协议见 <a href="../link-protocol/">link-protocol.md</a>。0.11.0 只有单机消息，没有任何网络入口，所以这里和网络有关的对策（T1、T6、T8、T10、T12、T17、T18）在多机实现时才生效。已生效的是 T2、T3、T11、T13、T14 和 T16。</p>
-<p>修改 Link 的认证、权限、配对、端口监听或远程启动时，必须对照本文。行为变化要同时更新本文。</p>
+<p>状态：第 3 版，2026-11-28，对应协议第 3 版的配对邮箱。协议见 <a href="../link-protocol/">link-protocol.md</a>。Reins 不监听任何端口：跨机器只有共享目录和 SSH 两种入口，身份来自配对密钥。</p>
+<p>修改 Link 的认证、权限、配对、邮箱或远程启动时，必须对照本文。行为变化要同时更新本文。</p>
 <h2 id="1-为什么-link-风险高">1. 为什么 Link 风险高<a class="headerlink" href="#1-为什么-link-风险高" title="Permanent link">&para;</a></h2>
 <p>Reins 现在只在本机账号内工作。Link 会带来两个新变化：</p>
 <ul>
-<li>一个网络入口：接收方可能是一个持有 shell 权限、甚至跳过审批的 Agent。</li>
+<li>一个跨机器入口（共享目录或 SSH）：接收方可能是一个持有 shell 权限、甚至跳过审批的 Agent。</li>
 <li>一条影响模型的通道：对端发来的文字会被另一个 Agent 读到。</li>
 </ul>
 <p>所以<strong>能发消息的对端就有机会影响接收 Agent 的行为，能启动 Agent 的对端几乎等于能在该账号下执行命令。</strong> 后续设计都从这两点出发。</p>
@@ -1304,8 +1329,8 @@
 <td>Agent 能运行命令、改文件</td>
 </tr>
 <tr>
-<td>节点私钥和 <code>peers.yaml</code></td>
-<td>可用于冒充节点或给自己加权限</td>
+<td>配对密钥（<code>peers/&lt;别名&gt;.json</code>）</td>
+<td>可用于冒充这条链路上的对端</td>
 </tr>
 <tr>
 <td>会话环境文件</td>
@@ -1337,18 +1362,18 @@
 <tbody>
 <tr>
 <td>A1</td>
-<td>网络上的陌生人</td>
-<td>能连上监听端口，能监听或篡改未加密流量</td>
+<td>能写共享目录但没有配对密钥的人或进程</td>
+<td>能往邮箱里放、改、删文件</td>
 </tr>
 <tr>
 <td>A2</td>
 <td>同机器的其他 OS 用户</td>
-<td>能连回环端口，能看到进程列表</td>
+<td>能看到进程列表，可能能读权限过宽的文件</td>
 </tr>
 <tr>
 <td>A3</td>
 <td>被攻破的对端节点</td>
-<td>持有合法凭证，能发任意帧</td>
+<td>持有合法配对密钥，能往邮箱放任意签名文件</td>
 </tr>
 <tr>
 <td>A4</td>
@@ -1368,10 +1393,10 @@
 </tbody>
 </table>
 <h2 id="4-信任边界">4. 信任边界<a class="headerlink" href="#4-信任边界" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>   不可信网络
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>───────────────────────────────  边界 1：TLS + mTLS，或 SSH
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   Link 服务（只能写 link/ 下的文件）
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>───────────────────────────────  边界 2：文件校验（塔台不信任 inbound/ 的内容）
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>   共享目录 / SSH
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>───────────────────────────────  边界 1：配对密钥的 HMAC（共享目录），SSH 账号认证加 HMAC（SSH）
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   _link-sync（只能写 link/inbound、quarantine 和邮箱）
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>───────────────────────────────  边界 2：文件校验（塔台不信任 inbound/ 的内容，准入照常执行）
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   塔台（queue/** 的唯一写入者）
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>───────────────────────────────  边界 3：信封（模型不应把正文当指令）
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>   接收 Agent
@@ -1391,10 +1416,10 @@
 <tbody>
 <tr>
 <td>T1</td>
-<td>未认证连接发帧或探测</td>
-<td>A1、A2</td>
-<td>先完成传输层认证，失败的连接读不到任何帧；错误信息不透露是否有此对端；默认不监听网络</td>
-<td>S1、S2</td>
+<td>没有配对密钥的人往邮箱放文件</td>
+<td>A1</td>
+<td>每个文件验 HMAC，验不过移到 <code>quarantine/</code> 并告警，绝不导入；Reins 不监听任何端口</td>
+<td>S1</td>
 </tr>
 <tr>
 <td>T2</td>
@@ -1414,49 +1439,49 @@
 <td>T4</td>
 <td>冒充其他节点或会话</td>
 <td>A3</td>
-<td><code>from.node</code> 由已验证的连接身份决定；<code>from.name</code> 显示为“对端声称”，并带节点别名</td>
+<td><code>from.node</code> 必须等于配对记录里的节点；<code>from.name</code> 显示时带对端别名（<code>planner@hub</code>）</td>
 <td>N9、S4</td>
 </tr>
 <tr>
 <td>T5</td>
 <td>权限提升：<code>hello</code> 声称有 <code>spawn</code>、请求放宽沙箱</td>
 <td>A3</td>
-<td>权限只来自本节点的 <code>peers.yaml</code>；<code>spawn</code> 默认关闭、只能启动白名单专家；请求只能收紧沙箱</td>
+<td>能力取双方的交集，第 3 版只有 <code>message</code>、<code>receipt</code>、<code>names</code>；<code>wake</code> 只由接收方的配对记录决定；请求只能收紧沙箱</td>
 <td>S5、S6</td>
 </tr>
 <tr>
 <td>T6</td>
-<td>窃听或篡改流量</td>
+<td>读取或篡改邮箱里的文件</td>
 <td>A1</td>
-<td>只允许 TLS 1.2+ 和 SSH；不提供明文 TCP 选项</td>
+<td>篡改：HMAC 验不过。读取：共享目录上的正文是明文，能读这个目录的人就能读消息，文档要写明；SSH 走加密通道</td>
 <td>S7</td>
 </tr>
 <tr>
 <td>T7</td>
 <td>重放或 ID 撞车</td>
 <td>A1、A3</td>
-<td>TLS 防重放；消息层按 <code>(节点, ID)</code> 去重，相同 ID 不同内容拒绝；本地根由节点和 ID 的哈希生成，对端不能占用别人的记录</td>
+<td>按 <code>(节点, ID)</code> 去重，相同 ID 不同内容拒绝；本地根由节点和 ID 的哈希生成，对端不能占用别人的记录；回执只让状态前进</td>
 <td>N4、N5、N10</td>
 </tr>
 <tr>
 <td>T8</td>
 <td>配对码被截获或重用</td>
 <td>A1</td>
-<td>128 位以上随机、10 分钟过期、只能用一次；连接时校验配对码内的证书指纹；连续失败 5 次后作废；配对码不写入日志</td>
+<td>配对码含 256 位随机密钥，只用一次（配对完成即删 <code>hello/</code>）；配对码不写入日志</td>
 <td>S8</td>
 </tr>
 <tr>
 <td>T9</td>
-<td>私钥或对端配置被其他用户读取</td>
+<td>配对密钥被其他用户读取</td>
 <td>A2</td>
-<td>目录 0700、文件 0600；启动时检查权限，过宽就拒绝启动</td>
+<td>目录 0700、文件 0600</td>
 <td>S9</td>
 </tr>
 <tr>
 <td>T10</td>
-<td>回环端口被其他用户连接</td>
-<td>A2</td>
-<td>本机接入只用权限 0600 的 Unix socket，并校验对端 uid；不提供未认证的回环 TCP</td>
+<td>SSH 钥匙权限过大</td>
+<td>A3、A4</td>
+<td>文档提供受限钥匙写法（<code>command="… _link-box --pair …"</code>），只能操作一个邮箱</td>
 <td>S2</td>
 </tr>
 <tr>
@@ -1468,9 +1493,9 @@
 </tr>
 <tr>
 <td>T12</td>
-<td>超大帧、深层嵌套 JSON、慢速连接</td>
+<td>超大文件、深层嵌套 JSON、塞满邮箱</td>
 <td>A1、A3</td>
-<td>认证前只读有限字节和时长；帧上限 1 MiB；有握手超时、空闲超时和连接数上限；解析失败即断开</td>
+<td>单个文件 1 MiB 上限，先看大小再读；解析失败即隔离；每轮只取有限个文件</td>
 <td>S11</td>
 </tr>
 <tr>
@@ -1484,14 +1509,14 @@
 <td>T14</td>
 <td>自动唤醒消耗额度</td>
 <td>A3、A6</td>
-<td>跨机器 <code>wake</code> 默认 <code>never</code>，并受对端权限限制；本机靠 <code>hop</code> 和频率上限止损</td>
+<td>靠 <code>hop</code> 和频率上限止损（接收方执行，按对端计）；接收方可对某个对端设 <code>--wake never</code>，它的消息就只进收件箱</td>
 <td>L3、L5</td>
 </tr>
 <tr>
 <td>T15</td>
 <td>信息泄露：列表暴露路径、会话 ID</td>
 <td>A3</td>
-<td><code>directory</code> 只返回 <code>--share</code> 的名字、Harness、在线状态；错误信息和回执不含路径</td>
+<td><code>names</code> 只带名字和 Harness 类型；错误信息和回执不含路径</td>
 <td>S13</td>
 </tr>
 <tr>
@@ -1503,16 +1528,16 @@
 </tr>
 <tr>
 <td>T17</td>
-<td>吊销后旧连接继续工作</td>
+<td>解除配对后对端继续发</td>
 <td>A3</td>
-<td>移除对端时立即断开现有连接，后续请求一律拒绝；发件箱中发往它的消息转为 <code>failed</code></td>
+<td>删除配对记录即删除密钥，之后它的文件验不过；本地发件箱中发往它的文件删除，消息转为 <code>failed</code></td>
 <td>S15</td>
 </tr>
 <tr>
 <td>T18</td>
-<td>版本降级：强迫使用旧协议或弱参数</td>
-<td>A1</td>
-<td>TLS 最低版本写死；协议版本取共同最高；不提供关闭校验的开关</td>
+<td>版本降级：强迫使用旧协议</td>
+<td>A3</td>
+<td>协议版本取共同最高并写进配对记录，之后每个文件都要和它一致；不提供关闭验签的开关</td>
 <td>S7</td>
 </tr>
 <tr>
@@ -1532,7 +1557,7 @@
 </tbody>
 </table>
 <h2 id="6-安全验收s-组">6. 安全验收（S 组）<a class="headerlink" href="#6-安全验收s-组" title="Permanent link">&para;</a></h2>
-<p>第 5 号 PR 必须全部通过，第 6 号 PR 还要加上 S5、S6 在真实 Agent 上的验证。</p>
+<p>第 3、4 号 PR 必须通过 S1、S4、S7 到 S15，第 5 号 PR 还要加上 S5、S6 在真实 Agent 上的验证。</p>
 <table>
 <thead>
 <tr>
@@ -1544,13 +1569,13 @@
 <tbody>
 <tr>
 <td>S1</td>
-<td>无证书、未知证书、过期证书连接</td>
-<td>TLS 握手失败，读不到帧，也不写任何文件</td>
+<td>往邮箱放未签名、错误签名、别的配对 ID 的文件</td>
+<td>进 <code>quarantine/</code> 并告警，没有回调</td>
 </tr>
 <tr>
 <td>S2</td>
-<td>其他 OS 用户连接 <code>link.sock</code></td>
-<td>被文件权限或 uid 校验拒绝</td>
+<td>受限钥匙尝试操作别的配对 ID 或重新握手</td>
+<td>拒绝</td>
 </tr>
 <tr>
 <td>S3</td>
@@ -1574,18 +1599,18 @@
 </tr>
 <tr>
 <td>S7</td>
-<td>尝试 TLS 1.1、明文连接</td>
-<td>连接失败</td>
+<td>文件的协议版本和配对记录不一致，或被改过一个字节</td>
+<td>隔离，不导入</td>
 </tr>
 <tr>
 <td>S8</td>
-<td>配对码重复使用、过期、连续猜错</td>
-<td>全部失败，错误 5 次后作废</td>
+<td>配对码用第二次、用错</td>
+<td>失败，不留下配对记录</td>
 </tr>
 <tr>
 <td>S9</td>
-<td>私钥文件权限被放宽到 0644</td>
-<td>Link 拒绝启动，提示修复命令</td>
+<td>检查 <code>peers/</code> 的权限</td>
+<td>目录 0700、文件 0600</td>
 </tr>
 <tr>
 <td>S10</td>
@@ -1594,8 +1619,8 @@
 </tr>
 <tr>
 <td>S11</td>
-<td>超大长度前缀、截断帧、慢速发送、连接耗尽</td>
-<td>断开，服务保持可用，内存有上限</td>
+<td>超大文件、截断文件、写到一半的临时文件</td>
+<td>超大和截断的隔离，临时文件忽略，搬运保持可用</td>
 </tr>
 <tr>
 <td>S12</td>
@@ -1614,8 +1639,8 @@
 </tr>
 <tr>
 <td>S15</td>
-<td>连接中吊销对端</td>
-<td>现有连接立即断开，重连失败</td>
+<td>解除配对后对端继续往邮箱放文件</td>
+<td>验不过，不导入</td>
 </tr>
 </tbody>
 </table>
@@ -1623,10 +1648,11 @@
 <p>这些风险当前不解决，需要在用户文档里明确说明。</p>
 <ol>
 <li><strong>模型可能仍然遵从注入内容。</strong> 信封标注能降低风险，不能消除。开启无审批或跳过沙箱的 Agent 接收对端消息，风险由用户承担，<code>reins doctor</code> 应当提示这种组合。</li>
-<li><strong>本账号下被攻破的 Agent 能读到节点私钥。</strong> 这样就能冒充本节点。可用的缓解：有沙箱的 Agent 不应能读 <code>~/.reins/link/identity/</code>；敏感节点把 Link 放在单独的 OS 账号；发现后立即吊销。</li>
-<li><strong>SSH 账号密钥本身权限过大。</strong> 未加 <code>command=</code> 限制的密钥等于完整 shell。文档默认推荐受限密钥。</li>
+<li><strong>本账号下被攻破的 Agent 能读到配对密钥。</strong> 这样就能冒充本节点。可用的缓解：有沙箱的 Agent 不应能读 <code>~/.reins/link/peers/</code>；敏感节点把 Reins 放在单独的 OS 账号；发现后立即重新配对。</li>
+<li><strong>SSH 账号密钥本身权限过大。</strong> 未加 <code>command=</code> 限制的密钥等于完整 shell。文档给出受限钥匙的写法。</li>
+<li><strong>共享目录上的正文是明文。</strong> 能读这个目录的人都能读消息。只在所有能访问它的账号都是你自己的时候使用。</li>
 <li><strong>被攻破的对端可以发送恶意正文。</strong> 认证只回答“是谁发的”，不回答“内容能不能信”。</li>
-<li><strong>元数据可见。</strong> 网络观察者能看到连接时间和流量大小。</li>
+<li><strong>元数据可见。</strong> 能看共享目录的人能看到文件数量和时间。</li>
 </ol>
 <h2 id="8-默认配置">8. 默认配置<a class="headerlink" href="#8-默认配置" title="Permanent link">&para;</a></h2>
 <table>
@@ -1638,39 +1664,35 @@
 </thead>
 <tbody>
 <tr>
-<td>Link 服务</td>
-<td>关闭，需显式启用</td>
-</tr>
-<tr>
 <td>网络监听</td>
-<td>关闭，需显式指定地址；不默认绑定 <code>0.0.0.0</code></td>
+<td>没有：Reins 不监听任何端口</td>
 </tr>
 <tr>
-<td>新对端权限</td>
-<td>只有 <code>message</code></td>
+<td>跨机器</td>
+<td>没有配对就没有，<code>reins link connect</code> 显式建立</td>
+</tr>
+<tr>
+<td>新对端能力</td>
+<td><code>message</code>、<code>receipt</code>、<code>names</code></td>
 </tr>
 <tr>
 <td><code>spawn</code></td>
-<td>关闭，且需逐个专家授权</td>
+<td>没有</td>
 </tr>
 <tr>
-<td>会话对对端可见</td>
-<td>否，需 <code>--share</code></td>
+<td>跨机器 <code>wake</code></td>
+<td>和本机相同；<code>connect 别名 --wake never</code> 对某个对端关掉</td>
 </tr>
 <tr>
-<td>关闭证书校验的开关</td>
-<td>不提供</td>
-</tr>
-<tr>
-<td>明文 TCP</td>
+<td>关闭验签的开关</td>
 <td>不提供</td>
 </tr>
 </tbody>
 </table>
 <h2 id="9-事件响应">9. 事件响应<a class="headerlink" href="#9-事件响应" title="Permanent link">&para;</a></h2>
 <ol>
-<li>吊销对端：<code>reins link peer remove NAME</code>，立即生效。</li>
-<li>节点私钥泄露：<code>reins link rotate-identity</code>，通知对端重新配对。</li>
+<li>解除配对：<code>reins link remove 别名</code>，立即生效。</li>
+<li>配对密钥泄露：对这个对端重新运行 <code>reins link connect</code>，换新密钥。</li>
 <li>代码漏洞：按 <code>SECURITY.md</code> 私下报告，修复前不公开细节。</li>
 </ol>
 

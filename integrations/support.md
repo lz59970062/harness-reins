@@ -13,9 +13,10 @@ This page reflects the current `main` implementation and repository validation r
 | Claude desktop app, Code sessions | Child tasks use a signed-in standalone Claude CLI | Run `reins wait` through background Bash | 0.7.1 preview; verified with macOS local sessions and Linux SSH sessions |
 | Pi | `reins agent pi` | Extension sends a steer message to the live process; `reins pi` adds recovery after closing | 0.7.1 preview; recorded validation on Linux with Pi 0.87.1; macOS/Windows validation pending |
 | DeepSeek Harness (DSH) | `reins agent dsh` | Background `reins wait` runs as a DSH job; its completion notification wakes the same conversation; no headless resume | Real sessions verified for submit, job notification and ACK on macOS desktop and Linux (`dsh` 0.2.1-rc.5, ACP and web UI); Windows not yet verified with a real DSH |
+| Antigravity CLI (`agy`) | Not yet | With a window open, a background `reins wait` wakes the same conversation; when nothing has it open, the daemon resumes it with `agy --resume -p` | Verified on Linux with `agy` 1.5.18: idle wake in an interactive window, an `-p` conversation and a headless resume; macOS not yet tried; Windows delivers through `reins wait` only |
 | Codex Desktop | Child tasks use Codex CLI | Start Desktop normally; `auto` selects the native `codex queue` | Verified with macOS Desktop and real Codex on Linux; Windows Desktop pending |
 
-You can combine child and receiving Agents. For example, `reins agent claude` in Codex runs the task with Claude and returns the result to Codex. Follow the [Codex](codex.md), [Claude](claude.md), [Pi](pi.md), or [Desktop](desktop.md) guide.
+You can combine child and receiving Agents. For example, `reins agent claude` in Codex runs the task with Claude and returns the result to Codex. Follow the [Codex](codex.md), [Claude](claude.md), [Pi](pi.md), [Antigravity](agy.md) or [Desktop](desktop.md) guide.
 
 Claude also has a `reins claude` channel research preview. The repository records live receipt and ACK on Linux with Claude Code 2.1.296. See the [channel setup](https://github.com/lz59970062/harness-reins/blob/main/docs/claude-code.md#reins-channel-research-preview).
 
@@ -26,7 +27,7 @@ Claude also has a `reins claude` channel research preview. The repository record
 | Gemini CLI, OpenCode, Aider, Goose | Run a configured command-line task through `reins run -- <command>` and return results to an existing receiver | Implement child arguments, session detection, and callback transport; validate each end to end |
 | LangGraph, AutoGen, CrewAI, custom Agent SDK programs | Save the workflow in a script and use `reins run`, or call `reins done` at the end of an existing job | Implement a session adapter and wakeup channel for the receiving harness |
 
-These frameworks currently use the generic command interface. The native adapter registry contains `codex`, `claude`, `pi`, and `dsh`. Begin with a script that prints a result and exits, check the log, callback, and ACK, then connect the actual workflow. See the [custom workflow example](../guides/use-cases.md#run-a-custom-agent-workflow).
+These frameworks currently use the generic command interface. The native adapter registry contains `codex`, `claude`, `pi`, `dsh` and `agy`. Begin with a script that prints a result and exits, check the log, callback, and ACK, then connect the actual workflow. See the [custom workflow example](../guides/use-cases.md#run-a-custom-agent-workflow).
 
 ## Execution environments
 

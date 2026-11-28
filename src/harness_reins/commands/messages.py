@@ -76,6 +76,11 @@ def session_list(args: argparse.Namespace) -> int:
     rows = [{"name": record["name"], "harness": record["harness"], "arrival": messages.arrival(record),
              "cwd": record.get("cwd"), "session": record.get("session"), "registered_at": record.get("registered_at")}
             for record in link.sessions(queue)]
+    for peer in link.peers(queue):
+        if peer.get("state") == "active":
+            alias = str(peer["alias"])
+            rows += [{"name": f"{item['name']}@{alias}", "harness": item["harness"], "arrival": "other-machine",
+                      "cwd": None, "session": None, "registered_at": None} for item in link.load_names(queue, alias)]
     if args.json:
         print(json.dumps(rows, ensure_ascii=False, indent=2))
         return 0
@@ -83,8 +88,8 @@ def session_list(args: argparse.Namespace) -> int:
         print("No named sessions. Inside a session, run: reins session register NAME")
         return 0
     for row in rows:
-        print(f"{row['name']:<20} {row['harness']:<7} {row['arrival']:<12} {row['cwd']}")
-    print("arrival: live = reaches it now; codex-queue = Codex delivers it; window = waits for this open window's next `reins wait` or for it to close; resume = a headless resume delivers it; inbox = waits until it is read")
+        print(f"{row['name']:<20} {row['harness']:<7} {row['arrival']:<13} {row['cwd'] or ''}".rstrip())
+    print("arrival: live = reaches it now; codex-queue = Codex delivers it; window = waits for this open window's next `reins wait` or for it to close; resume = a headless resume delivers it; inbox = waits until it is read; other-machine = a paired machine delivers it (reins link list)")
     return 0
 
 
@@ -118,12 +123,29 @@ def send(args: argparse.Namespace) -> int:
         body = _body(args)
         if not body and not args.subject:
             raise rules.Refused("invalid_record", "nothing to send: pass --message, --message-file or --subject")
-        message = messages.send(queue, args, args.name, subject=args.subject, body=body or "",
-                                refs=[rules.parse_ref(ref) for ref in args.ref or []], wake=args.wake)
+        names = args.name if isinstance(args.name, list) else [args.name]
+        sent = messages.send_many(queue, args, names, subject=args.subject, body=body or "",
+                                  refs=[rules.parse_ref(ref) for ref in args.ref or []], wake=args.wake)
     except rules.Refused as error:
         return _refused(error)
-    _report(queue, message, args.json)
+    if args.json and len(sent) > 1:
+        print(json.dumps([messages.summary(queue, message) for message in sent], ensure_ascii=False, indent=2))
+        _warn_unreachable(queue, sent)
+        return 0
+    for message in sent:
+        _report(queue, message, args.json)
+    _warn_unreachable(queue, sent)
     return 0
+
+
+def _warn_unreachable(queue: Path, sent: Iterable[Mapping[str, object]]) -> None:
+    """Say at once when a paired machine cannot be reached now, and why, so nobody has to dig for it."""
+    from ..engine import link_sync
+    for alias in dict.fromkeys(str(item["sent"]["peer"]) for item in sent if isinstance(item.get("sent"), dict)):
+        problem = link_sync.problem(queue, alias)
+        if problem:
+            print(f"Note: {alias} cannot be reached right now: {problem}. The message waits in the outbox and goes "
+                  f"by itself once {alias} is back; `reins link list` shows the details.", file=sys.stderr)
 
 
 @_writes_state
@@ -139,6 +161,7 @@ def reply(args: argparse.Namespace) -> int:
     except rules.Refused as error:
         return _refused(error)
     _report(queue, message, args.json)
+    _warn_unreachable(queue, [message])
     # Replying proves the message was read, so the reply is also its ACK.
     callbacks.ack(argparse.Namespace(id=parent["local"]["callback"], callback_id=None, message="replied",
                                      queue_dir=str(queue)))
@@ -167,15 +190,16 @@ def inbox(args: argparse.Namespace) -> int:
     except rules.Refused as error:
         return _refused(error)
     rows = []
-    for message in link.all_messages(queue):
+    for message in [*link.all_messages(queue), *(link.all_sent(queue) if args.sent or args.thread else [])]:
         if args.thread:
             selected = message.get("thread") == args.thread
         elif args.sent:
-            selected = message["from"].get("name") == name
+            selected = message["from"].get("name") == name and not message.get("local", {}).get("peer")
         else:
             selected = message["to"]["name"] == name
         if selected:
             rows.append(messages.summary(queue, message))
+    rows.sort(key=lambda row: str(row["created_at"]))
     if not args.all and not args.thread and not args.sent:
         rows = [row for row in rows if row["state"] in messages.UNREAD_STATES]
     if args.json:
@@ -204,7 +228,7 @@ def message_show(args: argparse.Namespace) -> int:
     if item.get("note"):
         print(f"Note from Reins: {item['note']}.")
     print(rules.body_text(message))
-    if item["state"] in messages.UNREAD_STATES:
+    if item["state"] in messages.UNREAD_STATES and item.get("callback"):
         print(f"\nACK after reading: reins ack {item['callback']}")
     return 0
 

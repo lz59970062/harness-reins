@@ -154,9 +154,16 @@ def status(args: argparse.Namespace) -> int:
     states = args.state or ["pending", "running", "failed"]
     items = queued_items(root, states)
     alerts = messages.alerts(root)
-    if alerts:
-        print(f"[reins] {len(alerts)} message thread(s) stopped at a limit; no agent was told again. "
+    stopped = [alert for alert in alerts if alert.get("kind") != "link"]
+    if stopped:
+        print(f"[reins] {len(stopped)} message thread(s) stopped at a limit; no agent was told again. "
               "Inspect: reins message alerts")
+    if len(alerts) > len(stopped):
+        print(f"[reins] {len(alerts) - len(stopped)} file(s) from paired machines were set aside. "
+              "Inspect: reins message alerts")
+    from ..engine import link_sync
+    for alias, problem in link_sync.problems(root):
+        print(f"[reins] link to {alias}: {problem}. Check: reins link list")
     if not items:
         if not args.quiet_empty:
             print(f"No callbacks need attention in {root}")

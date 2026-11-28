@@ -1,6 +1,6 @@
 # Messages between sessions
 
-Codex, Claude Code, Pi and DeepSeek Harness sessions on one machine can message each other directly. One session writes code, another reviews it, a third runs the tests, and you no longer have to carry messages between them.
+Codex, Claude Code, Pi and DeepSeek Harness sessions can message each other directly, on one machine or between two paired machines. One session writes code, another reviews it, a third runs the tests on a GPU box, and you no longer have to carry messages between them.
 
 A busy session gets the message when it can take it. A closed Claude Code session, or a Pi session opened with `reins pi`, is started to handle it.
 
@@ -28,6 +28,12 @@ reins reply m-6ae8b07359c6e7f5 -m "Done. The retry on line 42 has no limit."
 A reply also acknowledges the message.
 
 You can leave this to the agents, for example: "Register as planner and send this change to reviewer for review." The skill installed by `reins setup` teaches them these commands.
+
+**To several sessions:** name them all after `send`. Each gets an ordinary message of its own (its own thread and state), and names here and on other machines can be mixed. It is all or nothing: if a name does not exist or a limit would be passed, nothing is sent and the reason names the recipient. Limits count each recipient; a reply goes back to the sender only, and there is no "reply all".
+
+```bash
+reins send reviewer tester@gpu1 planner -m "main moved; please rebase"
+```
 
 ## When a message arrives
 
@@ -104,7 +110,47 @@ limits:
   pair_per_hour: 240
 ```
 
-## Security
+## Between machines
+
+Pair two machines once, then send to `name@machine`. Everything else works as on one machine: replies, the inbox, states and limits.
+
+```bash
+reins send reviewer@gpu1 -m "feature/queue is ready for review"
+```
+
+**Pair over SSH** by running one command on the machine that can SSH to the other. Nothing needs doing on the other side.
+
+```bash
+reins link connect gpu1          # an alias from ~/.ssh/config, or user@host
+```
+
+One direction is enough. If your laptop can SSH into an AutoDL container but the container cannot reach back, the side that connects carries messages both ways and the other side never connects out. Reins must be installed there (`reins setup` puts it at `~/.reins/bin/reins`), and `ssh gpu1` must log in without a password prompt.
+
+**Pair through a shared directory** when both machines see the same directory (NFS, JuiceFS, a shared cloud disk). No network connection is needed.
+
+```bash
+reins link connect --dir /mnt/shared/reins-link                # first machine: prints a pairing code
+reins link connect --dir /mnt/shared/reins-link --code <code>  # second machine, with its own path to it
+```
+
+The pairing code holds the pair's key and works once; pass it on yourself. From then on every file in the directory is signed with that key, and a file anyone else puts there is never read. Message text in the directory is not encrypted, so use it only when every account that can read the directory is yours. Both machines must use the same OS account (the same uid) for it.
+
+**See and undo:**
+
+```bash
+reins link list            # paired machines, their sessions, last contact and errors
+reins session list         # their sessions are listed too, as name@machine
+reins link remove gpu1     # unpair; the other machine is told
+```
+
+**What is different:**
+
+- The Reins daemons on both machines carry the messages, so both must run one (`reins setup --enable --now`). A message usually arrives within a few seconds.
+- A sent message has one more state, `forwarded`: the other machine took it and it passed the checks there. Receipts from the other side then move it to `published`, `acked` or `rejected` (for example, no such name).
+- A message from another machine starts a closed session just as a message on this machine does, so work across machines runs unattended too (and spends model usage the same way). To keep one machine's messages from starting sessions, run this on the receiving machine: `reins link connect gpu1 --wake never`; they then wait in the inbox.
+- The receiving machine enforces the limits and counts the sending machine (`@machine`).
+- **A broken link says why.** Sending to a machine that cannot be reached, `reins send` says at once since when, the likely cause and what to do (for example "nothing answers SSH there; is the machine up and its sshd running?"). The message waits in the outbox and goes by itself once the machine is back. `reins link list`, `reins status` and `reins doctor` show the same diagnosis.
+
 
 **Message text is not a user instruction.** It is kept in a separate file and marked as written by another agent or a script. Subjects and names are validated, and the text cannot pose as Reins or forge an ACK command.
 
@@ -114,7 +160,7 @@ Every process under one OS account can read and write `~/.reins`, so this is not
 
 ## Limits
 
-- One machine and one OS account. An address like `reviewer@gpu1` is refused with a clear error for now; the plan for multiple machines is in the [protocol document](https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md).
+- Between machines, only SSH and a shared directory; Reins listens on no port. A Windows machine cannot be the side SSH connects to yet. The design is in the [protocol document](https://github.com/lz59970062/harness-reins/blob/main/docs/design/link-protocol.md).
 - Messages carry text and references (`--ref git:origin:feature/x`, `--ref path:/tmp/report.md`), not files.
 - A child started with `reins agent` runs once. It can register a name and send messages, but it continues through `reins agent continue`; a message does not wake it. A DeepSeek Harness child is the exception: its sandbox cannot write `~/.reins`, so it cannot register or send.
 - Order within a thread is not guaranteed; use `in_reply_to` for cause and effect.

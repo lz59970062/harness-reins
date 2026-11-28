@@ -575,12 +575,28 @@ def message_issues(root: Path) -> list[dict[str, object]]:
     """Message threads stopped at a limit. Only people hear about these, so the talk cannot continue."""
     from ..engine import messages
 
+    from ..engine import link_sync
+
     alerts = messages.alerts(root)
-    if not alerts:
-        return []
-    return [{"code": "message_limit_reached", "kind": "runtime", "component": "messages", "count": len(alerts),
-             "action": "Agents kept messaging each other until a limit stopped them. Inspect with reins message "
-                       "alerts, then clear with reins message alerts --clear. Starting a new thread is your call."}]
+    stopped = [alert for alert in alerts if alert.get("kind") != "link"]
+    issues: list[dict[str, object]] = []
+    if stopped:
+        issues.append({"code": "message_limit_reached", "kind": "runtime", "component": "messages",
+                       "count": len(stopped),
+                       "action": "Agents kept messaging each other until a limit stopped them. Inspect with reins "
+                                 "message alerts, then clear with reins message alerts --clear. Starting a new thread "
+                                 "is your call."})
+    if len(alerts) > len(stopped):
+        issues.append({"code": "link_file_set_aside", "kind": "runtime", "component": "messages",
+                       "count": len(alerts) - len(stopped),
+                       "action": "Files from a paired machine failed their checks and were not imported. Inspect with "
+                                 "reins message alerts; if the pairing changed, run reins link connect again."})
+    problems = link_sync.problems(root)
+    if problems:
+        issues.append({"code": "link_unreachable", "kind": "runtime", "component": "messages", "count": len(problems),
+                       "action": "A paired machine could not be reached: " + "; ".join(
+                           f"{alias}: {problem}" for alias, problem in problems) + ". Check with reins link list."})
+    return issues
 
 
 def delivery_issues(root: Path) -> list[dict[str, object]]:

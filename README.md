@@ -492,7 +492,7 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 - [x] Prebuilt npm packages for macOS and Windows (0.14.5)
 - [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11), and DeepSeek Harness (0.12)
 - [x] A terminal UI for every Claude Code, Codex and Pi session on the machine (0.14)
-- [ ] Messages between machines, over SSH and an authenticated port ([design](docs/design/link-protocol.md))
+- [ ] Messages between machines, over SSH or a shared directory ([design](docs/design/link-protocol.md))
 - [ ] Expert agents, and forking an expert's context from a checkpoint
 - [ ] Fan-in: one callback when a group of tasks finishes
 - [ ] More harnesses: Gemini CLI, OpenCode, and agents that speak ACP

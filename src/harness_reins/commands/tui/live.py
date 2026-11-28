@@ -397,6 +397,8 @@ HEALTH_TEXT = {
     "backend_unavailable": "no task backend (systemd or screen) is available: reins doctor",
     "callback_agent_unavailable": "Claude Code was not found on PATH",
     "message_limit_reached": "messages between sessions stopped at a limit: reins message alerts",
+    "link_file_set_aside": "files from a paired machine were set aside: reins message alerts",
+    "link_unreachable": "a paired machine cannot be reached: reins link list",
     "platform_unsupported": "this system is not supported",
     "diagnostics_failed": "the check itself failed: reins doctor",
 }

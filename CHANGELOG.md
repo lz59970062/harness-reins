@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Sessions on two machines can message each other: pair them once with `reins link connect HOST` (over SSH, run
+  on the machine that can connect; one direction is enough) or `reins link connect --dir PATH` (a directory both
+  see, with a one-time pairing code), then send to `name@machine`. Replies, the inbox, states and limits work as on
+  one machine, with one more state, `forwarded`, and a message from another machine starts a closed session as a
+  local one does, so work across machines runs unattended (`reins link connect NAME --wake never` on the receiver
+  turns that off for one machine). Every file between the machines is signed with the pair's key. `reins link list` shows paired machines, their sessions and errors;
+  `reins link remove` unpairs. Reins still listens on no port. When a machine cannot be reached, `reins send`,
+  `reins link list` and `reins status` say since when, the likely cause (host down, login refused, Reins missing,
+  shared directory not mounted, ...) and what to do; the message goes by itself once it is back.
+- `reins send A B C@machine` sends one message to each, or to none if any cannot be sent.
+
 ## 0.14.6 — 2026-11-24
 
 - `reins tui` explains selecting and copying: a drag in a Claude Code, Codex, Pi or terminal pane is already copied

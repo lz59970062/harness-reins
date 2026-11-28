@@ -8,7 +8,7 @@
 <h3 align="center">Dispatch work to any agent and route the result back to the session that asked.</h3>
 
 <p align="center">
-  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.14.6-2a78d6" alt="Release 0.14.6"></a>
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/release-0.15.0-2a78d6" alt="Release 0.15.0"></a>
   <a href="https://www.npmjs.com/package/harness-reins"><img src="https://img.shields.io/badge/npm-harness--reins-2a78d6" alt="npm harness-reins"></a>
   <img src="https://img.shields.io/badge/python-%E2%89%A53.9-2a78d6" alt="Python ≥ 3.9">
   <img src="https://img.shields.io/badge/platforms-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-2a78d6" alt="Linux, macOS, Windows">
@@ -391,9 +391,11 @@ and the digest matches a fresh `goal check`. Idle goals get a status nudge every
 reins session register reviewer          # inside the session that should receive
 reins send reviewer --subject "Check the queue change" -m "Branch feature/queue is ready."
 reins inbox                              # what is waiting for this session
+reins link connect gpu1                  # once: pair with another machine over SSH (or --dir PATH)
+reins send reviewer@gpu1 tester -m "main moved; please rebase"   # one message to each
 ```
 
-Works across Codex, Claude Code, Pi and DeepSeek Harness on one machine. Messages between machines are planned.
+Works across Codex, Claude Code, Pi, DeepSeek Harness and Antigravity, on one machine or between paired machines.
 → [Messages between sessions](docs/guides/messages.en.md)
 
 ### `tui` — every session in one terminal
@@ -494,7 +496,8 @@ Use `--service standalone --now` where user systemd is unavailable (e.g. AutoDL)
 - [x] Prebuilt npm packages for macOS and Windows (0.14.5)
 - [x] Messages between Codex, Claude Code and Pi sessions on one machine (0.11), and DeepSeek Harness (0.12)
 - [x] A terminal UI for every Claude Code, Codex and Pi session on the machine (0.14)
-- [ ] Messages between machines, over SSH or a shared directory ([design](docs/design/link-protocol.md))
+- [x] Messages between machines, over SSH or a shared directory (0.15)
+- [x] Antigravity CLI support (0.15)
 - [ ] Expert agents, and forking an expert's context from a checkpoint
 - [ ] Fan-in: one callback when a group of tasks finishes
 - [ ] More harnesses: Gemini CLI, OpenCode, and agents that speak ACP

@@ -163,6 +163,7 @@ ATC 的 systemd drop-in 和 `experts.yaml` 会带到 Reins。
 | `reins session register <名字>` | 给当前会话起名，让其他会话能找到它 |
 | `reins send <名字> -m <正文>` | 给另一个 Codex、Claude Code、Pi、DeepSeek Harness 或 Antigravity 会话发消息，详见[指南](docs/guides/messages.md) |
 | `reins inbox` | 查看这个会话的未读消息 |
+| `reins link connect <主机>` | 和另一台机器配对一次（SSH，或 `--dir` 共享目录），之后用 `名字@机器` 发消息，详见[指南](docs/guides/messages.md) |
 | `reins tui` | 在一个终端里看本机所有 Claude Code、Codex、Pi 会话和它们的任务、消息，双击就在旁边窗格打开，详见[指南](docs/guides/tui.md) |
 | `reins ack <回调ID>` | 确认已经收到并看过结果（不等于任务完成） |
 | `reins status` | 查看还需要处理的回调 |

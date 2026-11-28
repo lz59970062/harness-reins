@@ -440,13 +440,14 @@ def inspect(args: argparse.Namespace) -> dict[str, object]:
                        "action": capability.get("action", "Repair the original session's callback route; do not resubmit saved work.")})
 
     skill_home = {"codex": layout.codex_home, "claude": layout.claude_home,
-                  "pi": pi_channel.profile_dir, "dsh": layout.dsh_home}.get(callback_agent or "", lambda: None)()
+                  "pi": pi_channel.profile_dir, "dsh": layout.dsh_home,
+                  "agy": layout.agy_config_home}.get(callback_agent or "", lambda: None)()
     if skill_home is not None and not (skill_home / "skills" / "harness-reins" / "SKILL.md").is_file():
         issues.append({"code": "skill_missing", "action": "Install the bundled Reins skill for the selected Agent so it can inspect, acknowledge and continue callbacks."})
 
     repair = worker_command("setup", "--queue-dir", str(root), "--backend", choice,
                             "--service", "auto")
-    if callback_agent in {"codex", "claude", "pi", "dsh"}:
+    if callback_agent in {"codex", "claude", "pi", "dsh", "agy"}:
         repair.extend(["--skill-target", callback_agent])
     repair.extend(["--keep-skill", "--force", "--now"])
     if service_unit is not None and service_unit["allows_privilege_escalation"]:

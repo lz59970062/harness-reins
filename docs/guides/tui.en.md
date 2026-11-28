@@ -33,8 +33,8 @@ The Reins panel on the left has four tabs:
 - **Goals**: plans and progress.
 - **Messages**: messages between sessions.
 
-The panel opens the panes on the right: a session pane runs `claude attach`, `codex resume --remote` or `reins pi`
-(see [Codex, Pi and DeepSeek Harness](#codex-pi-and-deepseek-harness)), a log pane runs `reins log`. A session
+The panel opens the panes on the right: a session pane runs `claude attach`, `codex resume --remote`, `reins pi` or
+`agy --resume` (see [Codex, Pi, Antigravity and DeepSeek Harness](#codex-pi-antigravity-and-deepseek-harness)), a log pane runs `reins log`. A session
 pane's title reads `<harness> <id> @address title`, such as `claude 08e8651e @lab motion plots`, the same names as
 the panel; the harness's own terminal title does not replace it, and a pane you rename gets its name back within 3
 seconds, since the panel finds a session's pane by that name. The panel
@@ -162,7 +162,7 @@ are already there.
 
 To stop a session, select it in the panel and press `s`: its process stops and the conversation stays.
 
-## Codex, Pi and DeepSeek Harness
+## Codex, Pi, Antigravity and DeepSeek Harness
 
 Every harness opens in its own interface, and Reins keeps the same promise for each: one process per session.
 
@@ -171,6 +171,7 @@ Every harness opens in its own interface, and Reins keeps the same promise for e
 | Claude Code | `claude agents` | `claude attach`, a background session | It keeps running | The Reins hook in the session |
 | Codex | Codex's app-server daemon | `codex resume --remote`, the thread on the daemon | It stays on the daemon, which unloads it once idle | A new turn in that thread on the daemon |
 | Pi | Pi's session files | `reins pi`, Pi with the Reins extension and writer lease | Pi ends with its pane | The Reins Pi extension |
+| Antigravity | agy's conversation summaries | `agy --resume`, the conversation's one process | agy ends with its pane | Its live `reins wait` |
 | DeepSeek Harness | The Reins address book and tasks | Nothing: it has no terminal interface | | Its live `reins wait` |
 
 - **Codex** sessions open through Codex's shared app-server daemon (`codex app-server daemon`), so the Reins pane,
@@ -181,6 +182,10 @@ Every harness opens in its own interface, and Reins keeps the same promise for e
   folders, so the agent can ACK without asking; the thread keeps that access while it is loaded.
 - **Pi** has no daemon: its session lives in its pane. Pi sessions opened elsewhere with the Reins extension show as
   open in a terminal; one opened without it cannot be seen.
+- **Antigravity**, like Pi, lives in its pane. A conversation another agy process has open shows as open in a
+  terminal, and one Reins is resuming headless shows as headless; neither is opened again. agy creates a new
+  conversation on its first prompt, and the pane then takes its name; name its address from the menu. Its menu has
+  no Stop and no Fork.
 - **DeepSeek Harness** sessions that have a Reins name or started tasks are listed so you can message them, copy
   their address and follow their tasks. Open them in DeepSeek Harness's web or desktop app.
 

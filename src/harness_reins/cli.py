@@ -330,14 +330,15 @@ def main() -> int:
         if service == "systemd":
             add_privilege_escalation_flag(service_parser)
 
-    install_parser = sub.add_parser("install-skill", help="Install the bundled skill for Codex, Claude Code, Pi and/or DeepSeek Harness")
+    install_parser = sub.add_parser("install-skill", help="Install the bundled skill for Codex, Claude Code, Pi, DeepSeek Harness and/or Antigravity")
     install_parser.add_argument("--path", help="Skills directory to install into (overrides --target)")
     install_parser.add_argument(
         "--target",
         choices=skill_install.SKILL_TARGETS,
         default="both",
         help="Agent home to install into (default: both — ${CODEX_HOME:-~/.codex}/skills and ${CLAUDE_CONFIG_DIR:-~/.claude}/skills; "
-             "pi — ${PI_CODING_AGENT_DIR:-~/.pi/agent}/skills; dsh — ${DSH_HOME:-~/.dsh}/skills; all — the four)",
+             "pi — ${PI_CODING_AGENT_DIR:-~/.pi/agent}/skills; dsh — ${DSH_HOME:-~/.dsh}/skills; "
+             "agy — ~/.gemini/config/skills; all — every one)",
     )
     install_parser.add_argument("--force", action="store_true", help="Overwrite an existing harness-reins skill")
 
@@ -408,10 +409,11 @@ def main() -> int:
     setup_parser.add_argument("--no-claude-hook", action="store_true",
                               help="Do not add the hook that delivers into open Claude Code windows to its user settings")
     setup_parser.add_argument("--with-dsh", action="store_true", help="Also install the DeepSeek Harness skill and record its launcher")
+    setup_parser.add_argument("--with-agy", action="store_true", help="Also install the Antigravity CLI (agy) skill")
     setup_parser.add_argument(
         "--skill-target",
         choices=skill_install.SKILL_TARGETS,
-        help="Agent home to install the skill into (default: both; all with --with-pi-extension or --with-dsh)",
+        help="Agent home to install the skill into (default: both; all with --with-pi-extension, --with-dsh or --with-agy)",
     )
     setup_parser.add_argument("--name", default="harness-reins", help="Service name / LaunchAgent label")
     setup_parser.add_argument("--queue-dir", help="Wakeup queue directory")

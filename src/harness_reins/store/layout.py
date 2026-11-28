@@ -93,6 +93,11 @@ def claude_home() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude")).expanduser()
 
 
+def agy_config_home() -> Path:
+    """The Antigravity CLI's global customization root; its ``skills`` child is the user skill root."""
+    return Path("~/.gemini/config").expanduser()
+
+
 def dsh_home() -> Path:
     """DeepSeek Harness's config root; its ``skills`` child is the user skill root."""
     return Path(os.environ.get("DSH_HOME", "~/.dsh")).expanduser()

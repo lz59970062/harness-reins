@@ -378,6 +378,11 @@ def build_acknowledgement_text(command: str, agent: str = "codex", callback_mode
             "This callback is delivered to the live DeepSeek Harness session that ran `reins wait`; "
             "DSH has no headless resume, so only that live session can receive it."
         )
+    elif agent == "agy":
+        delivery_note = (
+            "This callback reaches the Antigravity conversation through its `reins wait` while a window has it "
+            "open, and otherwise through a headless `agy --resume` that adds the callback queue as a workspace."
+        )
     else:
         delivery_note = (
             "This resume is configured to make the callback queue writable and to use "
@@ -471,9 +476,10 @@ def submit_managed_run(args: argparse.Namespace) -> int:
         )
     else:
         node = None
+    # The task runs with the submitting shell's environment, written to disk for its worker: no credentials.
     environment = {
         name: value
-        for name, value in os.environ.items()
+        for name, value in AGENTS.without_secrets(os.environ).items()
         if name not in ("INVOCATION_ID", "JOURNAL_STREAM", "SYSTEMD_EXEC_PID", "STY", "WINDOW",
                         macos_platform.OWNER_ENV, "XPC_SERVICE_NAME", "XPC_FLAGS")
     }
@@ -609,6 +615,13 @@ def submit_managed_run(args: argparse.Namespace) -> int:
             if live_wait and grace > 0:
                 print(f"reins: start it now: the callback is held for this session's waiter for {grace:g}s, "
                       "then resumed headless if the window has closed", file=sys.stderr)
+    if task["agent"] == "agy" and target.get("kind") == "session":
+        wait = reins_runtime.control_command("wait", "--queue-dir", str(root), "--task", task_id)
+        print(f"reins: Antigravity live callback: run as a background command (do not wait for it): {wait}",
+              file=sys.stderr)
+        print("reins: start it now and end your turn: Antigravity wakes you when it exits. Reins never resumes "
+              "this conversation while a window has it open; once none does, it resumes it headless",
+              file=sys.stderr)
     if task["agent"] == "dsh" and target.get("kind") == "session":
         wait = reins_runtime.control_command("wait", "--queue-dir", str(root), "--task", task_id)
         print(f"reins: DeepSeek Harness live callback: run as a background job (run_in_background: true): {wait}",

@@ -167,11 +167,12 @@ Long Task Callback became Agent Traffic Control and then **Harness Reins**.
 | Feature | What you get |
 | --- | --- |
 | **No polling** | The worker and daemon wait for you. No model turns are spent while the task runs. |
-| **Same conversation** | Callbacks are bound to the original Codex (`CODEX_THREAD_ID`), Claude Code (`CLAUDE_CODE_SESSION_ID`), Pi (`PI_SESSION_FILE`) or DeepSeek Harness (`DSH_SESSION_ID`) session — never a guess. |
+| **Same conversation** | Callbacks are bound to the original Codex (`CODEX_THREAD_ID`), Claude Code (`CLAUDE_CODE_SESSION_ID`), Pi (`PI_SESSION_FILE`) DeepSeek Harness (`DSH_SESSION_ID`) or Antigravity (`ANTIGRAVITY_CONVERSATION_ID`) session — never a guess. |
 | **Survives the agent** | Tasks run under systemd, launchd or Task Scheduler — not as a child of the agent turn or even the daemon. |
 | **Claude Code native** | In Claude Code (CLI or desktop app), a background `reins wait` wakes the conversation you're looking at — no headless side session. → [Claude Code guide](docs/claude-code.md) |
 | **Pi native** | Pi's extension steers the result into the running Pi session — even mid-run, before its next model call. → [Pi guide](docs/pi.md) |
 | **DeepSeek Harness native** | A background `reins wait` runs as a DSH job; its completion notification wakes the same conversation. DSH has no headless fallback, so delivery is always the original live session. → [DSH guide](docs/dsh.md) |
+| **Antigravity native** | In an open `agy` window, a background `reins wait` wakes the same conversation, even when it sits idle; once no window has it open, Reins resumes it with `agy --resume`, never beside an open window. → [Antigravity guide](docs/integrations/agy.en.md) |
 | **Any agent, any harness** | `reins agent codex\|claude\|pi\|dsh` starts a fresh agent as a durable job from any of the four. It writes a structured report, shown to you as a claim, never as proof. |
 | **Sessions talk to each other** | Name a Codex, Claude Code, Pi or DSH session, then `reins send` to it from any other. Messages survive a busy or closed session, never start a process unless you ask, and agents that talk in circles get stopped. → [Guide](docs/guides/messages.en.md) |
 | **Every session in one terminal** | `reins tui` lists the Claude Code, Codex and Pi sessions on the machine with the tasks, goals and messages they started, and opens any of them in a pane in its own interface, without a second copy of the conversation. → [Guide](docs/guides/tui.en.md) |
@@ -191,6 +192,7 @@ npm install -g harness-reins
 reins setup --force --enable --now
 #    Using Pi too? Add --with-pi-extension (Pi skill + live-callback extension)
 #    Using DeepSeek Harness too? Add --with-dsh (skill + launcher discovery)
+#    Using Antigravity (agy) too? Add --with-agy (skill)
 
 # 3. Check that everything is healthy
 reins --version

@@ -21,7 +21,7 @@ from ...core import sessions
 @dataclass(frozen=True)
 class SessionRow:
     session: str             # Full session id; a Pi session is its absolute session file.
-    agent: str               # "claude", "codex", "pi" or "dsh".
+    agent: str               # "claude", "codex", "pi", "dsh" or "agy".
     state: str               # One of core.sessions.STATES.
     title: str               # The harness's own name for it, else a short id.
     cwd: Optional[str] = None
@@ -50,7 +50,7 @@ def short_id(session: str) -> str:
 
 # A Reins address: lowercase letters, digits, '-' or '_', up to 32 characters (`reins session register`).
 NAME_LIMIT = 32
-AGENT_TITLES = {"claude": "Claude Code", "codex": "Codex", "pi": "Pi", "dsh": "DeepSeek Harness"}
+AGENT_TITLES = {"claude": "Claude Code", "codex": "Codex", "pi": "Pi", "dsh": "DeepSeek Harness", "agy": "Antigravity"}
 
 
 def _slug(text: str) -> str:

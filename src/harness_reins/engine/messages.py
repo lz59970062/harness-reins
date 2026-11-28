@@ -20,6 +20,7 @@ from ..core import capabilities, envelope, ids, messages as rules, records, resu
 from ..harness import get_agent
 from ..harness.base import (DEFAULT_APPROVALS_REVIEWER, DEFAULT_APPROVAL_POLICY, DEFAULT_CLAUDE_PERMISSION_MODE,
                             DEFAULT_SANDBOX_MODE)
+from ..harness.agy import session as agy_session
 from ..harness.claude import session as claude_session
 from ..harness.claude.adapter import CLAUDE_PERMISSION_MODE_ENV
 from ..harness.pi import channel as pi_channel
@@ -138,6 +139,8 @@ def arrival(record: Mapping[str, object]) -> str:
             return "live"
         if _live_only(str(harness)):
             return "inbox"
+        if harness == "agy":
+            return "window" if agy_session.window_open(session, os.environ) else "resume"
         return "window" if claude_session.open_window(session, os.environ) is not None else "resume"
     return "live" if pi_channel.live_mailbox_open(probe) else "resume" if _managed_pi(record) else "inbox"
 
@@ -280,7 +283,7 @@ def _default_wake(target: Mapping[str, object]) -> str:
     nothing tells an open thread from a closed one, so a resume could be a second writer.
     """
     harness = str(target["harness"])
-    if harness == "claude" or (harness == "pi" and _managed_pi(target)):
+    if harness == "claude" or (harness == "agy" and not _live_only(harness)) or (harness == "pi" and _managed_pi(target)):
         return "resume"
     return "never"
 
@@ -301,7 +304,7 @@ def _callback_mode(harness: str, wake: str) -> str:
     """
     if wake == "never" and harness == "codex":
         return "codex-queue"
-    if wake == "never" and harness == "claude":
+    if wake == "never" and harness in ("claude", "agy"):
         return "manual"
     return "cli"
 

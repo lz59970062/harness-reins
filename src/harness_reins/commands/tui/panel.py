@@ -69,7 +69,7 @@ AGENT_NAMES = AGENT_TITLES
 # Harnesses a new session can be named in at once; a Codex thread exists only after its first message.
 NAMED_AT_START = ("claude", "pi")
 COPY_ID_LABELS = {"claude": "Claude session id", "codex": "Codex thread id", "pi": "Pi session file",
-                  "dsh": "DeepSeek Harness session id"}
+                  "dsh": "DeepSeek Harness session id", "agy": "Antigravity conversation id"}
 
 
 def _where(row: SessionRow) -> str:
@@ -177,8 +177,9 @@ def _folder_menu() -> List[Tuple[str, str]]:
 def _session_menu(row: SessionRow) -> List[Tuple[str, str]]:
     """What a right click (or o) on a session offers, in the order shown; it depends on the harness.
 
-    Only Claude sessions are stopped from here: Codex unloads idle threads itself and a Pi session ends with
-    its pane. DeepSeek Harness sessions have no terminal window to open. Pi has no fork Reins can start.
+    Only Claude sessions are stopped from here: Codex unloads idle threads itself, and a Pi session or an
+    Antigravity conversation ends with its pane. DeepSeek Harness sessions have no terminal window to open.
+    Pi and Antigravity have no fork Reins can start.
     """
     running = row.state in (sessions.ATTACHED, sessions.RUNNING)
     elsewhere = row.state in (sessions.FOREIGN, sessions.HEADLESS)
@@ -202,7 +203,7 @@ def _session_menu(row: SessionRow) -> List[Tuple[str, str]]:
         options.append(("stop", "Stop..."))
     if row.archived:
         options.append(("unarchive", "Unarchive"))
-    elif not elsewhere and not (row.agent == "pi" and running):
+    elif not elsewhere and not (row.agent in ("pi", "agy") and running):
         options.append(("archive", "Stop and archive..." if stops else "Archive"))
     return options
 
@@ -1001,6 +1002,9 @@ class ReinsPanel(App[None]):
             return
         if row.agent == "pi":
             self._show_status("a Pi session ends with its pane: close the pane with Alt+x")
+            return
+        if row.agent == "agy":
+            self._show_status("an Antigravity conversation ends with its pane: close the pane with Alt+x")
             return
         if row.agent == "dsh":
             self._show_status("stop a DeepSeek Harness session in its own app")

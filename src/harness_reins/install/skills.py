@@ -22,7 +22,7 @@ from ..system import shell
 
 SHELL_HOOK_BEGIN = "# >>> harness-reins pending status >>>"
 SHELL_HOOK_END = "# <<< harness-reins pending status <<<"
-SKILL_TARGETS = ("codex", "claude", "pi", "dsh", "both", "all")
+SKILL_TARGETS = ("codex", "claude", "pi", "dsh", "agy", "both", "all")
 CLAUDE_HOOK_COMMAND = claude_session.HOOK_COMMAND
 CLAUDE_HOOK_EVENTS = ("SessionStart", "Stop")
 CLAUDE_HOOK_TIMEOUT_SECONDS = claude_session.HOOK_TIMEOUT_SECONDS
@@ -132,9 +132,13 @@ def install_skill(args: argparse.Namespace) -> int:
     if target_name in ("dsh", "all"):
         status |= install_one(layout.dsh_home() / "skills" / "harness-reins", include_codex_plugin=False,
                               force=args.force, keep_existing=keep, focused="dsh")
+    if target_name in ("agy", "all"):
+        status |= install_one(layout.agy_config_home() / "skills" / "harness-reins", include_codex_plugin=False,
+                              force=args.force, keep_existing=keep, focused="agy")
     if target_name == "both" and getattr(args, "refresh_installed", False) and args.force and not keep:
-        # Setup installs for Pi and DSH only when asked, but must not leave a copy from an earlier version behind.
-        for agent, home in (("pi", pi_channel.profile_dir()), ("dsh", layout.dsh_home())):
+        # Setup installs for Pi, DSH and Antigravity only when asked, but must not leave a copy from an earlier
+        # version behind.
+        for agent, home in (("pi", pi_channel.profile_dir()), ("dsh", layout.dsh_home()), ("agy", layout.agy_config_home())):
             target = home / "skills" / "harness-reins"
             if (target / "SKILL.md").is_file():
                 status |= install_one(target, include_codex_plugin=False, force=True, focused=agent)

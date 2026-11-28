@@ -6,6 +6,7 @@ noninteractive result contract. Callback transports additionally implement
 an agent a callback target.
 """
 
+from .agy.adapter import AgyAdapter
 from .base import AgentAdapter, ChildAgentAdapter, ChildOptions
 from .claude.adapter import ClaudeAdapter
 from .codex.adapter import CodexAdapter
@@ -13,7 +14,7 @@ from .dsh.adapter import DshAdapter
 from .pi.adapter import PiAdapter
 from .registry import AgentRegistry
 
-AGENTS = AgentRegistry((CodexAdapter(), ClaudeAdapter(), PiAdapter(), DshAdapter()))
+AGENTS = AgentRegistry((CodexAdapter(), ClaudeAdapter(), PiAdapter(), DshAdapter(), AgyAdapter()))
 AGENT_NAMES = AGENTS.names
 CHILD_AGENT_NAMES = AGENTS.child_names
 

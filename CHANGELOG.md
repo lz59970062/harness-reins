@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Google Antigravity CLI (`agy`) support. `reins run` in an Antigravity conversation binds it through
+  `ANTIGRAVITY_CONVERSATION_ID`. With a window open, a background `reins wait` wakes the same conversation, even
+  when it sits idle; once no agy process has the conversation open, the daemon resumes it with `agy --resume -p`,
+  and it never resumes one beside an open window. `reins setup --with-agy` installs the skill in
+  `~/.gemini/config/skills`; `reins send` reaches Antigravity conversations too, and `reins tui` lists, opens and
+  starts them. A headless resume may ACK, reply and send, never start new work, and a conversation agy no longer
+  has is never resumed (agy would start a new one). Antigravity does not run as a child agent yet, and on Windows
+  callbacks arrive only through `reins wait`.
+
 ## 0.14.6 — 2026-11-24
 
 - `reins tui` explains selecting and copying: a drag in a Claude Code, Codex, Pi or terminal pane is already copied

@@ -19,6 +19,9 @@ ARRIVAL_ADVICE = {
               "while `reins wait` runs in the background. Without any of them a message waits for the window and "
               "never forks it; once the window closes, it resumes the session headless.",
     "codex": "Messages reach this thread through the Codex queue, and wait there while it is closed.",
+    "agy": "Messages reach this open conversation while `reins wait` runs as a background command; start it now "
+           "and again after each one. Until then they wait for the window and never race it; once no window has "
+           "the conversation open, a message resumes it headless.",
     "dsh": "Messages reach this session while `reins wait` runs as a background job. "
            "Start it now and again after each one; until then they wait in `reins inbox`.",
     "pi": "Messages reach this session through the Reins Pi extension. While it is closed they wait for it to reopen, "

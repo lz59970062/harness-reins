@@ -33,7 +33,7 @@ class FixtureAdapter:
 
 class AgentRegistryTests(unittest.TestCase):
     def test_current_registry_rejects_unimplemented_agents_without_fallback(self) -> None:
-        self.assertEqual(set(AGENTS.names), {"codex", "claude", "pi", "dsh"})
+        self.assertEqual(set(AGENTS.names), {"codex", "claude", "pi", "dsh", "agy"})
         for name in ("unknown", "", "Codex"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 get_agent(name)

@@ -26,6 +26,8 @@ from ...core import sessions
 from ...core.messages import Refused, validate_name
 from ...core.sessions import SessionView
 from ...engine import claude_background
+from ...harness.agy import session as agy_session
+from ...harness.agy import sessions as agy_sessions
 from ...harness.claude import agents as claude_agents
 from ...harness.claude import session as claude_session
 from ...harness.codex import app_server as codex_app_server
@@ -228,12 +230,14 @@ class Zellij:
 
 
 # Harnesses whose sessions open in a Reins pane. DeepSeek Harness has no terminal interface.
-PANE_AGENTS = ("claude", "codex", "pi")
+PANE_AGENTS = ("claude", "codex", "pi", "agy")
 NEW_AGENTS = PANE_AGENTS
 # Harnesses whose new sessions can take a Reins name at once (a Codex thread exists after its first message).
 NAMED_AT_START = ("claude", "pi")
+# How long a collaborator's agy pane is given to create its conversation (it starts on its brief at once).
+AGY_LIST_SECONDS = 15.0
 CODEX_LIST_SECONDS = 30.0  # How long a collaborator waits for Codex to list its new thread.
-_PANE_NAME = re.compile(r"(claude|codex|pi) ([0-9a-f]{8})\b")
+_PANE_NAME = re.compile(r"(claude|codex|pi|agy) ([0-9a-f]{8})\b")
 CODEX_NEW_PREFIX = "codex new "
 DSH_NO_WINDOW = ("DeepSeek Harness has no terminal window; open this session in its web or desktop app. "
                  "Messages and logs work here.")
@@ -328,10 +332,10 @@ def attached_handles(panes: Sequence[Mapping[str, object]]) -> dict[tuple[str, s
 
 
 def mark_attached(view: SessionView, handles: Mapping[tuple[str, str], str]) -> SessionView:
-    """A session whose one process shows in a Reins pane. Pi has no daemon: its process is the pane's."""
+    """A session whose one process shows in a Reins pane. Pi and agy have no daemon: the process is the pane's."""
     if (view.agent, view.handle or "") not in handles:
         return view
-    if view.state == sessions.RUNNING or (view.agent == "pi" and view.state == sessions.FOREIGN):
+    if view.state == sessions.RUNNING or (view.agent in ("pi", "agy") and view.state == sessions.FOREIGN):
         return replace(view, state=sessions.ATTACHED)
     return view
 
@@ -434,6 +438,8 @@ class LiveBackend:
         self._remembered: dict[str, SessionView] = {}  # Sessions only Reins knows of (DeepSeek Harness).
         # New Codex windows whose thread is not listed yet (Codex lists it after its first turn): pane, cwd, when.
         self._codex_new: list[tuple[str, str, float]] = []
+        # New agy panes whose conversation agy creates on their first prompt: (pane, cwd, ids before it, since).
+        self._agy_new: list[tuple[str, str, frozenset[str], float]] = []
 
     # Reads.
 
@@ -474,8 +480,26 @@ class LiveBackend:
         except (OSError, ValueError):
             return []
 
+    def _agy_views(self) -> list[SessionView]:
+        try:
+            return [self._headless_agy(view) for view in agy_sessions.session_views(self.environment)]
+        except (OSError, ValueError):
+            return []
+
+    def _headless_agy(self, view: SessionView) -> SessionView:
+        """An agy conversation the daemon is resuming headless: its presence lock is held, and so is the
+        Reins target lock its delivery worker keeps for the whole turn. It must not be opened beside that."""
+        if view.state != sessions.FOREIGN:
+            return view
+        from ...engine import delivery as delivery_engine
+        request = {"agent": "agy", "target": {"kind": "session", "session": view.session}}
+        if delivery_engine.target_lock_is_held(request):
+            return replace(view, state=sessions.HEADLESS, host=sessions.HOST_HEADLESS)
+        return view
+
     def _views(self, panes: Optional[list] = None) -> list[SessionView]:
-        views = [*claude_agents.session_views(self.environment, run=self.run), *self._codex_views(), *self._pi_views()]
+        views = [*claude_agents.session_views(self.environment, run=self.run), *self._codex_views(), *self._pi_views(),
+                 *self._agy_views()]
         if panes is None:
             panes = self.zellij.panes() if self.zellij else []
         handles = attached_handles(panes)
@@ -517,8 +541,37 @@ class LiveBackend:
                 waiting.remove((pane, cwd, since))
         self._codex_new = waiting
 
+    def _adopt_agy_windows(self, panes: list) -> None:
+        """Name a new agy window after its conversation once agy has created it, on the first prompt.
+
+        Until then the pane keeps its `agy new` name; a conversation is taken only as the one new conversation
+        in that directory held open by a process, never guessed from the directory and time alone.
+        """
+        if not self._agy_new:
+            return
+        open_panes = {f"terminal_{pane.get('id')}": pane for pane in panes if not pane.get("exited")}
+        handles = attached_handles(panes)
+        waiting = []
+        for pane, cwd, before, since in self._agy_new:
+            if pane not in open_panes or self.now() - since >= 3600:
+                continue
+            conversation = agy_sessions.started_in(cwd, set(before), self.environment)
+            if conversation is None or ("agy", agy_sessions.handle(conversation)) in handles:
+                waiting.append((pane, cwd, before, since))
+                continue
+            name = pane_name(agy_sessions.handle(conversation), short_id(conversation), agent="agy")
+            if self.zellij is not None:
+                try:
+                    self.zellij.rename(pane, name)
+                except (RuntimeError, OSError):
+                    waiting.append((pane, cwd, before, since))
+                    continue
+            open_panes[pane]["title"] = name  # So this same pass already shows it as here; _name_panes completes it.
+        self._agy_new = waiting
+
     def sessions(self) -> Sequence[SessionRow]:
         panes = self.zellij.panes() if self.zellij else []
+        self._adopt_agy_windows(panes)
         live_views = self._views(panes)
         views = {view.session: view for view in live_views}
         tasks = self._task_records()
@@ -598,7 +651,7 @@ class LiveBackend:
     @staticmethod
     def _closed_view(agent: str, session: str, cwd: object, when: Optional[float]) -> SessionView:
         handle = (codex_threads.handle(session) if agent == "codex" else pi_sessions.handle(session) if agent == "pi"
-                  else None)
+                  else agy_sessions.handle(session) if agent == "agy" else None)
         return SessionView(agent=agent, session=session, state=sessions.CLOSED, handle=handle,
                            cwd=cwd if isinstance(cwd, str) else None, started_at=when)
 
@@ -627,6 +680,9 @@ class LiveBackend:
         if agent == "pi":
             view = pi_sessions.session_view(session, self.environment)
             return mark_attached(view, handles) if view is not None else None
+        if agent == "agy":
+            view = agy_sessions.session_view(session, self.environment)
+            return mark_attached(self._headless_agy(view), handles) if view is not None else None
         views = claude_agents.session_views(self.environment, run=self.run)
         view = next((view for view in views if view.session == session), None)
         if view is None:
@@ -758,6 +814,15 @@ class LiveBackend:
             return self._open_pane("pi", view.handle or pi_sessions.handle(session), title,
                                    lambda: pi_sessions.open_command(session, view.cwd or ""), direction, address,
                                    view.cwd)
+        if view.agent == "agy":
+            if agy_session.discover_executable(self.environment) is None:
+                return ActionResult(False, "Antigravity (agy) was not found on PATH (or set REINS_AGY_BIN)")
+            if not agy_session.conversation_exists(session, self.environment):
+                # agy would start a new conversation in its place.
+                return ActionResult(False, f"Antigravity has no conversation {short_id(session)} any more")
+            return self._open_pane("agy", view.handle or agy_sessions.handle(session), title,
+                                   lambda: agy_sessions.open_command(session, self.environment), direction, address,
+                                   view.cwd)
         try:
             if view.state == sessions.CLOSED:
                 if not view.cwd:
@@ -781,6 +846,8 @@ class LiveBackend:
             found.append("codex")
         if self.environment.get("REINS_PI_BIN") or shutil.which("pi", path=self.environment.get("PATH")):
             found.append("pi")
+        if agy_session.discover_executable(self.environment) is not None:
+            found.append("agy")
         return found
 
     def new_session(self, agent: str, cwd: str, name: str = "") -> ActionResult:
@@ -802,6 +869,8 @@ class LiveBackend:
         try:
             if agent == "codex":
                 return self._new_codex(directory)
+            if agent == "agy":
+                return self._new_agy(directory, f"new in {os.path.basename(directory) or directory}")
             if agent == "pi":
                 session = pi_channel.create_session(directory)
                 if name:
@@ -926,8 +995,8 @@ class LiveBackend:
                            "--wake", "never")
         if not told.ok:
             return ActionResult(False, f"started @{mate}, but could not tell @{partner}: {told.message}")
-        if view.agent == "dsh":
-            # Nothing here can wake a DeepSeek Harness session: it reads messages while its `reins wait` runs.
+        if view.agent in ("dsh", "agy"):
+            # The notice starts nothing: these sessions read messages while their `reins wait` runs.
             return ActionResult(True, f"started @{mate}; @{partner} reads how to reach it while its `reins wait` runs")
         return ActionResult(True, f"started @{mate} to work with @{partner}, and told @{partner} how to reach it")
 
@@ -949,6 +1018,8 @@ class LiveBackend:
                                    mate, directory)
         if agent == "codex":
             return self._start_codex_mate(directory, mate, prompt, direction)
+        if agent == "agy":
+            return self._start_agy_mate(directory, mate, title, prompt, direction)
         before = self._claude_ids()
         if before is None:
             return ActionResult(False, "could not list Claude sessions, so the new one could not be told apart "
@@ -997,6 +1068,47 @@ class LiveBackend:
         named = self._register(mate, "codex", thread, directory)
         if not named.ok:
             return ActionResult(False, f"could not name the new Codex thread {mate}: {named.message}")
+        return ActionResult(True, f"opened @{mate}")
+
+    def _new_agy(self, directory: str, title: str) -> ActionResult:
+        """A new agy conversation in a pane. agy creates the conversation on its first prompt, so the pane is
+        named after it later (_adopt_agy_windows), and the session is named from its menu, as for Codex."""
+        if self.zellij is None:
+            return ActionResult(False, "not inside the Reins Zellij session")
+        if agy_session.discover_executable(self.environment) is None:
+            return ActionResult(False, "Antigravity (agy) was not found on PATH (or set REINS_AGY_BIN)")
+        before = frozenset(agy_sessions.conversation_ids(self.environment))
+        since = self.now()
+        pane = place(self.zellij, self._pane(agy_sessions.new_command(self.environment)),
+                     name=f"agy new {os.path.basename(directory) or directory}", close_on_exit=True, cwd=directory,
+                     keep_name=True)
+        if pane.startswith("terminal_"):
+            self._agy_new.append((pane, directory, before, since))
+        return ActionResult(True, f"opened {title}")
+
+    def _start_agy_mate(self, directory: str, mate: str, title: str, prompt: str, direction: str) -> ActionResult:
+        """A collaborator in agy, started on its brief, so agy creates its conversation at once; it is found
+        as the one new conversation in this directory held open by a process, then named ``mate``."""
+        if self.zellij is None:
+            return ActionResult(False, "not inside the Reins Zellij session")
+        if agy_session.discover_executable(self.environment) is None:
+            return ActionResult(False, "Antigravity (agy) was not found on PATH (or set REINS_AGY_BIN)")
+        before = agy_sessions.conversation_ids(self.environment)
+        pane = place(self.zellij, self._pane(agy_sessions.new_command(self.environment, prompt)),
+                     name=f"agy new {mate}", close_on_exit=True, direction=direction, cwd=directory, keep_name=True)
+        conversation = self._wait_for(lambda: agy_sessions.started_in(directory, before, self.environment),
+                                      AGY_LIST_SECONDS)
+        if conversation is None:
+            return ActionResult(False, f"Antigravity has not shown the new conversation yet; when it does, name it "
+                                       f"@{mate} from its menu so its partner can reach it")
+        named = self._register(mate, "agy", conversation, directory)
+        if not named.ok:
+            return ActionResult(False, f"could not name the new Antigravity conversation {mate}: {named.message}")
+        if pane.startswith("terminal_"):
+            try:  # The panel finds a session's pane by this name; without it Enter would call the pane foreign.
+                self.zellij.rename(pane, pane_name(agy_sessions.handle(conversation), title, mate, "agy"))
+            except (RuntimeError, OSError):
+                pass
         return ActionResult(True, f"opened @{mate}")
 
     def _wait_for(self, found: Callable[[], Optional[str]], seconds: float = 10.0) -> Optional[str]:

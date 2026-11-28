@@ -163,11 +163,12 @@ class SkillInstallBusyTests(unittest.TestCase):
                 mock.patch.object(skill_install.layout, "codex_home", lambda: Path(tmp) / "codex"), \
                 mock.patch.object(skill_install.layout, "claude_home", lambda: Path(tmp) / "claude"), \
                 mock.patch.object(skill_install.layout, "dsh_home", lambda: Path(tmp) / "dsh"), \
+                mock.patch.object(skill_install.layout, "agy_config_home", lambda: Path(tmp) / "agy"), \
                 mock.patch.object(skill_install.pi_channel, "profile_dir", lambda: Path(tmp) / "pi"), \
                 contextlib.redirect_stderr(err):
             self.assertEqual(skill_install.install_skill(args), 1)
-        self.assertEqual(waits, [None, 0.0, 0.0, 0.0])  # Only the first target waited.
-        self.assertEqual(err.getvalue().count("reins: error: could not install the skill"), 4)
+        self.assertEqual(waits, [None, 0.0, 0.0, 0.0, 0.0])  # Only the first target waited.
+        self.assertEqual(err.getvalue().count("reins: error: could not install the skill"), 5)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,8 @@ class AgentRegistry:
         if default not in self._adapters:
             raise ValueError(f"default agent {default!r} is not registered")
         self.default = default
-        workers = [*adapters, *children]
+        # A callback parent is a child worker too unless it says it cannot run as one.
+        workers = [*(adapter for adapter in adapters if getattr(adapter, "runs_as_child", True)), *children]
         self._children = {adapter.name: adapter for adapter in workers}
         if len(self._children) != len(workers):
             raise ValueError("duplicate child agent adapter name")
@@ -54,9 +55,16 @@ class AgentRegistry:
         candidates = sorted(self._adapters.values(), key=lambda item: item.detection_priority, reverse=True)
         return next((adapter.name for adapter in candidates if adapter.matches_environment(environment)), self.default)
 
+    def without_secrets(self, environment: Mapping[str, str]) -> dict[str, str]:
+        """``environment`` minus every credential a harness puts in its sessions' shells."""
+        secret = {name for adapter in (*self._adapters.values(), *self._children.values())
+                  for name in getattr(adapter, "secret_env_names", ())}
+        return {name: value for name, value in environment.items() if name not in secret}
+
     def child_environment(self, environment: Mapping[str, str]) -> dict[str, str]:
         child = dict(environment)
-        for adapter in self._children.values():
+        # Every adapter's markers, children or not: a parent's session values never pass on.
+        for adapter in (*self._adapters.values(), *self._children.values()):
             for name in adapter.parent_env_names:
                 child.pop(name, None)
         return child

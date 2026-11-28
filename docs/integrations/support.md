@@ -13,9 +13,10 @@ Harness 指运行 Agent 的外层程序：它管理会话、调用模型、执�
 | Claude 桌面应用的 Code 会话 | 子任务通过已登录的独立 Claude CLI 执行 | 后台 Bash 运行 `reins wait` | 0.7.1 预览；macOS 本地会话、Linux SSH 会话已验证 |
 | Pi | `reins agent pi` | 扩展向当前进程发送 steer 消息；`reins pi` 增加关闭后的会话恢复 | 0.7.1 预览；Linux、Pi 0.87.1 有验证记录，macOS/Windows 待验证 |
 | DeepSeek Harness（DSH） | `reins agent dsh` | 后台 `reins wait` 作为 DSH 作业运行，作业完成通知唤醒同一会话；DSH 不支持 headless 恢复 | 真实会话的提交、作业通知和 ACK 已在 macOS 桌面端和 Linux（`dsh` 0.2.1-rc.5，ACP 和 Web 界面）验证；Windows 尚未对接真实 DSH 验证 |
+| Antigravity CLI（`agy`） | 暂不支持 | 窗口开着时后台 `reins wait` 唤醒同一对话；没有进程打开对话时，守护进程用 `agy --resume -p` 恢复 | Linux、`agy` 1.5.18 实测交互窗口空闲唤醒、`-p` 会话和 headless 恢复；macOS 待验证；Windows 只通过 `reins wait` 投递 |
 | Codex Desktop | 子任务使用 Codex CLI | 普通启动即可，`auto` 选择原生 `codex queue` | 已在 macOS Desktop 和 Linux 上的真实 Codex 验证；Windows Desktop 待验证 |
 
-子 Agent 与接收方可以组合。例如在 Codex 中执行 `reins agent claude`，Claude 执行任务，结果回到 Codex。操作步骤见 [Codex](codex.md)、[Claude](claude.md)、[Pi](pi.md)和 [Desktop](desktop.md)。
+子 Agent 与接收方可以组合。例如在 Codex 中执行 `reins agent claude`，Claude 执行任务，结果回到 Codex。操作步骤见 [Codex](codex.md)、[Claude](claude.md)、[Pi](pi.md)、[Antigravity](agy.md)和 [Desktop](desktop.md)。
 
 Claude 还提供 `reins claude` channel 研究预览入口，已记录 Linux 上 Claude Code 2.1.296 的实时接收与 ACK。配置步骤见 [channel 说明](https://github.com/lz59970062/harness-reins/blob/main/docs/claude-code.md#reins-channel-research-preview)。
 
@@ -26,7 +27,7 @@ Claude 还提供 `reins claude` channel 研究预览入口，已记录 Linux 上
 | Gemini CLI、OpenCode、Aider、Goose | 可将已配置的命令行任务放在 `reins run -- <命令>` 后执行，结果交回现有接收方 | 实现各自的子 Agent 参数、会话识别和回调传输；逐项进行端到端验证 |
 | LangGraph、AutoGen、CrewAI、自定义 Agent SDK 程序 | 将工作流保存为脚本，通过 `reins run` 执行，或在已有任务末尾调用 `reins done` | 为接收回调的会话实现适配器与唤醒通道 |
 
-这些框架目前处于通用命令接入层，仓库原生适配器注册表包含 `codex`、`claude`、`pi`、`dsh`。开始接入时，先让脚本打印一行结果并正常退出，再检查日志、回调和 ACK；随后接入实际工作流。脚本示例见[典型使用场景](../guides/use-cases.md#运行自定义-agent-工作流)。
+这些框架目前处于通用命令接入层，仓库原生适配器注册表包含 `codex`、`claude`、`pi`、`dsh`、`agy`。开始接入时，先让脚本打印一行结果并正常退出，再检查日志、回调和 ACK；随后接入实际工作流。脚本示例见[典型使用场景](../guides/use-cases.md#运行自定义-agent-工作流)。
 
 ## 执行环境
 

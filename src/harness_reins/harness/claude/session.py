@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import NamedTuple, Optional
 
 from .adapter import CLAUDE_BIN_ENV, CLAUDE_THREAD_ID_ENV as SESSION_ENV
+from ..agy.adapter import AGY_CONVERSATION_ENV
 from ..dsh.adapter import DSH_SESSION_ID_ENV
 
 EXECPATH_ENV = "CLAUDE_CODE_EXECPATH"
@@ -209,8 +210,8 @@ def resume_cwd(request: Mapping[str, object], environment: Mapping[str, str]) ->
 
 # Live delivery: `reins wait` ---------------------------------------------------
 #
-# Claude Code and DeepSeek Harness wake a live session when a background shell
-# or harness job exits. The session runs `reins wait` in the background; it
+# Claude Code, DeepSeek Harness and Antigravity wake a live session when a
+# background shell or harness job exits. The session runs `reins wait` in the background; it
 # prints the callback when one is queued and exits, which wakes that session.
 # While a waiter is alive the daemon leaves the session's callbacks alone. Only
 # live-wait agents are touched here; other agents keep the normal daemon route.
@@ -230,7 +231,8 @@ HOOK_TIMEOUT_SECONDS = 7 * 86400
 LIVE_WATCHER_DIR_NAME = "live-watchers"
 # Agents that wake a live session when a background ``reins wait`` exits. DSH
 # runs one through its own job system; a DSH callback has no headless fallback.
-LIVE_WAIT_AGENTS = ("claude", "dsh")
+LIVE_WAIT_AGENTS = ("claude", "dsh", "agy")
+LIVE_WAIT_TITLES = {"claude": "Claude Code", "dsh": "DeepSeek Harness", "agy": "Antigravity"}
 # A channel server (claude_channel.py) holds the same lock under this prefix.
 CHANNEL_WATCHER_PREFIX = "channel-"
 # So does the waiter Claude Code runs from the hook `reins setup` installs.
@@ -262,7 +264,7 @@ def live_wait_agent(agent: object) -> str | None:
 
 
 def session_environment_name(agent: str) -> str:
-    return DSH_SESSION_ID_ENV if agent == "dsh" else SESSION_ENV
+    return {"dsh": DSH_SESSION_ID_ENV, "agy": AGY_CONVERSATION_ENV}.get(agent, SESSION_ENV)
 
 
 def _target_of(request: Mapping[str, object]) -> tuple[str, str] | None:
@@ -746,6 +748,16 @@ def hook(args: argparse.Namespace,
         release_live_watcher(watcher)
 
 
+def _window_of(agent: str, session: str) -> object:
+    """Something true while the window this wait serves is open, for the agents where Reins can see it."""
+    if agent == "claude":
+        return open_window(session, os.environ)
+    if agent == "agy" and os.name != "nt":
+        from ..agy import session as agy_session
+        return True if agy_session.window_open(session, os.environ) else None
+    return None
+
+
 def wait(args: argparse.Namespace) -> int:
     """`reins wait`: print this live session's unacknowledged callback(s), waiting if none yet.
 
@@ -772,8 +784,8 @@ def wait(args: argparse.Namespace) -> int:
         elif args.session:
             agent = "claude"  # Legacy explicit session without a live marker.
     if agent not in LIVE_WAIT_AGENTS:
-        print("reins wait is only for Claude Code and DeepSeek Harness sessions: "
-              "CLAUDE_CODE_SESSION_ID or DSH_SESSION_ID is unset. "
+        print("reins wait is only for Claude Code, DeepSeek Harness and Antigravity sessions: "
+              "CLAUDE_CODE_SESSION_ID, DSH_SESSION_ID or ANTIGRAVITY_CONVERSATION_ID is unset. "
               "Other agents receive callbacks from the daemon and should not run it.", file=sys.stderr)
         return 2
     environment_name = session_environment_name(agent)
@@ -799,10 +811,10 @@ def wait(args: argparse.Namespace) -> int:
     deadline = time.monotonic() + args.timeout if args.timeout else None
     # A wait outlives its window when the shell running it is not ended with it, and its lock
     # would then keep the daemon away for good. One that saw its window leaves when it goes.
-    window = open_window(session, os.environ) if agent == "claude" else None
+    window = _window_of(agent, session)
     window_checked = time.monotonic()
     watcher = register_live_watcher(session, agent=agent)
-    print(f"reins wait: watching {'DeepSeek Harness' if agent == 'dsh' else 'Claude Code'} session {session}",
+    print(f"reins wait: watching {LIVE_WAIT_TITLES[agent]} session {session}",
           file=sys.stderr)
     held_since: float | None = None
     try:
@@ -815,9 +827,11 @@ def wait(args: argparse.Namespace) -> int:
                     expect_live_waiter(session, live_wait_grace(os.environ), agent=agent)
                 print("\n\n".join(prompts), flush=True)
                 return 0
-            if resumed and not args.task:
-                print("reins wait: this headless resume ends with its turn; the next message resumes the session "
-                      "again", file=sys.stderr)
+            # A headless agy run waits for its background commands before it exits, and the daemon
+            # resumes the conversation only once nothing has it open: a wait there would hold both.
+            if resumed and (not args.task or agent == "agy"):
+                print("reins wait: this headless resume ends with its turn; the next callback or message resumes "
+                      "the session again", file=sys.stderr)
                 return 0
             if args.task and _task_already_acknowledged(root, agent, session, args.task):
                 print(f"reins wait: task {args.task}'s callback is already acknowledged", file=sys.stderr)
@@ -837,9 +851,9 @@ def wait(args: argparse.Namespace) -> int:
                 return 3
             if window is not None and time.monotonic() - window_checked >= WAIT_WINDOW_CHECK_SECONDS:
                 window_checked = time.monotonic()
-                if open_window(session, os.environ) is None:
-                    print(f"reins wait: the Claude Code window for session {session} has closed; the daemon "
-                          "delivers its callbacks from here", file=sys.stderr)
+                if _window_of(agent, session) is None:
+                    print(f"reins wait: the {LIVE_WAIT_TITLES[agent]} window for session {session} has closed; "
+                          "the daemon delivers its callbacks from here", file=sys.stderr)
                     return 0
             time.sleep(max(0.05, args.poll_interval))
     except KeyboardInterrupt:

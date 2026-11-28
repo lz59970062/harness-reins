@@ -622,7 +622,8 @@ def setup(args: argparse.Namespace) -> int:
         keep_existing=bool(getattr(args, "keep_skill", False)),
         refresh_installed=True,
         target=getattr(args, "skill_target", None) or (
-            "all" if getattr(args, "with_pi_extension", False) or getattr(args, "with_dsh", False) else "both"
+            "all" if (getattr(args, "with_pi_extension", False) or getattr(args, "with_dsh", False)
+                      or getattr(args, "with_agy", False)) else "both"
         ),
         claude_hook=None if getattr(args, "no_claude_hook", False)
         else skill_install.claude_hook_command(args.exec_start, args.queue_dir),

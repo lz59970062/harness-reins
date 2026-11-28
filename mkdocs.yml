@@ -156,6 +156,7 @@ nav:
       - Claude Code: integrations/claude.md
       - Pi: integrations/pi.md
       - DeepSeek Harness: integrations/dsh.md
+      - Antigravity: integrations/agy.md
       - Codex Desktop: integrations/desktop.md
   - 参考:
       - 命令速查: reference/cli.md

@@ -15,11 +15,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from ..core import capabilities, records, targets
 from .. import __version__
+from ..harness.agy import adapter as agy_adapter
+from ..harness.agy import session as agy_session
 from ..harness.claude import session as claude_session
 from ..harness.claude import stream as claude_stream
 from ..harness.dsh import session as dsh_session
 from ..harness.pi import channel as pi_channel
-from ..harness import get_agent
+from ..harness import AGENTS, get_agent
 from ..harness.base import DEFAULT_CLAUDE_PERMISSION_MODE
 from ..harness.claude.adapter import CLAUDE_BIN_ENV, CLAUDE_PERMISSION_MODE_ENV
 from ..runtime import worker_command
@@ -91,6 +93,8 @@ def agent_environment(agent: str) -> dict[str, str]:
         return claude_session.with_resolved_executable(os.environ, which=shutil.which)
     if agent == "dsh":
         return dsh_session.with_resolved_executable(os.environ, which=shutil.which)
+    if agent == "agy":
+        return agy_session.with_resolved_executable(os.environ, which=shutil.which)
     return dict(os.environ)
 
 
@@ -105,7 +109,13 @@ def is_live_delivery(request: Mapping[str, object]) -> bool:
 
 def resume_command(request: dict[str, object]) -> list[str]:
     agent = dispatch.request_agent(request)
-    return get_agent(agent).resume_command(request, agent_environment(agent))
+    command = get_agent(agent).resume_command(request, agent_environment(agent))
+    if agent == "agy":
+        # Each way a prompt may name Reins: the canonical launcher, the one on PATH that prompts print, plain.
+        names = [install_record.launcher(), shutil.which("reins"), "reins"]
+        commands = [name for index, name in enumerate(names) if name and name not in names[:index]]
+        command[-2:-2] = ["--settings", agy_session.resume_settings(commands, os.environ)]
+    return command
 
 
 def resume_cwd(request: dict[str, object]) -> str:
@@ -460,10 +470,15 @@ def waits_for_open_window(root: Path, request: dict[str, object], request_id: st
     ``look_again`` checks for such a move now, for the last check before a resume starts.
     """
     target = request.get("target")
-    if (dispatch.request_agent(request) != "claude" or not isinstance(target, dict)
+    agent = dispatch.request_agent(request)
+    if (agent not in ("claude", "agy") or not isinstance(target, dict)
             or target.get("kind") != "session" or not isinstance(target.get("session"), str)):
         return False
     environment = resume_environment.merged(os.environ, resume_environment.load(root, request_id))
+    if agent == "agy":
+        # A second agy writer on an open conversation would race its window; the window's own
+        # `reins wait` delivers, and the daemon resumes once nothing has it open.
+        return agy_session.window_open(target["session"], environment)
     if look_again:
         claude_moves.sync(root, environment, wait=True)
     return (claude_session.open_window(target["session"], environment) is not None
@@ -889,9 +904,10 @@ def delivery_worker_main() -> int:
                 elif isinstance(session_environment, dict):
                     resume_env = resume_environment.merged(os.environ, session_environment)
                 else:
-                    resume_env = None
+                    # The daemon's own environment, which may come from an agent's shell: no credentials.
+                    resume_env = AGENTS.without_secrets(os.environ)
                 target_key = callback_target_key(request) if isinstance(request, dict) else None
-                if target_key is not None and dispatch.request_agent(request) == "claude":
+                if target_key is not None and dispatch.request_agent(request) in ("claude", "agy"):
                     # This worker holds the session's target lock for the whole resume;
                     # a `reins wait` inside the resume must still reach its own session.
                     resume_env = dict(os.environ if resume_env is None else resume_env)
@@ -899,6 +915,9 @@ def delivery_worker_main() -> int:
                 # A Codex thread whose original process is still running refuses a
                 # second writer before any turn starts; that means busy, not failed.
                 codex_resume = pi_delivery is None and isinstance(request, dict) and dispatch.request_agent(request) == "codex"
+                # agy reads the prompt as one stream-json message and answers in stream-json,
+                # which carries the model's output; only its exit status and stderr are kept.
+                agy_resume = pi_delivery is None and isinstance(request, dict) and dispatch.request_agent(request) == "agy"
 
                 def start_resume(extra: tuple[str, ...], stdout: object) -> subprocess.Popen[str]:
                     return subprocess.Popen(
@@ -917,7 +936,7 @@ def delivery_worker_main() -> int:
 
                 try:
                     stream_code = None
-                    if (dispatch.request_agent(request) == "claude"
+                    if (dispatch.request_agent(request) in ("claude", "agy")
                             and waits_for_open_window(Path(str(payload["queue_dir"])), request, str(request.get("id")), look_again=True)):
                         # A window opened on the session after this callback was selected,
                         # most often one closed and opened again; a resume now would fork it.
@@ -941,11 +960,20 @@ def delivery_worker_main() -> int:
                                 queue_handover_note(Path(str(payload["queue_dir"])), request, handed)
                     if stream_code is not None:
                         result = {"returncode": stream_code}
+                    elif agy_resume and not agy_session.conversation_exists(
+                            str(request["target"]["session"]), resume_env or os.environ):
+                        # agy would start a new conversation for an id it does not know and run the
+                        # callback there; a retry would start another each time.
+                        error = (f"Antigravity has no conversation {request['target']['session']} "
+                                 f"in {agy_session.app_data_dir(resume_env or os.environ)}; no resume was started")
+                        print(f"reins: callback blocked: {error}", file=sys.stderr, flush=True)
+                        result = {"returncode": 126, "delivery_state": "blocked", "error": error}
                     else:
-                        process = start_resume((), sys.stderr)
+                        process = start_resume((), subprocess.DEVNULL if agy_resume else sys.stderr)
                         if pi_delivery is not None:
                             pi_delivery.monitor_owner(process)
-                        _, errors = process.communicate(input=prompt, timeout=timeout)
+                        _, errors = process.communicate(input=agy_adapter.resume_input(prompt) if agy_resume else prompt,
+                                                        timeout=timeout)
                         if errors:
                             sys.stderr.write(errors)
                         result = {"returncode": int(process.returncode)}
